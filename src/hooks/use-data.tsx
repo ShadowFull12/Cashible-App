@@ -33,7 +33,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             ]);
         } catch (error: any) {
             if (error.code === 'permission-denied') {
-                toast.error("Permission Denied: Please check your Firestore security rules.");
+                toast.error("Permission Denied", {
+                    description: "The app could not refresh your data. Please check your Firestore security rules."
+                });
             } else {
                 toast.error("Failed to refresh data.");
             }

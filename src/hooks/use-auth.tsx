@@ -36,7 +36,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (error.code === 'unavailable' || error.message.includes('offline')) {
              toast.error("Could not connect to the database. Please check your internet connection and ensure Firestore is enabled in your Firebase project.");
         } else if (error.code === 'permission-denied') {
-            toast.error("Permission Denied: Please check your Firestore security rules in the Firebase console.");
+            toast.error("Permission Denied", {
+                description: "The app could not access user data. Please check your Firestore security rules in the Firebase Console."
+            });
         } else {
             toast.error("An error occurred while fetching your data.");
         }
