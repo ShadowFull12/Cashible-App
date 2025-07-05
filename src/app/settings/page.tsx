@@ -5,10 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Palette, Trash2, Loader2, KeyRound, User, Mail, Sun, Moon, Laptop, Upload, IndianRupee } from "lucide-react";
+import { Palette, Trash2, Loader2, KeyRound, Sun, Moon, Laptop, Upload, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { addCategory, deleteCategory } from "@/services/categoryService";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
@@ -33,6 +33,16 @@ const emailSchema = z.object({
   password: z.string().min(1, { message: "Password is required to change email." }),
 });
 
+const primaryColors = [
+    { name: 'Teal', value: '181 95% 45%' },
+    { name: 'Rose', value: '340 82% 52%' },
+    { name: 'Blue', value: '217 91% 60%' },
+    { name: 'Orange', value: '25 88% 55%' },
+    { name: 'Violet', value: '262 83% 58%' },
+    { name: 'Lime', value: '84 81% 44%' },
+];
+
+
 export default function SettingsPage() {
     const { user, userData, updateUserProfile, uploadAndSetProfileImage, updateUserPassword, updateUserEmail } = useAuth();
     const { categories, isLoading, refreshData } = useData();
@@ -44,7 +54,7 @@ export default function SettingsPage() {
     const [isSavingBudget, setIsSavingBudget] = useState(false);
 
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
-    const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.photoURL || null);
+    const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const avatarInputRef = useRef<HTMLInputElement>(null);
 
@@ -58,6 +68,14 @@ export default function SettingsPage() {
         defaultValues: { newEmail: user?.email || "", password: "" },
     });
     
+    useEffect(() => {
+        if (userData) {
+            setBudget(userData.budget || 0);
+            setAvatarPreview(userData.photoURL || user?.photoURL || null);
+        }
+    }, [userData, user?.photoURL]);
+
+
     const userInitial = user?.displayName ? user.displayName.charAt(0).toUpperCase() : (user?.email ? user.email.charAt(0).toUpperCase() : 'U');
 
     const handleAddCategory = async (e: React.FormEvent) => {
@@ -103,6 +121,16 @@ export default function SettingsPage() {
             setIsSavingBudget(false);
         }
     }
+
+    const handlePrimaryColorChange = async (colorValue: string) => {
+        try {
+            await updateUserProfile({ primaryColor: colorValue });
+            toast.success("Primary color updated!");
+        } catch (error) {
+            toast.error("Failed to update color.");
+        }
+    };
+
 
     const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files[0]) {
@@ -250,13 +278,32 @@ export default function SettingsPage() {
                         </CardHeader>
                         <CardContent className="space-y-6">
                            <div className="space-y-2">
-                            <Label>Theme</Label>
-                            <div className="grid grid-cols-3 gap-4">
-                               <Button variant={theme === 'light' ? 'default' : 'outline'} onClick={() => setTheme('light')}><Sun className="mr-2"/> Light</Button>
-                               <Button variant={theme === 'dark' ? 'default' : 'outline'} onClick={() => setTheme('dark')}><Moon className="mr-2"/> Dark</Button>
-                               <Button variant={theme === 'system' ? 'default' : 'outline'} onClick={() => setTheme('system')}><Laptop className="mr-2"/> System</Button>
-                            </div>
+                                <Label>Theme</Label>
+                                <div className="grid grid-cols-3 gap-4">
+                                <Button variant={theme === 'light' ? 'default' : 'outline'} onClick={() => setTheme('light')}><Sun className="mr-2"/> Light</Button>
+                                <Button variant={theme === 'dark' ? 'default' : 'outline'} onClick={() => setTheme('dark')}><Moon className="mr-2"/> Dark</Button>
+                                <Button variant={theme === 'system' ? 'default' : 'outline'} onClick={() => setTheme('system')}><Laptop className="mr-2"/> System</Button>
+                                </div>
                            </div>
+                           <div className="space-y-2">
+                                <Label>Primary Color</Label>
+                                <div className="flex flex-wrap gap-3">
+                                    {primaryColors.map((color) => (
+                                        <button
+                                            key={color.name}
+                                            title={color.name}
+                                            onClick={() => handlePrimaryColorChange(color.value)}
+                                            className="h-10 w-10 rounded-full border-2 transition-all flex items-center justify-center"
+                                            style={{ 
+                                                backgroundColor: `hsl(${color.value})`,
+                                                borderColor: userData?.primaryColor === color.value ? `hsl(${color.value})` : 'transparent'
+                                            }}
+                                        >
+                                            {userData?.primaryColor === color.value && <CheckCircle2 className="size-6 text-white" />}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
                         </CardContent>
                     </Card>
                 </TabsContent>

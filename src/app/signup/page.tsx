@@ -45,7 +45,7 @@ export default function SignupPage() {
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       
-      await updateProfile(user, { displayName: values.username });
+      await updateProfile(user, { displayName: values.username, photoURL: null });
       
       // Create user document in Firestore
       await setDoc(doc(db, "users", user.uid), {
@@ -54,7 +54,9 @@ export default function SignupPage() {
         email: values.email,
         categories: defaultCategories,
         budget: 0,
-        budgetIsSet: false, // Flag to trigger initial budget modal
+        budgetIsSet: false,
+        photoURL: null,
+        primaryColor: '181 95% 45%', // Default primary color
       });
 
       toast.success("Account created successfully!");

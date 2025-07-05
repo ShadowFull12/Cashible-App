@@ -14,7 +14,7 @@ export function RootLayoutClient({
 }>) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading } = useAuth();
+  const { user, loading, userData } = useAuth();
 
   const isAuthPage = pathname === "/" || pathname === "/signup";
 
@@ -29,6 +29,14 @@ export function RootLayoutClient({
       router.push("/dashboard");
     }
   }, [user, loading, isAuthPage, router]);
+
+  useEffect(() => {
+    if (userData?.primaryColor) {
+      document.documentElement.style.setProperty('--primary', userData.primaryColor);
+      document.documentElement.style.setProperty('--ring', userData.primaryColor);
+    }
+  }, [userData?.primaryColor]);
+
 
   if (loading) {
     return (

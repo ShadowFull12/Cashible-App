@@ -9,13 +9,24 @@ import { db } from '@/lib/firebase';
 import * as userService from '@/services/userService';
 import * as authService from '@/services/authService';
 
+interface UserData {
+  uid: string;
+  displayName: string;
+  email: string;
+  categories: any[];
+  budget: number;
+  budgetIsSet: boolean;
+  photoURL?: string;
+  primaryColor?: string;
+}
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   logout: () => Promise<void>;
-  userData: any; 
+  userData: UserData | null; 
   refreshUserData: () => Promise<void>;
-  updateUserProfile: (data: Partial<{ displayName: string; budget: number; budgetIsSet: boolean }>) => Promise<void>;
+  updateUserProfile: (data: Partial<UserData>) => Promise<void>;
   uploadAndSetProfileImage: (file: File) => Promise<void>;
   updateUserPassword: (currentPassword: string, newPassword: string) => Promise<void>;
   updateUserEmail: (currentPassword: string, newEmail: string) => Promise<void>;
@@ -25,7 +36,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [userData, setUserData] = useState<any>(null);
+  const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
 
   const fetchUserData = useCallback(async (user: User) => {
@@ -34,7 +45,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
-            setUserData(userDoc.data());
+            setUserData(userDoc.data() as UserData);
         } else {
             setUserData(null);
         }
@@ -78,7 +89,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await firebaseSignOut(auth);
   };
   
-  const updateUserProfile_ = async (data: Partial<{ displayName: string; budget: number; budgetIsSet: boolean }>) => {
+  const updateUserProfile_ = async (data: Partial<UserData>) => {
     if (!user) throw new Error("User not authenticated.");
     await userService.updateUser(user.uid, data);
     await refreshUserData();
@@ -88,6 +99,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!user) throw new Error("User not authenticated.");
     const photoURL = await userService.uploadProfileImage(user.uid, file);
     await updateProfile(user, { photoURL });
+    await userService.updateUser(user.uid, { photoURL });
     setUser({ ...user, photoURL }); // Force state update
     await refreshUserData();
   };
