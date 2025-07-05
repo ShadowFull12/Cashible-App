@@ -80,15 +80,15 @@ export default function HistoryPage() {
         <CardDescription>A detailed list of all your past transactions.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="mb-4 flex flex-wrap items-center gap-4">
+        <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:flex lg:flex-wrap">
             <Input 
               placeholder="Filter by description..." 
-              className="max-w-sm"
+              className="w-full lg:max-w-sm"
               value={filterDescription}
               onChange={(e) => setFilterDescription(e.target.value)}
             />
             <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger className="w-full md:w-[180px]">
+                <SelectTrigger className="w-full lg:w-[180px]">
                     <SelectValue placeholder="Filter by category" />
                 </SelectTrigger>
                 <SelectContent>
@@ -99,7 +99,7 @@ export default function HistoryPage() {
                 </SelectContent>
             </Select>
             <Select value={filterMonth} onValueChange={setFilterMonth}>
-                <SelectTrigger className="w-full md:w-[180px]">
+                <SelectTrigger className="w-full lg:w-[180px]">
                     <SelectValue placeholder="Filter by month" />
                 </SelectTrigger>
                 <SelectContent>
@@ -110,7 +110,7 @@ export default function HistoryPage() {
                 </SelectContent>
             </Select>
             <Select value={filterYear} onValueChange={setFilterYear}>
-                <SelectTrigger className="w-full md:w-[180px]">
+                <SelectTrigger className="w-full lg:w-[180px]">
                     <SelectValue placeholder="Filter by year" />
                 </SelectTrigger>
                 <SelectContent>
@@ -120,77 +120,79 @@ export default function HistoryPage() {
                 </SelectContent>
             </Select>
         </div>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Transaction</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
-              <TableHead className="w-[10px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              Array.from({length: 5}).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell>
+        <div className="relative w-full overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Transaction</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="w-[10px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading ? (
+                Array.from({length: 5}).map((_, i) => (
+                  <TableRow key={i}>
+                    <TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell>
+                  </TableRow>
+                ))
+              ) : filteredTransactions.length > 0 ? (
+                filteredTransactions.map((t) => (
+                <TableRow key={t.id}>
+                  <TableCell>
+                    <div className="font-medium">{t.description}</div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="flex items-center gap-2" style={{borderColor: categoryColors[t.category]}}>
+                      <span className={`inline-block h-2 w-2 rounded-full`} style={{backgroundColor: categoryColors[t.category]}}></span>
+                      {t.category}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{format(t.date, "PPP")}</TableCell>
+                  <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
+                  <TableCell>
+                      <AlertDialog>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="icon" className="h-8 w-8">
+                                <MoreHorizontal className="size-4" />
+                            </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                            <DropdownMenuItem disabled>Edit</DropdownMenuItem>
+                            <AlertDialogTrigger asChild>
+                                <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
+                            </AlertDialogTrigger>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                This action cannot be undone. This will permanently delete this transaction.
+                            </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(t.id!)}>Delete</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                  </TableCell>
                 </TableRow>
               ))
-            ) : filteredTransactions.length > 0 ? (
-              filteredTransactions.map((t) => (
-              <TableRow key={t.id}>
-                <TableCell>
-                  <div className="font-medium">{t.description}</div>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline" className="flex items-center gap-2" style={{borderColor: categoryColors[t.category]}}>
-                    <span className={`inline-block h-2 w-2 rounded-full`} style={{backgroundColor: categoryColors[t.category]}}></span>
-                    {t.category}
-                  </Badge>
-                </TableCell>
-                <TableCell>{format(t.date, "PPP")}</TableCell>
-                <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
-                <TableCell>
-                    <AlertDialog>
-                      <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="size-4" />
-                          </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                          <DropdownMenuItem disabled>Edit</DropdownMenuItem>
-                          <AlertDialogTrigger asChild>
-                              <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
-                          </AlertDialogTrigger>
-                          </DropdownMenuContent>
-                      </DropdownMenu>
-                      <AlertDialogContent>
-                          <AlertDialogHeader>
-                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                          <AlertDialogDescription>
-                              This action cannot be undone. This will permanently delete this transaction.
-                          </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                          <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(t.id!)}>Delete</AlertDialogAction>
-                          </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                </TableCell>
-              </TableRow>
-            ))
-            ) : (
-                <TableRow>
-                    <TableCell colSpan={5} className="text-center h-24">
-                        No transactions found for the selected filters.
-                    </TableCell>
-                </TableRow>
-            )}
-          </TableBody>
-        </Table>
+              ) : (
+                  <TableRow>
+                      <TableCell colSpan={5} className="text-center h-24">
+                          No transactions found for the selected filters.
+                      </TableCell>
+                  </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );

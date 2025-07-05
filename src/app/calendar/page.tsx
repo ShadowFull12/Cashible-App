@@ -9,9 +9,58 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge"
 import { format } from "date-fns"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { MoreHorizontal } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { deleteTransaction } from "@/services/transactionService"
+import { toast } from "sonner"
+
+
+function TransactionDeleteButton({ transactionId, onDelete }: { transactionId: string, onDelete: () => void }) {
+    const handleDelete = async () => {
+        try {
+            await deleteTransaction(transactionId);
+            toast.success("Transaction deleted");
+            onDelete();
+        } catch (error) {
+            toast.error("Failed to delete transaction");
+        }
+    };
+    
+    return (
+        <AlertDialog>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreHorizontal className="size-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem disabled>Edit</DropdownMenuItem>
+                    <AlertDialogTrigger asChild>
+                        <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
+                    </AlertDialogTrigger>
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete this transaction.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+    );
+}
 
 export default function CalendarPage() {
-  const { transactions, categories, setNewExpenseDefaultDate } = useData();
+  const { transactions, categories, setNewExpenseDefaultDate, refreshData } = useData();
   const [date, setDate] = React.useState<Date | undefined>(new Date());
   
   React.useEffect(() => {
@@ -113,6 +162,7 @@ export default function CalendarPage() {
                                                     {t.description}
                                                 </span>
                                                 <span className="font-medium">₹{t.amount.toLocaleString()}</span>
+                                                <TransactionDeleteButton transactionId={t.id!} onDelete={refreshData} />
                                             </div>
                                         ))}
                                     </div>
@@ -142,6 +192,7 @@ export default function CalendarPage() {
                 <TableHead>Description</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="w-[10px]"></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -154,6 +205,9 @@ export default function CalendarPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
+                   <TableCell>
+                        <TransactionDeleteButton transactionId={t.id!} onDelete={refreshData} />
+                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>

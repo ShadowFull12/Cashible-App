@@ -97,10 +97,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const uploadAndSetProfileImage_ = async (file: File) => {
     if (!user) throw new Error("User not authenticated.");
+    
+    // Upload image and get URL
     const photoURL = await userService.uploadProfileImage(user.uid, file);
+    
+    // Update profile in Firebase Auth
     await updateProfile(user, { photoURL });
+    
+    // Update photoURL in Firestore user document
     await userService.updateUser(user.uid, { photoURL });
-    setUser({ ...user, photoURL }); // Force state update
+
+    // The onAuthStateChanged listener might not fire for profile updates.
+    // To update the UI immediately, we get the fresh user object from the auth instance.
+    if (auth.currentUser) {
+        setUser(auth.currentUser);
+    }
+    
+    // Refresh our custom user data from Firestore
     await refreshUserData();
   };
 

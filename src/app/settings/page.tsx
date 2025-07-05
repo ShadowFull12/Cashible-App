@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,7 +11,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 import React, { useState, useRef, useEffect } from "react";
 import { addCategory, deleteCategory, updateCategory } from "@/services/categoryService";
-import { deleteRecurringExpense, updateRecurringExpense } from "@/services/recurringExpenseService";
+import { deleteRecurringExpense } from "@/services/recurringExpenseService";
+import { deleteTransactionsByRecurringId } from "@/services/transactionService";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import { useForm } from "react-hook-form";
@@ -21,6 +22,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import type { RecurringExpense } from "@/lib/data";
+import { cn } from "@/lib/utils";
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, { message: "Current password is required." }),
@@ -61,6 +65,7 @@ export default function SettingsPage() {
     const [categoryColors, setCategoryColors] = useState<{[key: string]: string}>({});
     const [originalCategoryColors, setOriginalCategoryColors] = useState<{[key: string]: string}>({});
     const [savingColor, setSavingColor] = useState<string | null>(null);
+    const [deletingExpense, setDeletingExpense] = useState<RecurringExpense | null>(null);
 
     const passwordForm = useForm<z.infer<typeof passwordSchema>>({
         resolver: zodResolver(passwordSchema),
@@ -75,9 +80,12 @@ export default function SettingsPage() {
     useEffect(() => {
         if (userData) {
             setBudget(userData.budget || 0);
-            setAvatarPreview(userData.photoURL || user?.photoURL || null);
+        }
+        if (user?.photoURL) {
+            setAvatarPreview(user.photoURL);
         }
     }, [userData, user?.photoURL]);
+
 
     useEffect(() => {
         if (categories) {
@@ -215,181 +223,207 @@ export default function SettingsPage() {
         }
     }
     
-    const handleToggleRecurring = async (id: string, currentStatus: boolean) => {
+    const handleDeleteFuturePayments = async (expenseId: string) => {
         try {
-            await updateRecurringExpense(id, { isActive: !currentStatus });
+            await deleteRecurringExpense(expenseId);
             await refreshData();
-            toast.success(`Recurring expense ${!currentStatus ? 'resumed' : 'paused'}.`);
+            toast.success("Recurring expense has been stopped.");
         } catch (error) {
-            toast.error("Failed to update recurring expense.");
+            toast.error("Failed to stop recurring expense.");
+        } finally {
+            setDeletingExpense(null);
         }
     }
     
-    const handleDeleteRecurring = async (id: string) => {
+    const handleDeleteAndEraseHistory = async (expenseId: string) => {
         try {
-            await deleteRecurringExpense(id);
+            // This service function needs to be created
+            await deleteTransactionsByRecurringId(expenseId);
+            await deleteRecurringExpense(expenseId);
             await refreshData();
-            toast.success("Recurring expense deleted permanently.");
+            toast.success("Recurring expense and its history deleted.");
         } catch (error) {
-            toast.error("Failed to delete recurring expense.");
+            toast.error("Failed to delete recurring expense permanently.");
+        } finally {
+            setDeletingExpense(null);
         }
     }
 
     return (
         <div className="grid gap-6">
             <h1 className="text-3xl font-bold font-headline">Settings</h1>
-            <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-2 md:grid-cols-5">
-                    <TabsTrigger value="profile">Profile</TabsTrigger>
-                    <TabsTrigger value="categories">Categories</TabsTrigger>
-                    <TabsTrigger value="recurring">Recurring</TabsTrigger>
-                    <TabsTrigger value="appearance">Appearance</TabsTrigger>
-                    <TabsTrigger value="security">Security</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="profile" className="mt-6">
-                    <Card>
-                        <CardHeader><CardTitle>Profile Settings</CardTitle><CardDescription>Manage your personal information and account settings.</CardDescription></CardHeader>
-                        <CardContent className="space-y-8">
-                            <div className="flex items-center gap-6">
-                                <Avatar className="h-20 w-20"><AvatarImage src={avatarPreview || ''} alt="User Avatar" /><AvatarFallback>{userInitial}</AvatarFallback></Avatar>
-                                <div className="space-y-2">
-                                    <Button size="sm" onClick={() => avatarInputRef.current?.click()}><Upload className="mr-2" />Change Avatar</Button>
-                                    <input type="file" accept="image/*" ref={avatarInputRef} onChange={handleAvatarChange} className="hidden" />
-                                    {avatarFile && <Button size="sm" variant="secondary" onClick={handleAvatarUpload} disabled={isUploading}>{isUploading ? <Loader2 className="animate-spin" /> : "Save Avatar"}</Button>}
-                                    <p className="text-xs text-muted-foreground">Recommended size: 200x200px</p>
-                                </div>
-                            </div>
-                            <div className="space-y-2"><Label htmlFor="username">Username</Label><Input id="username" value={user?.displayName || ''} disabled /></div>
-                            <div className="space-y-2"><Label htmlFor="email">Email</Label><Input id="email" type="email" value={user?.email || ''} disabled /></div>
-                            <div className="space-y-2">
-                                <Label htmlFor="budget">Monthly Budget (₹)</Label>
-                                <div className="flex items-center gap-4">
-                                    <Input id="budget" type="number" value={budget} onChange={e => setBudget(Number(e.target.value))} className="max-w-xs" />
-                                    <Button onClick={handleSaveBudget} disabled={isSavingBudget}>{isSavingBudget && <Loader2 className="mr-2 animate-spin" />}Save Budget</Button>
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-
-                <TabsContent value="categories" className="mt-6">
-                    <Card>
-                        <CardHeader><CardTitle>Expense Categories</CardTitle><CardDescription>Add or remove categories to organize your spending.</CardDescription></CardHeader>
-                        <CardContent className="space-y-6">
-                           <div className="space-y-4">
-                                {isLoading ? <Loader2 className="animate-spin" /> : categories.map(cat => (
-                                    <div key={cat.name} className="flex items-center justify-between rounded-lg border p-3">
-                                        <div className="flex items-center gap-3">
-                                            <input type="color" value={categoryColors[cat.name] || '#000000'} onChange={(e) => handleLocalColorChange(cat.name, e.target.value)} className="w-8 h-8 rounded-md border-none cursor-pointer" style={{backgroundColor: categoryColors[cat.name]}} />
-                                            <span>{cat.name}</span>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            {categoryColors[cat.name] !== originalCategoryColors[cat.name] && (<Button size="sm" onClick={() => handleCategoryColorChange(cat.name)} disabled={savingColor === cat.name}>{savingColor === cat.name ? <Loader2 className="animate-spin"/> : 'Save'}</Button>)}
-                                            <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat.name)}><Trash2 className="size-4 text-red-500" /></Button>
-                                        </div>
+            <div className="w-full overflow-x-auto pb-2">
+                <Tabs defaultValue="profile" className="w-full">
+                    <TabsList className="w-max">
+                        <TabsTrigger value="profile">Profile</TabsTrigger>
+                        <TabsTrigger value="categories">Categories</TabsTrigger>
+                        <TabsTrigger value="recurring">Recurring</TabsTrigger>
+                        <TabsTrigger value="appearance">Appearance</TabsTrigger>
+                        <TabsTrigger value="security">Security</TabsTrigger>
+                    </TabsList>
+                    
+                    <TabsContent value="profile" className="mt-6">
+                        <Card>
+                            <CardHeader><CardTitle>Profile Settings</CardTitle><CardDescription>Manage your personal information and account settings.</CardDescription></CardHeader>
+                            <CardContent className="space-y-8">
+                                <div className="flex items-center gap-6">
+                                    <Avatar className="h-20 w-20"><AvatarImage src={avatarPreview || ''} alt="User Avatar" /><AvatarFallback>{userInitial}</AvatarFallback></Avatar>
+                                    <div className="space-y-2">
+                                        <Button size="sm" onClick={() => avatarInputRef.current?.click()}><Upload className="mr-2" />Change Avatar</Button>
+                                        <input type="file" accept="image/*" ref={avatarInputRef} onChange={handleAvatarChange} className="hidden" />
+                                        {avatarFile && <Button size="sm" variant="secondary" onClick={handleAvatarUpload} disabled={isUploading}>{isUploading ? <Loader2 className="animate-spin" /> : "Save Avatar"}</Button>}
+                                        <p className="text-xs text-muted-foreground">Recommended size: 200x200px</p>
                                     </div>
-                                ))}
-                           </div>
-                           <form onSubmit={handleAddCategory} className="flex items-end gap-4">
-                                <div className="space-y-2">
-                                    <Label htmlFor="new-category-color">Color</Label>
-                                    <Input type="color" id="new-category-color" value={newCategoryColor} onChange={e => setNewCategoryColor(e.target.value)} className="w-16 p-1" />
                                 </div>
-                               <div className="flex-grow space-y-2">
-                                   <Label htmlFor="new-category">New Category Name</Label>
-                                   <Input id="new-category" placeholder="e.g. Health" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} />
-                               </div>
-                               <Button type="submit" disabled={isSubmittingCategory}>{isSubmittingCategory && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Add Category</Button>
-                           </form>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-                
-                <TabsContent value="recurring" className="mt-6">
-                    <Card>
-                        <CardHeader><CardTitle>Recurring Payments</CardTitle><CardDescription>Manage your automated monthly expenses.</CardDescription></CardHeader>
-                        <CardContent className="space-y-4">
-                            {isLoading ? <Loader2 className="animate-spin" /> : recurringExpenses.length > 0 ? recurringExpenses.map(expense => (
-                                <div key={expense.id} className="flex items-center justify-between rounded-lg border p-3">
-                                    <div className="flex-grow">
-                                        <p className="font-medium">{expense.description}</p>
-                                        <p className="text-sm text-muted-foreground">
-                                            ₹{expense.amount.toLocaleString()} on day {expense.dayOfMonth} of each month
-                                        </p>
-                                        <Badge variant="outline">{expense.category}</Badge>
-                                    </div>
+                                <div className="space-y-2"><Label htmlFor="username">Username</Label><Input id="username" value={user?.displayName || ''} disabled /></div>
+                                <div className="space-y-2"><Label htmlFor="email">Email</Label><Input id="email" type="email" value={user?.email || ''} disabled /></div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="budget">Monthly Budget (₹)</Label>
                                     <div className="flex items-center gap-4">
-                                        <div className="flex flex-col items-center">
-                                            <Switch
-                                                checked={expense.isActive}
-                                                onCheckedChange={() => handleToggleRecurring(expense.id!, expense.isActive)}
-                                                aria-label={expense.isActive ? 'Pause recurring payment' : 'Resume recurring payment'}
-                                            />
-                                            <span className="text-xs text-muted-foreground">{expense.isActive ? 'Active' : 'Paused'}</span>
-                                        </div>
-                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteRecurring(expense.id!)}><Trash2 className="size-4 text-red-500" /></Button>
+                                        <Input id="budget" type="number" value={budget} onChange={e => setBudget(Number(e.target.value))} className="max-w-xs" />
+                                        <Button onClick={handleSaveBudget} disabled={isSavingBudget}>{isSavingBudget && <Loader2 className="mr-2 animate-spin" />}Save Budget</Button>
                                     </div>
                                 </div>
-                            )) : <p className="text-muted-foreground text-center">No recurring expenses found. You can add one from the "Add Expense" dialog.</p>}
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
 
-                <TabsContent value="appearance" className="mt-6">
-                    <Card>
-                        <CardHeader><CardTitle>Appearance</CardTitle><CardDescription>Customize the look and feel of the application.</CardDescription></CardHeader>
-                        <CardContent className="space-y-6">
-                           <div className="space-y-2">
-                                <Label>Theme</Label>
-                                <div className="grid grid-cols-3 gap-4">
-                                <Button variant={theme === 'light' ? 'default' : 'outline'} onClick={() => setTheme('light')}><Sun className="mr-2"/> Light</Button>
-                                <Button variant={theme === 'dark' ? 'default' : 'outline'} onClick={() => setTheme('dark')}><Moon className="mr-2"/> Dark</Button>
-                                <Button variant={theme === 'system' ? 'default' : 'outline'} onClick={() => setTheme('system')}><Laptop className="mr-2"/> System</Button>
-                                </div>
-                           </div>
-                           <div className="space-y-2">
-                                <Label>Primary Color</Label>
-                                <div className="flex flex-wrap gap-3">
-                                    {primaryColors.map((color) => (
-                                        <button key={color.name} title={color.name} onClick={() => handlePrimaryColorChange(color.value)} className="h-10 w-10 rounded-full border-2 transition-all flex items-center justify-center" style={{ backgroundColor: `hsl(${color.value})`, borderColor: userData?.primaryColor === color.value ? `hsl(${color.value})` : 'transparent' }}>
-                                            {userData?.primaryColor === color.value && <CheckCircle2 className="size-6 text-white" />}
-                                        </button>
+                    <TabsContent value="categories" className="mt-6">
+                        <Card>
+                            <CardHeader><CardTitle>Expense Categories</CardTitle><CardDescription>Add or remove categories to organize your spending.</CardDescription></CardHeader>
+                            <CardContent className="space-y-6">
+                            <div className="space-y-4">
+                                    {isLoading ? <Loader2 className="animate-spin" /> : categories.map(cat => (
+                                        <div key={cat.name} className="flex items-center justify-between rounded-lg border p-3">
+                                            <div className="flex items-center gap-3">
+                                                <input type="color" value={categoryColors[cat.name] || '#000000'} onChange={(e) => handleLocalColorChange(cat.name, e.target.value)} className="w-8 h-8 rounded-md border-none cursor-pointer" style={{backgroundColor: categoryColors[cat.name]}} />
+                                                <span>{cat.name}</span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {categoryColors[cat.name] !== originalCategoryColors[cat.name] && (<Button size="sm" onClick={() => handleCategoryColorChange(cat.name)} disabled={savingColor === cat.name}>{savingColor === cat.name ? <Loader2 className="animate-spin"/> : 'Save'}</Button>)}
+                                                <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat.name)}><Trash2 className="size-4 text-red-500" /></Button>
+                                            </div>
+                                        </div>
                                     ))}
+                            </div>
+                            <form onSubmit={handleAddCategory} className="flex items-end gap-4">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="new-category-color">Color</Label>
+                                        <Input type="color" id="new-category-color" value={newCategoryColor} onChange={e => setNewCategoryColor(e.target.value)} className="w-16 p-1" />
+                                    </div>
+                                <div className="flex-grow space-y-2">
+                                    <Label htmlFor="new-category">New Category Name</Label>
+                                    <Input id="new-category" placeholder="e.g. Health" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} />
                                 </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
+                                <Button type="submit" disabled={isSubmittingCategory}>{isSubmittingCategory && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Add Category</Button>
+                            </form>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                    
+                    <TabsContent value="recurring" className="mt-6">
+                        <Card>
+                            <CardHeader><CardTitle>Recurring Payments</CardTitle><CardDescription>Manage your automated monthly expenses.</CardDescription></CardHeader>
+                            <CardContent className="space-y-4">
+                                {isLoading ? <Loader2 className="animate-spin" /> : recurringExpenses.length > 0 ? recurringExpenses.map(expense => (
+                                    <div key={expense.id} className="flex items-center justify-between rounded-lg border p-3">
+                                        <div className="flex-grow">
+                                            <p className="font-medium">{expense.description}</p>
+                                            <p className="text-sm text-muted-foreground">
+                                                ₹{expense.amount.toLocaleString()} on day {expense.dayOfMonth} of each month
+                                            </p>
+                                            <Badge variant="outline">{expense.category}</Badge>
+                                        </div>
+                                        <div className="flex items-center gap-4">
+                                            <Badge variant={expense.isActive ? 'default' : 'secondary'} className={cn(expense.isActive ? 'bg-green-500/20 text-green-700 border-green-500/30' : 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30')}>
+                                                {expense.isActive ? <PlayCircle className="mr-2"/> : <PauseCircle className="mr-2"/>}
+                                                {expense.isActive ? 'Active' : 'Paused'}
+                                            </Badge>
 
-                <TabsContent value="security" className="mt-6">
-                    <Card>
-                        <CardHeader><CardTitle>Security</CardTitle><CardDescription>Manage your password and email settings.</CardDescription></CardHeader>
-                        <CardContent className="space-y-8">
-                            <div>
-                                <h3 className="text-lg font-medium mb-4">Change Email</h3>
-                                <Form {...emailForm}>
-                                    <form onSubmit={emailForm.handleSubmit(onEmailChange)} className="space-y-4 max-w-sm">
-                                        <FormField control={emailForm.control} name="newEmail" render={({ field }) => (<FormItem><FormLabel>New Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                        <FormField control={emailForm.control} name="password" render={({ field }) => (<FormItem><FormLabel>Current Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                        <Button type="submit" disabled={emailForm.formState.isSubmitting}>{emailForm.formState.isSubmitting && <Loader2 className="mr-2 animate-spin" />} Change Email</Button>
-                                    </form>
-                                </Form>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" onClick={() => setDeletingExpense(expense)}><Trash2 className="size-4 text-red-500" /></Button>
+                                                </AlertDialogTrigger>
+                                                {deletingExpense && deletingExpense.id === expense.id && (
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Delete Recurring Expense?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                Choose how to handle this recurring expense. This action cannot be fully undone.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <div className="flex flex-col gap-4 py-4">
+                                                            <Button variant="outline" onClick={() => handleDeleteFuturePayments(deletingExpense.id!)}>Just Stop Future Payments</Button>
+                                                            <Button variant="destructive" onClick={() => handleDeleteAndEraseHistory(deletingExpense.id!)}>Delete Permanently & Erase History</Button>
+                                                        </div>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel onClick={() => setDeletingExpense(null)}>Cancel</AlertDialogCancel>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                )}
+                                            </AlertDialog>
+                                        </div>
+                                    </div>
+                                )) : <p className="text-muted-foreground text-center">No recurring expenses found. You can add one from the "Add Expense" dialog.</p>}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="appearance" className="mt-6">
+                        <Card>
+                            <CardHeader><CardTitle>Appearance</CardTitle><CardDescription>Customize the look and feel of the application.</CardDescription></CardHeader>
+                            <CardContent className="space-y-6">
+                            <div className="space-y-2">
+                                    <Label>Theme</Label>
+                                    <div className="grid grid-cols-3 gap-4">
+                                    <Button variant={theme === 'light' ? 'default' : 'outline'} onClick={() => setTheme('light')}><Sun className="mr-2"/> Light</Button>
+                                    <Button variant={theme === 'dark' ? 'default' : 'outline'} onClick={() => setTheme('dark')}><Moon className="mr-2"/> Dark</Button>
+                                    <Button variant={theme === 'system' ? 'default' : 'outline'} onClick={() => setTheme('system')}><Laptop className="mr-2"/> System</Button>
+                                    </div>
                             </div>
-                             <div>
-                                <h3 className="text-lg font-medium mb-4">Change Password</h3>
-                                <Form {...passwordForm}>
-                                    <form onSubmit={passwordForm.handleSubmit(onPasswordChange)} className="space-y-4 max-w-sm">
-                                        <FormField control={passwordForm.control} name="currentPassword" render={({ field }) => (<FormItem><FormLabel>Current Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                        <FormField control={passwordForm.control} name="newPassword" render={({ field }) => (<FormItem><FormLabel>New Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
-                                        <Button type="submit" disabled={passwordForm.formState.isSubmitting}>{passwordForm.formState.isSubmitting && <Loader2 className="mr-2 animate-spin" />} Change Password</Button>
-                                    </form>
-                                </Form>
-                            </div>
-                        </CardContent>
-                    </Card>
-                </TabsContent>
-            </Tabs>
+                            <div className="space-y-2">
+                                    <Label>Primary Color</Label>
+                                    <div className="flex flex-wrap gap-3">
+                                        {primaryColors.map((color) => (
+                                            <button key={color.name} title={color.name} onClick={() => handlePrimaryColorChange(color.value)} className="h-10 w-10 rounded-full border-2 transition-all flex items-center justify-center" style={{ backgroundColor: `hsl(${color.value})`, borderColor: userData?.primaryColor === color.value ? `hsl(${color.value})` : 'transparent' }}>
+                                                {userData?.primaryColor === color.value && <CheckCircle2 className="size-6 text-white" />}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+
+                    <TabsContent value="security" className="mt-6">
+                        <Card>
+                            <CardHeader><CardTitle>Security</CardTitle><CardDescription>Manage your password and email settings.</CardDescription></CardHeader>
+                            <CardContent className="space-y-8">
+                                <div>
+                                    <h3 className="text-lg font-medium mb-4">Change Email</h3>
+                                    <Form {...emailForm}>
+                                        <form onSubmit={emailForm.handleSubmit(onEmailChange)} className="space-y-4 max-w-sm">
+                                            <FormField control={emailForm.control} name="newEmail" render={({ field }) => (<FormItem><FormLabel>New Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                            <FormField control={emailForm.control} name="password" render={({ field }) => (<FormItem><FormLabel>Current Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                            <Button type="submit" disabled={emailForm.formState.isSubmitting}>{emailForm.formState.isSubmitting && <Loader2 className="mr-2 animate-spin" />} Change Email</Button>
+                                        </form>
+                                    </Form>
+                                </div>
+                                <div>
+                                    <h3 className="text-lg font-medium mb-4">Change Password</h3>
+                                    <Form {...passwordForm}>
+                                        <form onSubmit={passwordForm.handleSubmit(onPasswordChange)} className="space-y-4 max-w-sm">
+                                            <FormField control={passwordForm.control} name="currentPassword" render={({ field }) => (<FormItem><FormLabel>Current Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                            <FormField control={passwordForm.control} name="newPassword" render={({ field }) => (<FormItem><FormLabel>New Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                            <Button type="submit" disabled={passwordForm.formState.isSubmitting}>{passwordForm.formState.isSubmitting && <Loader2 className="mr-2 animate-spin" />} Change Password</Button>
+                                        </form>
+                                    </Form>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                </Tabs>
+            </div>
         </div>
     )
 }

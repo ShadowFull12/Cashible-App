@@ -1,6 +1,6 @@
 
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, writeBatch } from "firebase/firestore";
 import type { Transaction } from "@/lib/data";
 
 export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date'> & { date: Date | Timestamp }) {
@@ -48,6 +48,29 @@ export async function deleteTransaction(transactionId: string) {
         await deleteDoc(doc(db, "transactions", transactionId));
     } catch (error) {
         console.error(`Error deleting transaction ${transactionId}:`, error);
+        throw error;
+    }
+}
+
+export async function deleteTransactionsByRecurringId(recurringExpenseId: string) {
+    if (!db) throw new Error("Firebase is not configured.");
+    
+    const q = query(collection(db, "transactions"), where("recurringExpenseId", "==", recurringExpenseId));
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+        return;
+    }
+
+    const batch = writeBatch(db);
+    querySnapshot.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+    
+    try {
+        await batch.commit();
+    } catch (error) {
+        console.error(`Error deleting transactions for recurring expense ${recurringExpenseId}:`, error);
         throw error;
     }
 }
