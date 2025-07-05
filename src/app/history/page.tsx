@@ -46,7 +46,7 @@ export default function HistoryPage() {
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
-      const descriptionMatch = t.description.toLowerCase().includes(filterDescription.toLowerCase());
+      const descriptionMatch = (t.description || "").toLowerCase().includes(filterDescription.toLowerCase());
       const categoryMatch = filterCategory === 'all' || t.category === filterCategory;
       return descriptionMatch && categoryMatch;
     });
