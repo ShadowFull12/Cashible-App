@@ -8,3 +8,12 @@ export const defaultCategories = [
     { name: "Housing", color: "#3b82f6" },
     { name: "Shopping", color: "#ec4899" },
 ];
+
+export interface Transaction {
+    id?: string;
+    userId: string;
+    name: string;
+    amount: number;
+    category: string;
+    date: Date;
+}

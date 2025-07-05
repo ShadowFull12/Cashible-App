@@ -2,15 +2,7 @@
 
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp } from "firebase/firestore";
-
-export interface Transaction {
-    id?: string;
-    userId: string;
-    name: string;
-    amount: number;
-    category: string;
-    date: Date;
-}
+import type { Transaction } from "@/lib/data";
 
 export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date'> & { date: Date | Timestamp }) {
     if (!db) throw new Error("Firebase is not configured.");

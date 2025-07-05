@@ -2,9 +2,10 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { useAuth } from './use-auth';
-import { getTransactions, Transaction } from '@/services/transactionService';
+import { getTransactions } from '@/services/transactionService';
 import { getCategories } from '@/services/categoryService';
 import { toast } from 'sonner';
+import type { Transaction } from '@/lib/data';
 
 interface DataContextType {
     transactions: Transaction[];
