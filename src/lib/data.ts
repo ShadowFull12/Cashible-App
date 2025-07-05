@@ -12,7 +12,7 @@ export const defaultCategories = [
 export interface Transaction {
     id?: string;
     userId: string;
-    name: string;
+    description: string;
     amount: number;
     category: string;
     date: Date;

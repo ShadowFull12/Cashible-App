@@ -7,7 +7,10 @@ export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date
     console.log('Attempting to add transaction for user:', transaction.userId);
     try {
         const docRef = await addDoc(collection(db, "transactions"), {
-            ...transaction,
+            userId: transaction.userId,
+            description: transaction.description,
+            amount: transaction.amount,
+            category: transaction.category,
             date: transaction.date instanceof Date ? Timestamp.fromDate(transaction.date) : transaction.date,
         });
         console.log('Successfully added transaction with ID:', docRef.id);

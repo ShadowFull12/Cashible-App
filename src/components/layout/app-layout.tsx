@@ -17,7 +17,7 @@ import { InitialBudgetModal } from "../initial-budget-modal";
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isAddExpenseOpen, setIsAddExpenseOpen] = React.useState(false);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = React.useState(false);
-  const { refreshData } = useData();
+  const { refreshData, newExpenseDefaultDate, setNewExpenseDefaultDate } = useData();
   const { userData, loading: authLoading } = useAuth();
   const isMobile = useIsMobile();
 
@@ -35,6 +35,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     refreshData();
     setIsBudgetModalOpen(false);
   };
+
+  const handleOpenChange = (isOpen: boolean) => {
+    setIsAddExpenseOpen(isOpen);
+    if (!isOpen) {
+      setNewExpenseDefaultDate(null);
+    }
+  }
 
   return (
     <SidebarProvider>
@@ -69,7 +76,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </main>
         {isMobile && <BottomNav onAddExpenseClick={() => setIsAddExpenseOpen(true)} />}
       </SidebarInset>
-      <AddExpenseDialog open={isAddExpenseOpen} onOpenChange={setIsAddExpenseOpen} onExpenseAdded={handleExpenseAdded} />
+      <AddExpenseDialog 
+        open={isAddExpenseOpen} 
+        onOpenChange={handleOpenChange} 
+        onExpenseAdded={handleExpenseAdded}
+        defaultDate={newExpenseDefaultDate}
+      />
       <InitialBudgetModal open={isBudgetModalOpen} onOpenChange={setIsBudgetModalOpen} onBudgetSet={handleBudgetSet} />
     </SidebarProvider>
   );

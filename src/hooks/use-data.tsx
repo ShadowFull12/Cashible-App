@@ -12,6 +12,8 @@ interface DataContextType {
     categories: any[];
     isLoading: boolean;
     refreshData: () => Promise<void>;
+    newExpenseDefaultDate: Date | null;
+    setNewExpenseDefaultDate: React.Dispatch<React.SetStateAction<Date | null>>;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -21,6 +23,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [newExpenseDefaultDate, setNewExpenseDefaultDate] = useState<Date | null>(null);
     
     const refreshData = useCallback(async () => {
         if (!user) return;
@@ -66,6 +69,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         categories,
         isLoading,
         refreshData: refreshData as () => Promise<void>,
+        newExpenseDefaultDate,
+        setNewExpenseDefaultDate,
     };
 
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

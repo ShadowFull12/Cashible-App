@@ -3,10 +3,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { CalendarIcon, Loader2 } from "lucide-react";
+import { CalendarIcon, Loader2, Lightbulb } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
@@ -38,12 +38,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 import { addTransaction } from "@/services/transactionService";
+import { suggestCategory } from "@/ai/flows/suggest-category";
 
 const formSchema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters." }),
+  description: z.string().min(3, { message: "Description must be at least 3 characters." }),
   amount: z.coerce.number().positive({ message: "Amount must be positive." }),
   category: z.string().min(1, { message: "Please select a category." }),
   date: z.date(),
@@ -53,22 +55,59 @@ interface AddExpenseDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onExpenseAdded: () => void;
+  defaultDate?: Date | null;
 }
 
-export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded }: AddExpenseDialogProps) {
+export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDate }: AddExpenseDialogProps) {
   const { user } = useAuth();
   const { categories } = useData();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSuggesting, setIsSuggesting] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
+      description: "",
       amount: 0,
       category: "",
-      date: new Date(),
+      date: defaultDate || new Date(),
     },
   });
+
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        description: "",
+        amount: 0,
+        category: "",
+        date: defaultDate || new Date(),
+      });
+    }
+  }, [open, defaultDate, form]);
+
+  const handleSuggestCategory = async () => {
+    const description = form.getValues("description");
+    if (!description) {
+        toast.info("Please enter a description first.");
+        return;
+    }
+    setIsSuggesting(true);
+    try {
+        const categoryNames = categories.map(c => c.name);
+        const result = await suggestCategory({ description, categories: categoryNames });
+        if (result.category && categoryNames.includes(result.category)) {
+            form.setValue("category", result.category);
+            toast.success("Category suggested!");
+        } else {
+            toast.info("AI couldn't suggest a suitable category from your list.");
+        }
+    } catch (error) {
+        toast.error("Failed to get AI suggestion.");
+        console.error(error);
+    } finally {
+        setIsSuggesting(false);
+    }
+  };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) {
@@ -80,7 +119,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded }: AddExpe
       await addTransaction({ ...values, userId: user.uid });
       toast.success("Expense added successfully!");
       onExpenseAdded();
-      form.reset({ name: "", amount: 0, category: "", date: new Date() });
+      form.reset({ description: "", amount: 0, category: "", date: new Date() });
       onOpenChange(false);
     } catch (error) {
       toast.error("Failed to add expense. Please try again.");
@@ -96,19 +135,19 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded }: AddExpe
         <DialogHeader>
           <DialogTitle>Add New Expense</DialogTitle>
           <DialogDescription>
-            Enter the details of your expense below.
+            Enter the details of your expense below. Use the AI helper to suggest a category!
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="name"
+              name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Expense Name</FormLabel>
+                  <FormLabel>Expense Description</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g. Coffee" {...field} />
+                    <Textarea placeholder="e.g. Lunch with colleagues" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -121,7 +160,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded }: AddExpe
                 <FormItem>
                   <FormLabel>Amount (₹)</FormLabel>
                   <FormControl>
-                    <Input type="number" placeholder="e.g. 150" {...field} />
+                    <Input type="number" placeholder="e.g. 500" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -133,20 +172,26 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded }: AddExpe
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Category</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {categories?.map((cat) => (
-                        <SelectItem key={cat.name} value={cat.name}>
-                          {cat.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="flex items-center gap-2">
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a category" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {categories?.map((cat) => (
+                          <SelectItem key={cat.name} value={cat.name}>
+                            {cat.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button type="button" variant="outline" size="icon" onClick={handleSuggestCategory} disabled={isSuggesting}>
+                        {isSuggesting ? <Loader2 className="animate-spin" /> : <Lightbulb />}
+                        <span className="sr-only">Suggest Category</span>
+                    </Button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}

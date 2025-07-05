@@ -34,7 +34,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 export default function HistoryPage() {
   const { transactions, categories, isLoading, refreshData } = useData();
-  const [filterName, setFilterName] = useState("");
+  const [filterDescription, setFilterDescription] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
 
   const categoryColors = useMemo(() => {
@@ -46,11 +46,11 @@ export default function HistoryPage() {
 
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
-      const nameMatch = t.name.toLowerCase().includes(filterName.toLowerCase());
+      const descriptionMatch = t.description.toLowerCase().includes(filterDescription.toLowerCase());
       const categoryMatch = filterCategory === 'all' || t.category === filterCategory;
-      return nameMatch && categoryMatch;
+      return descriptionMatch && categoryMatch;
     });
-  }, [transactions, filterName, filterCategory]);
+  }, [transactions, filterDescription, filterCategory]);
 
   const handleDelete = async (id: string) => {
     try {
@@ -71,10 +71,10 @@ export default function HistoryPage() {
       <CardContent>
         <div className="mb-4 flex items-center gap-4">
             <Input 
-              placeholder="Filter by name..." 
+              placeholder="Filter by description..." 
               className="max-w-sm"
-              value={filterName}
-              onChange={(e) => setFilterName(e.target.value)}
+              value={filterDescription}
+              onChange={(e) => setFilterDescription(e.target.value)}
             />
             <Select value={filterCategory} onValueChange={setFilterCategory}>
                 <SelectTrigger className="w-[180px]">
@@ -109,7 +109,7 @@ export default function HistoryPage() {
               filteredTransactions.map((t) => (
               <TableRow key={t.id}>
                 <TableCell>
-                  <div className="font-medium">{t.name}</div>
+                  <div className="font-medium">{t.description}</div>
                 </TableCell>
                 <TableCell>
                   <Badge variant="outline" className="flex items-center gap-2" style={{borderColor: categoryColors[t.category]}}>

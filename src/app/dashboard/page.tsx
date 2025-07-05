@@ -30,7 +30,7 @@ import { useData } from "@/hooks/use-data";
 import { useMemo } from "react";
 import { deleteTransaction } from "@/services/transactionService";
 import { toast } from "sonner";
-import { format } from "date-fns";
+import { format, startOfMonth, endOfMonth } from "date-fns";
 
 export default function DashboardPage() {
   const { userData } = useAuth();
@@ -54,7 +54,19 @@ export default function DashboardPage() {
   };
 
   const budget = userData?.budget || 50000;
-  const spent = transactions.reduce((sum, t) => sum + t.amount, 0);
+
+  const spent = useMemo(() => {
+    const now = new Date();
+    const firstDay = startOfMonth(now);
+    const lastDay = endOfMonth(now);
+    return transactions
+        .filter(t => {
+            const transactionDate = new Date(t.date);
+            return transactionDate >= firstDay && transactionDate <= lastDay;
+        })
+        .reduce((sum, t) => sum + t.amount, 0);
+  }, [transactions]);
+  
   const remaining = budget - spent;
   const progress = budget > 0 ? (spent / budget) * 100 : 0;
   
@@ -98,7 +110,7 @@ export default function DashboardPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Money Spent</CardTitle>
+            <CardTitle className="text-sm font-medium">Money Spent (This Month)</CardTitle>
             <IndianRupee className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -121,7 +133,7 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
             <CardTitle>Budget Overview</CardTitle>
-            <CardDescription>You've spent {progress.toFixed(0)}% of your budget.</CardDescription>
+            <CardDescription>You've spent {progress.toFixed(0)}% of your budget this month.</CardDescription>
         </CardHeader>
         <CardContent>
             <Progress value={progress} className="h-3"/>
@@ -164,7 +176,7 @@ export default function DashboardPage() {
                 {transactions.slice(0,4).map((t) => (
                   <TableRow key={t.id}>
                     <TableCell>
-                      <div className="font-medium">{t.name}</div>
+                      <div className="font-medium">{t.description}</div>
                       <div className="text-sm text-muted-foreground">{format(t.date, "PPP")}</div>
                     </TableCell>
                     <TableCell>

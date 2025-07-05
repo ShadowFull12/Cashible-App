@@ -8,16 +8,22 @@ import type { Transaction } from "@/lib/data"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Badge } from "@/components/ui/badge"
 import { format } from "date-fns"
-
-interface ExpenseDay {
-  date: Date;
-  categories: string[];
-  transactions: Transaction[];
-}
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 export default function CalendarPage() {
-  const { transactions, categories } = useData();
+  const { transactions, categories, setNewExpenseDefaultDate } = useData();
   const [date, setDate] = React.useState<Date | undefined>(new Date());
+  
+  React.useEffect(() => {
+    // Set default date for new expenses when a date is selected
+    if (date) {
+      setNewExpenseDefaultDate(date);
+    }
+    // Cleanup on unmount
+    return () => {
+      setNewExpenseDefaultDate(null);
+    }
+  }, [date, setNewExpenseDefaultDate]);
   
   const expenseDays = React.useMemo(() => {
     const dayMap = new Map<string, { categories: Set<string>, transactions: Transaction[] }>();
@@ -43,8 +49,19 @@ export default function CalendarPage() {
         return acc;
     }, {} as {[key: string]: string});
   }, [categories]);
+  
+  const selectedDayExpenses = React.useMemo(() => {
+      if (!date) return [];
+      const dayMatch = expenseDays.find(d => 
+        d.date.getDate() === date.getDate() &&
+        d.date.getMonth() === date.getMonth() &&
+        d.date.getFullYear() === date.getFullYear()
+      );
+      return dayMatch ? dayMatch.transactions : [];
+  }, [date, expenseDays]);
 
   return (
+    <div className="grid gap-6">
     <Card>
         <CardHeader>
             <CardTitle>Expense Calendar</CardTitle>
@@ -93,7 +110,7 @@ export default function CalendarPage() {
                                                     <Badge variant="outline" className="mr-2" style={{borderColor: categoryColors[t.category]}}>
                                                         {t.category}
                                                     </Badge>
-                                                    {t.name}
+                                                    {t.description}
                                                 </span>
                                                 <span className="font-medium">₹{t.amount.toLocaleString()}</span>
                                             </div>
@@ -111,5 +128,39 @@ export default function CalendarPage() {
         />
         </CardContent>
     </Card>
+
+    {selectedDayExpenses.length > 0 && (
+      <Card>
+        <CardHeader>
+          <CardTitle>Expenses for {date ? format(date, "PPP") : ''}</CardTitle>
+          <CardDescription>A detailed list of your expenses for the selected day.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Description</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {selectedDayExpenses.map(t => (
+                <TableRow key={t.id}>
+                  <TableCell className="font-medium">{t.description}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" style={{borderColor: categoryColors[t.category]}}>
+                      {t.category}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    )}
+    </div>
   )
 }
