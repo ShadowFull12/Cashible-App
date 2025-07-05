@@ -7,8 +7,17 @@ import { UserNav } from "./user-nav";
 import { Logo } from "../logo";
 import { Button } from "../ui/button";
 import { PlusCircle } from "lucide-react";
+import { AddExpenseDialog } from "../add-expense-dialog";
+import { useData } from "@/hooks/use-data";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
+  const [isAddExpenseOpen, setIsAddExpenseOpen] = React.useState(false);
+  const { refreshData } = useData();
+
+  const handleExpenseAdded = () => {
+    refreshData();
+  };
+
   return (
     <SidebarProvider>
       <Sidebar>
@@ -30,7 +39,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="sm:hidden">
             <SidebarTrigger />
           </div>
-          <Button>
+          <Button onClick={() => setIsAddExpenseOpen(true)}>
             <PlusCircle className="mr-2 size-4" />
             Add Expense
           </Button>
@@ -39,6 +48,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           {children}
         </main>
       </SidebarInset>
+      <AddExpenseDialog open={isAddExpenseOpen} onOpenChange={setIsAddExpenseOpen} onExpenseAdded={handleExpenseAdded} />
     </SidebarProvider>
   );
 }

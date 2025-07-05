@@ -1,8 +1,11 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
-import { Toaster } from "@/components/ui/toaster";
+import { useAuth } from "@/hooks/use-auth";
+import { useEffect } from "react";
+import { Loader2 } from "lucide-react";
+import { DataProvider } from "@/hooks/use-data";
 
 export function RootLayoutClient({
   children,
@@ -10,20 +13,48 @@ export function RootLayoutClient({
   children: React.ReactNode;
 }>) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, loading } = useAuth();
+
   const isAuthPage = pathname === "/" || pathname === "/signup";
+
+  useEffect(() => {
+    if (loading) return;
+
+    if (!user && !isAuthPage) {
+      router.push("/");
+    }
+
+    if (user && isAuthPage) {
+      router.push("/dashboard");
+    }
+  }, [user, loading, isAuthPage, router]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user && !isAuthPage) {
+    return null; // or a loading spinner, prevents flicker
+  }
+  
+  if (user && isAuthPage) {
+    return null; // or a loading spinner
+  }
 
   return (
     <>
       {isAuthPage ? (
-        <>
-          {children}
-        </>
+        <>{children}</>
       ) : (
-        <AppLayout>
-          {children}
-        </AppLayout>
+        <DataProvider>
+          <AppLayout>{children}</AppLayout>
+        </DataProvider>
       )}
-      <Toaster />
     </>
   );
 }

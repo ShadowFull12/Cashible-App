@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, IndianRupee, MoreHorizontal, PlusCircle, Wallet } from "lucide-react";
+import { AlertTriangle, IndianRupee, MoreHorizontal, Wallet, Loader2 } from "lucide-react";
 import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import {
   AlertDialog,
@@ -24,39 +24,64 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-
-const dailySpending = [
-  { date: "01", total: Math.floor(Math.random() * 1000) + 200 },
-  { date: "02", total: Math.floor(Math.random() * 1000) + 200 },
-  { date: "03", total: Math.floor(Math.random() * 1000) + 200 },
-  { date: "04", total: Math.floor(Math.random() * 1000) + 200 },
-  { date: "05", total: Math.floor(Math.random() * 1000) + 200 },
-  { date: "06", total: Math.floor(Math.random() * 1000) + 200 },
-  { date: "07", total: Math.floor(Math.random() * 1000) + 200 },
-  { date: "08", total: Math.floor(Math.random() * 1000) + 200 },
-  { date: "09", total: Math.floor(Math.random() * 1000) + 200 },
-  { date: "10", total: Math.floor(Math.random() * 1000) + 200 },
-];
-
-const transactions = [
-  { id: 1, name: "Spotify", category: "Entertainment", amount: 119, date: "2 days ago" },
-  { id: 2, name: "BigBazaar", category: "Groceries", amount: 2450, date: "3 days ago" },
-  { id: 3, name: "Electricity Bill", category: "Utilities", amount: 850, date: "5 days ago" },
-  { id: 4, name: "Zomato", category: "Food", amount: 349, date: "6 days ago" },
-];
-
-const categoryColors: { [key: string]: string } = {
-  Entertainment: "bg-purple-500",
-  Groceries: "bg-green-500",
-  Utilities: "bg-yellow-500",
-  Food: "bg-red-500",
-};
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuth } from "@/hooks/use-auth";
+import { useData } from "@/hooks/use-data";
+import { useMemo } from "react";
+import { deleteTransaction } from "@/services/transactionService";
+import { toast } from "sonner";
+import { format } from "date-fns";
 
 export default function DashboardPage() {
-  const budget = 50000;
-  const spent = 28750;
+  const { userData } = useAuth();
+  const { transactions, categories, isLoading, refreshData } = useData();
+  
+  const categoryColors = useMemo(() => {
+    return categories.reduce((acc, cat) => {
+        acc[cat.name] = cat.color;
+        return acc;
+    }, {} as {[key: string]: string});
+  }, [categories]);
+
+  const handleDelete = async (id: string) => {
+    try {
+        await deleteTransaction(id);
+        toast.success("Transaction deleted successfully");
+        await refreshData();
+    } catch (error) {
+        toast.error("Failed to delete transaction");
+    }
+  };
+
+  const budget = userData?.budget || 50000;
+  const spent = transactions.reduce((sum, t) => sum + t.amount, 0);
   const remaining = budget - spent;
-  const progress = (spent / budget) * 100;
+  const progress = budget > 0 ? (spent / budget) * 100 : 0;
+  
+  const dailySpending = useMemo(() => {
+    const dailyMap = new Map<string, number>();
+    const last10Days = Array.from({ length: 10 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        return format(d, 'dd');
+    }).reverse();
+
+    last10Days.forEach(day => dailyMap.set(day, 0));
+    
+    transactions.forEach(t => {
+        const day = format(t.date, 'dd');
+        if(dailyMap.has(day)) {
+            dailyMap.set(day, (dailyMap.get(day) || 0) + t.amount);
+        }
+    });
+
+    return Array.from(dailyMap.entries()).map(([date, total]) => ({ date, total }));
+  }, [transactions]);
+
+
+  if (isLoading) {
+    return <DashboardSkeleton />;
+  }
 
   return (
     <div className="grid gap-6 md:gap-8">
@@ -78,7 +103,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">₹{spent.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">+₹5,230 from last month</p>
+            <p className="text-xs text-muted-foreground">in total</p>
           </CardContent>
         </Card>
         <Card>
@@ -88,7 +113,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">₹{remaining.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">You are on track!</p>
+            <p className="text-xs text-muted-foreground">{progress > 80 ? "Nearing budget limit!" : "You are on track!"}</p>
           </CardContent>
         </Card>
       </div>
@@ -123,7 +148,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Recent Transactions</CardTitle>
-            <CardDescription>Your most recent expenses.</CardDescription>
+            <CardDescription>Your 4 most recent expenses.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
@@ -136,17 +161,17 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.map((t) => (
+                {transactions.slice(0,4).map((t) => (
                   <TableRow key={t.id}>
                     <TableCell>
                       <div className="font-medium">{t.name}</div>
-                      <div className="text-sm text-muted-foreground">{t.date}</div>
+                      <div className="text-sm text-muted-foreground">{format(t.date, "PPP")}</div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="flex items-center gap-2">
-                        <span className={`inline-block h-2 w-2 rounded-full ${categoryColors[t.category]}`}></span>
-                        {t.category}
-                      </Badge>
+                        <Badge variant="outline" className="flex items-center gap-2" style={{borderColor: categoryColors[t.category]}}>
+                            <span className={`inline-block h-2 w-2 rounded-full`} style={{backgroundColor: categoryColors[t.category]}}></span>
+                            {t.category}
+                        </Badge>
                     </TableCell>
                     <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
                     <TableCell>
@@ -158,7 +183,7 @@ export default function DashboardPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem>Edit</DropdownMenuItem>
+                            <DropdownMenuItem disabled>Edit</DropdownMenuItem>
                             <AlertDialogTrigger asChild>
                               <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
                             </AlertDialogTrigger>
@@ -173,7 +198,7 @@ export default function DashboardPage() {
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction>Delete</AlertDialogAction>
+                            <AlertDialogAction onClick={() => handleDelete(t.id!)}>Delete</AlertDialogAction>
                           </AlertDialogFooter>
                         </AlertDialogContent>
                       </AlertDialog>
@@ -187,4 +212,21 @@ export default function DashboardPage() {
       </div>
     </div>
   );
+}
+
+function DashboardSkeleton() {
+    return (
+        <div className="grid gap-6 md:gap-8 animate-pulse">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /><Skeleton className="h-4 w-full mt-2" /></CardContent></Card>
+                <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /><Skeleton className="h-4 w-full mt-2" /></CardContent></Card>
+                <Card><CardHeader><Skeleton className="h-6 w-3/4" /></CardHeader><CardContent><Skeleton className="h-8 w-1/2" /><Skeleton className="h-4 w-full mt-2" /></CardContent></Card>
+            </div>
+            <Card><CardHeader><Skeleton className="h-6 w-1/4" /></CardHeader><CardContent><Skeleton className="h-3 w-full" /></CardContent></Card>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                <Card><CardHeader><Skeleton className="h-6 w-1/4" /></CardHeader><CardContent><Skeleton className="h-[250px] w-full" /></CardContent></Card>
+                <Card><CardHeader><Skeleton className="h-6 w-1/4" /></CardHeader><CardContent><Skeleton className="h-10 w-full mb-2" /><Skeleton className="h-10 w-full mb-2" /><Skeleton className="h-10 w-full mb-2" /><Skeleton className="h-10 w-full" /></CardContent></Card>
+            </div>
+        </div>
+    )
 }

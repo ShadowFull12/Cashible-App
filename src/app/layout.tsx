@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { RootLayoutClient } from "@/components/layout/root-layout-client";
+import { AuthProvider } from "@/hooks/use-auth";
+import { Toaster } from "@/components/ui/sonner";
 
 export const metadata: Metadata = {
   title: "SpendWise",
@@ -23,7 +25,10 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body">
-        <RootLayoutClient>{children}</RootLayoutClient>
+        <AuthProvider>
+          <RootLayoutClient>{children}</RootLayoutClient>
+          <Toaster />
+        </AuthProvider>
       </body>
     </html>
   );

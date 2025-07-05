@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { MoreHorizontal, PlusCircle } from "lucide-react";
+import { useState, useMemo } from "react";
+import { MoreHorizontal } from "lucide-react";
+import { toast } from "sonner";
+import { format } from "date-fns";
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,37 +23,45 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-const allTransactions = [
-    { id: 1, name: "Spotify Premium", category: "Entertainment", amount: 119, date: "2024-07-15" },
-    { id: 2, name: "BigBazaar Groceries", category: "Groceries", amount: 2450, date: "2024-07-14" },
-    { id: 3, name: "Electricity Bill", category: "Utilities", amount: 850, date: "2024-07-12" },
-    { id: 4, name: "Zomato Order", category: "Food", amount: 349, date: "2024-07-11" },
-    { id: 5, name: "Movie Tickets", category: "Entertainment", amount: 650, date: "2024-07-10" },
-    { id: 6, name: "Monthly Rent", category: "Housing", amount: 15000, date: "2024-07-05" },
-    { id: 7, name: "Fuel", category: "Transport", amount: 1000, date: "2024-07-02" },
-    { id: 8, name: "Amazon Purchase", category: "Shopping", amount: 1299, date: "2024-06-28" },
-];
-
-const categoryColors: { [key: string]: string } = {
-  Entertainment: "bg-purple-500",
-  Groceries: "bg-green-500",
-  Utilities: "bg-yellow-500",
-  Food: "bg-red-500",
-  Housing: "bg-blue-500",
-  Transport: "bg-orange-500",
-  Shopping: "bg-pink-500",
-};
+import { useData } from "@/hooks/use-data";
+import { deleteTransaction } from "@/services/transactionService";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function HistoryPage() {
+  const { transactions, categories, isLoading, refreshData } = useData();
+  const [filterName, setFilterName] = useState("");
+  const [filterCategory, setFilterCategory] = useState("all");
+
+  const categoryColors = useMemo(() => {
+    return categories.reduce((acc, cat) => {
+        acc[cat.name] = cat.color;
+        return acc;
+    }, {} as {[key: string]: string});
+  }, [categories]);
+
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      const nameMatch = t.name.toLowerCase().includes(filterName.toLowerCase());
+      const categoryMatch = filterCategory === 'all' || t.category === filterCategory;
+      return nameMatch && categoryMatch;
+    });
+  }, [transactions, filterName, filterCategory]);
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteTransaction(id);
+      toast.success("Transaction deleted");
+      await refreshData();
+    } catch (error) {
+      toast.error("Failed to delete transaction");
+    }
+  };
+  
   return (
     <Card>
       <CardHeader>
@@ -59,20 +70,21 @@ export default function HistoryPage() {
       </CardHeader>
       <CardContent>
         <div className="mb-4 flex items-center gap-4">
-            <Input placeholder="Filter by name..." className="max-w-sm" />
-            <Select>
+            <Input 
+              placeholder="Filter by name..." 
+              className="max-w-sm"
+              value={filterName}
+              onChange={(e) => setFilterName(e.target.value)}
+            />
+            <Select value={filterCategory} onValueChange={setFilterCategory}>
                 <SelectTrigger className="w-[180px]">
                     <SelectValue placeholder="Filter by category" />
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
-                    <SelectItem value="entertainment">Entertainment</SelectItem>
-                    <SelectItem value="groceries">Groceries</SelectItem>
-                    <SelectItem value="utilities">Utilities</SelectItem>
-                    <SelectItem value="food">Food</SelectItem>
-                    <SelectItem value="housing">Housing</SelectItem>
-                    <SelectItem value="transport">Transport</SelectItem>
-                    <SelectItem value="shopping">Shopping</SelectItem>
+                    {categories.map(cat => (
+                      <SelectItem key={cat.name} value={cat.name}>{cat.name}</SelectItem>
+                    ))}
                 </SelectContent>
             </Select>
         </div>
@@ -87,50 +99,64 @@ export default function HistoryPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {allTransactions.map((t) => (
+            {isLoading ? (
+              Array.from({length: 5}).map((_, i) => (
+                <TableRow key={i}>
+                  <TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell>
+                </TableRow>
+              ))
+            ) : filteredTransactions.length > 0 ? (
+              filteredTransactions.map((t) => (
               <TableRow key={t.id}>
                 <TableCell>
                   <div className="font-medium">{t.name}</div>
                 </TableCell>
                 <TableCell>
-                  <Badge variant="outline" className="flex items-center gap-2">
-                    <span className={`inline-block h-2 w-2 rounded-full ${categoryColors[t.category]}`}></span>
+                  <Badge variant="outline" className="flex items-center gap-2" style={{borderColor: categoryColors[t.category]}}>
+                    <span className={`inline-block h-2 w-2 rounded-full`} style={{backgroundColor: categoryColors[t.category]}}></span>
                     {t.category}
                   </Badge>
                 </TableCell>
-                <TableCell>{new Date(t.date).toLocaleDateString("en-IN", { day: 'numeric', month: 'long', year: 'numeric' })}</TableCell>
+                <TableCell>{format(t.date, "PPP")}</TableCell>
                 <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
                 <TableCell>
                     <AlertDialog>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="size-4" />
-                        </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
-                        <AlertDialogTrigger asChild>
-                            <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
-                        </AlertDialogTrigger>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
-                    <AlertDialogContent>
-                        <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete this transaction.
-                        </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction>Delete</AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
+                      <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                              <MoreHorizontal className="size-4" />
+                          </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                          <DropdownMenuItem disabled>Edit</DropdownMenuItem>
+                          <AlertDialogTrigger asChild>
+                              <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
+                          </AlertDialogTrigger>
+                          </DropdownMenuContent>
+                      </DropdownMenu>
+                      <AlertDialogContent>
+                          <AlertDialogHeader>
+                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                              This action cannot be undone. This will permanently delete this transaction.
+                          </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(t.id!)}>Delete</AlertDialogAction>
+                          </AlertDialogFooter>
+                      </AlertDialogContent>
                     </AlertDialog>
                 </TableCell>
               </TableRow>
-            ))}
+            ))
+            ) : (
+                <TableRow>
+                    <TableCell colSpan={5} className="text-center h-24">
+                        No transactions found.
+                    </TableCell>
+                </TableRow>
+            )}
           </TableBody>
         </Table>
       </CardContent>
