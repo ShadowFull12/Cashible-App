@@ -27,10 +27,10 @@ body {
     --border: 215 10% 85%;
     --input: 215 15% 90%;
     --ring: 181 95% 45%;
-    --chart-1: 181 80% 40%;
+    --chart-1: 120 60% 45%;
     --chart-2: 197 70% 50%;
     --chart-3: 210 80% 60%;
-    --chart-4: 43 74% 66%;
+    --chart-4: 45 95% 55%;
     --chart-5: 27 87% 67%;
     --radius: 0.75rem;
     --sidebar-background: 220 15% 15%;
@@ -63,10 +63,10 @@ body {
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 181 95% 50%;
-    --chart-1: 181 80% 45%;
+    --chart-1: 120 60% 50%;
     --chart-2: 197 70% 55%;
     --chart-3: 210 80% 65%;
-    --chart-4: 43 74% 66%;
+    --chart-4: 45 95% 60%;
     --chart-5: 27 87% 67%;
     --sidebar-background: 224 71.4% 4.1%;
     --sidebar-foreground: 210 20% 90%;
@@ -88,13 +88,4 @@ body {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
-}
-
-@layer utilities {
-    .progress-bar-yellow .progress-indicator {
-        background-color: hsl(var(--chart-4));
-    }
-    .progress-bar-red .progress-indicator {
-        background-color: hsl(var(--destructive));
-    }
 }

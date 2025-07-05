@@ -59,6 +59,10 @@ export default function SettingsPage() {
     const [isUploading, setIsUploading] = useState(false);
     const avatarInputRef = useRef<HTMLInputElement>(null);
 
+    const [categoryColors, setCategoryColors] = useState<{[key: string]: string}>({});
+    const [originalCategoryColors, setOriginalCategoryColors] = useState<{[key: string]: string}>({});
+    const [savingColor, setSavingColor] = useState<string | null>(null);
+
     const passwordForm = useForm<z.infer<typeof passwordSchema>>({
         resolver: zodResolver(passwordSchema),
         defaultValues: { currentPassword: "", newPassword: "" },
@@ -76,6 +80,16 @@ export default function SettingsPage() {
         }
     }, [userData, user?.photoURL]);
 
+    useEffect(() => {
+        if (categories) {
+            const colors = categories.reduce((acc, cat) => {
+                acc[cat.name] = cat.color;
+                return acc;
+            }, {} as {[key: string]: string});
+            setCategoryColors(colors);
+            setOriginalCategoryColors(colors);
+        }
+    }, [categories]);
 
     const userInitial = user?.displayName ? user.displayName.charAt(0).toUpperCase() : (user?.email ? user.email.charAt(0).toUpperCase() : 'U');
 
@@ -114,15 +128,24 @@ export default function SettingsPage() {
         }
     };
     
-    const handleCategoryColorChange = async (categoryName: string, newColor: string) => {
+    const handleCategoryColorChange = async (categoryName: string) => {
         if (!user) return;
+        setSavingColor(categoryName);
+        const newColor = categoryColors[categoryName];
         try {
             await updateCategory(user.uid, categoryName, newColor);
             await refreshData();
             toast.success(`Color for ${categoryName} updated.`);
         } catch (error) {
             toast.error("Failed to update category color.");
+             setCategoryColors(prev => ({...prev, [categoryName]: originalCategoryColors[categoryName]}));
+        } finally {
+            setSavingColor(null);
         }
+    };
+
+    const handleLocalColorChange = (categoryName: string, newColor: string) => {
+        setCategoryColors(prev => ({...prev, [categoryName]: newColor}));
     };
 
 
@@ -261,12 +284,19 @@ export default function SettingsPage() {
                                 {isLoading ? <Loader2 className="animate-spin" /> : categories.map(cat => (
                                     <div key={cat.name} className="flex items-center justify-between rounded-lg border p-3">
                                         <div className="flex items-center gap-3">
-                                            <input type="color" value={cat.color} onChange={(e) => handleCategoryColorChange(cat.name, e.target.value)} className="w-8 h-8 rounded-md border-none cursor-pointer" style={{backgroundColor: cat.color}} />
+                                            <input type="color" value={categoryColors[cat.name] || '#000000'} onChange={(e) => handleLocalColorChange(cat.name, e.target.value)} className="w-8 h-8 rounded-md border-none cursor-pointer" style={{backgroundColor: categoryColors[cat.name]}} />
                                             <span>{cat.name}</span>
                                         </div>
-                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat.name)}>
-                                            <Trash2 className="size-4 text-red-500" />
-                                        </Button>
+                                        <div className="flex items-center gap-2">
+                                            {categoryColors[cat.name] !== originalCategoryColors[cat.name] && (
+                                                <Button size="sm" onClick={() => handleCategoryColorChange(cat.name)} disabled={savingColor === cat.name}>
+                                                    {savingColor === cat.name ? <Loader2 className="animate-spin"/> : 'Save'}
+                                                </Button>
+                                            )}
+                                            <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat.name)}>
+                                                <Trash2 className="size-4 text-red-500" />
+                                            </Button>
+                                        </div>
                                     </div>
                                 ))}
                            </div>

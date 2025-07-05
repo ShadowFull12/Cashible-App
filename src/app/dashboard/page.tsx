@@ -99,12 +99,13 @@ export default function DashboardPage() {
     return "You're on track with your spending.";
   };
 
-  const progressColorClass = useMemo(() => {
-    if (progress > 100) return "progress-bar-red";
-    if (progress > 80) return "progress-bar-red";
-    if (progress > 50) return "progress-bar-yellow";
-    return "";
+  const progressIndicatorClass = useMemo(() => {
+    if (progress > 100) return "bg-destructive";
+    if (progress > 80) return "bg-destructive";
+    if (progress > 50) return "bg-chart-4";
+    return "bg-chart-1";
   }, [progress]);
+
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -152,15 +153,15 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
             <CardTitle>Budget Overview</CardTitle>
-            <CardDescription>{getBudgetStatusText()}</CardDescription>
+            <CardDescription>A visual summary of your monthly spending against your budget.</CardDescription>
         </CardHeader>
         <CardContent>
-            <Progress value={Math.min(progress, 100)} className={progressColorClass} />
-            {progress > 100 && (
-                <div className="mt-2 text-sm font-medium text-destructive">
-                    Overspent by { (progress - 100).toFixed(0) }%
-                </div>
-            )}
+            <div className="flex justify-between items-center mb-1 text-sm">
+                <span>Spent: <span className="font-medium">₹{spent.toLocaleString()}</span></span>
+                <span>{progress.toFixed(0)}%</span>
+            </div>
+            <Progress value={Math.min(progress, 100)} indicatorClassName={progressIndicatorClass} />
+            <p className="text-xs text-muted-foreground mt-2">{getBudgetStatusText()}</p>
         </CardContent>
       </Card>
 
