@@ -16,4 +16,16 @@ export interface Transaction {
     amount: number;
     category: string;
     date: Date;
+    recurringExpenseId?: string;
+}
+
+export interface RecurringExpense {
+    id?: string;
+    userId: string;
+    description: string;
+    amount: number;
+    category: string;
+    dayOfMonth: number;
+    isActive: boolean;
+    lastProcessed: Date | null;
 }

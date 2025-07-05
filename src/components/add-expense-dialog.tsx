@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -42,13 +43,16 @@ import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 import { addTransaction } from "@/services/transactionService";
+import { addRecurringExpense } from "@/services/recurringExpenseService";
 import { suggestCategory } from "@/ai/flows/suggest-category";
+import { Switch } from "./ui/switch";
 
 const formSchema = z.object({
   description: z.string().min(3, { message: "Description must be at least 3 characters." }),
   amount: z.coerce.number().positive({ message: "Amount must be positive." }),
   category: z.string().min(1, { message: "Please select a category." }),
   date: z.date(),
+  isRecurring: z.boolean().default(false),
 });
 
 interface AddExpenseDialogProps {
@@ -71,6 +75,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
       amount: 0,
       category: "",
       date: defaultDate || new Date(),
+      isRecurring: false,
     },
   });
 
@@ -81,6 +86,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
         amount: 0,
         category: "",
         date: defaultDate || new Date(),
+        isRecurring: false,
       });
     }
   }, [open, defaultDate, form]);
@@ -116,10 +122,32 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
     }
     setIsSubmitting(true);
     try {
-      await addTransaction({ ...values, userId: user.uid });
+      let recurringId: string | undefined = undefined;
+      if (values.isRecurring) {
+        recurringId = await addRecurringExpense({
+          userId: user.uid,
+          description: values.description,
+          amount: values.amount,
+          category: values.category,
+          dayOfMonth: values.date.getDate(),
+          isActive: true,
+          lastProcessed: new Date(),
+        });
+        toast.info("Recurring expense created. The first transaction has been added.");
+      }
+
+      await addTransaction({
+        userId: user.uid,
+        description: values.description,
+        amount: values.amount,
+        category: values.category,
+        date: values.date,
+        recurringExpenseId: recurringId
+      });
+
       toast.success("Expense added successfully!");
       onExpenseAdded();
-      form.reset({ description: "", amount: 0, category: "", date: new Date() });
+      form.reset({ description: "", amount: 0, category: "", date: new Date(), isRecurring: false });
       onOpenChange(false);
     } catch (error) {
       toast.error("Failed to add expense. Please try again.");
@@ -234,6 +262,26 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                     </PopoverContent>
                   </Popover>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="isRecurring"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                  <div className="space-y-0.5">
+                    <FormLabel>Recurring Expense</FormLabel>
+                    <p className="text-xs text-muted-foreground">
+                      Set this expense to repeat every month on the selected day.
+                    </p>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />
