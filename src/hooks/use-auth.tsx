@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useCa
 import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
+import { toast } from "sonner";
 
 interface AuthContextType {
   user: User | null;
@@ -20,16 +21,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userData, setUserData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
+  const fetchUserData = useCallback(async (user: User) => {
+    if (!db) return;
+    try {
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+            setUserData(userDoc.data());
+        } else {
+            setUserData(null);
+        }
+    } catch (error: any) {
+        console.error("Failed to fetch user data:", error);
+        if (error.code === 'unavailable') {
+             toast.error("Could not connect to the database. Please check your internet connection and ensure Firestore is enabled in your Firebase project.");
+        } else {
+            toast.error("An error occurred while fetching your data.");
+        }
+        setUserData(null);
+    }
+  }, []);
+
   const refreshUserData = useCallback(async () => {
     if (!auth || !db) return;
     const currentUser = auth.currentUser;
     if (currentUser) {
-      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
-      if (userDoc.exists()) {
-        setUserData(userDoc.data());
-      }
+      await fetchUserData(currentUser);
     }
-  }, []);
+  }, [fetchUserData]);
 
   useEffect(() => {
     // If firebase is not configured, don't do anything
@@ -40,10 +59,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
-        const userDoc = await getDoc(doc(db, 'users', user.uid));
-        if (userDoc.exists()) {
-          setUserData(userDoc.data());
-        }
+        await fetchUserData(user);
       } else {
         setUserData(null);
       }
@@ -51,7 +67,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [fetchUserData]);
 
   const logout = async () => {
     if (!auth) return;
