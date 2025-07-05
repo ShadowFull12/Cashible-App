@@ -89,3 +89,12 @@ body {
     -moz-osx-font-smoothing: grayscale;
   }
 }
+
+@layer utilities {
+    .progress-bar-yellow .progress-indicator {
+        background-color: hsl(var(--chart-4));
+    }
+    .progress-bar-red .progress-indicator {
+        background-color: hsl(var(--destructive));
+    }
+}

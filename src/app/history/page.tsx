@@ -32,11 +32,20 @@ import { useData } from "@/hooks/use-data";
 import { deleteTransaction } from "@/services/transactionService";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 export default function HistoryPage() {
   const { transactions, categories, isLoading, refreshData } = useData();
   const [filterDescription, setFilterDescription] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
+  const [filterMonth, setFilterMonth] = useState<string>("all");
+  const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
 
+  const availableYears = useMemo(() => {
+    const years = new Set(transactions.map(t => t.date.getFullYear()));
+    return Array.from(years).sort((a, b) => b - a);
+  }, [transactions]);
+  
   const categoryColors = useMemo(() => {
     return categories.reduce((acc, cat) => {
         acc[cat.name] = cat.color;
@@ -48,9 +57,11 @@ export default function HistoryPage() {
     return transactions.filter(t => {
       const descriptionMatch = (t.description || "").toLowerCase().includes(filterDescription.toLowerCase());
       const categoryMatch = filterCategory === 'all' || t.category === filterCategory;
-      return descriptionMatch && categoryMatch;
+      const monthMatch = filterMonth === 'all' || t.date.getMonth().toString() === filterMonth;
+      const yearMatch = t.date.getFullYear().toString() === filterYear;
+      return descriptionMatch && categoryMatch && monthMatch && yearMatch;
     });
-  }, [transactions, filterDescription, filterCategory]);
+  }, [transactions, filterDescription, filterCategory, filterMonth, filterYear]);
 
   const handleDelete = async (id: string) => {
     try {
@@ -69,7 +80,7 @@ export default function HistoryPage() {
         <CardDescription>A detailed list of all your past transactions.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="mb-4 flex items-center gap-4">
+        <div className="mb-4 flex flex-wrap items-center gap-4">
             <Input 
               placeholder="Filter by description..." 
               className="max-w-sm"
@@ -77,13 +88,34 @@ export default function HistoryPage() {
               onChange={(e) => setFilterDescription(e.target.value)}
             />
             <Select value={filterCategory} onValueChange={setFilterCategory}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-full md:w-[180px]">
                     <SelectValue placeholder="Filter by category" />
                 </SelectTrigger>
                 <SelectContent>
                     <SelectItem value="all">All Categories</SelectItem>
                     {categories.map(cat => (
                       <SelectItem key={cat.name} value={cat.name}>{cat.name}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+            <Select value={filterMonth} onValueChange={setFilterMonth}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                    <SelectValue placeholder="Filter by month" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">All Months</SelectItem>
+                    {MONTHS.map((month, index) => (
+                        <SelectItem key={month} value={index.toString()}>{month}</SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+            <Select value={filterYear} onValueChange={setFilterYear}>
+                <SelectTrigger className="w-full md:w-[180px]">
+                    <SelectValue placeholder="Filter by year" />
+                </SelectTrigger>
+                <SelectContent>
+                    {availableYears.map(year => (
+                        <SelectItem key={year} value={year.toString()}>{year}</SelectItem>
                     ))}
                 </SelectContent>
             </Select>
@@ -153,7 +185,7 @@ export default function HistoryPage() {
             ) : (
                 <TableRow>
                     <TableCell colSpan={5} className="text-center h-24">
-                        No transactions found.
+                        No transactions found for the selected filters.
                     </TableCell>
                 </TableRow>
             )}

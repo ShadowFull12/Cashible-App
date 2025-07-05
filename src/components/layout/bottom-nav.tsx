@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, History, Lightbulb, CalendarDays, Settings, Plus } from "lucide-react";
+import { LayoutDashboard, History, Lightbulb, CalendarDays, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/history", icon: History, label: "History" },
+  { href: "/calendar", icon: CalendarDays, label: "Calendar" },
   { href: "/insights", icon: Lightbulb, label: "Insights" },
-  { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
 interface BottomNavProps {

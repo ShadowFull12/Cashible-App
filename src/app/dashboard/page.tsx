@@ -31,6 +31,8 @@ import { useMemo } from "react";
 import { deleteTransaction } from "@/services/transactionService";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth } from "date-fns";
+import { cn } from "@/lib/utils";
+
 
 export default function DashboardPage() {
   const { userData } = useAuth();
@@ -89,7 +91,20 @@ export default function DashboardPage() {
 
     return Array.from(dailyMap.entries()).map(([date, total]) => ({ date, total }));
   }, [transactions]);
+  
+  const getBudgetStatusText = () => {
+    if (progress > 100) return `You're over budget by ₹${(spent - budget).toLocaleString()}.`;
+    if (progress > 80) return "Warning: You're nearing your budget limit.";
+    if (progress > 50) return "You've spent over half of your budget.";
+    return "You're on track with your spending.";
+  };
 
+  const progressColorClass = useMemo(() => {
+    if (progress > 100) return "progress-bar-red";
+    if (progress > 80) return "progress-bar-red";
+    if (progress > 50) return "progress-bar-yellow";
+    return "";
+  }, [progress]);
 
   if (isLoading) {
     return <DashboardSkeleton />;
@@ -118,14 +133,18 @@ export default function DashboardPage() {
             <p className="text-xs text-muted-foreground">in total</p>
           </CardContent>
         </Card>
-        <Card>
+        <Card className={cn(remaining < 0 && "border-destructive/50 text-destructive")}>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Money Remaining</CardTitle>
+            <CardTitle className="text-sm font-medium">
+              {remaining >= 0 ? 'Money Remaining' : 'Over Budget By'}
+            </CardTitle>
             <AlertTriangle className="size-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">₹{remaining.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">{progress > 80 ? "Nearing budget limit!" : "You are on track!"}</p>
+            <div className="text-2xl font-bold">₹{Math.abs(remaining).toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+                {remaining >= 0 ? "Your remaining balance for the month." : "You have exceeded your budget."}
+            </p>
           </CardContent>
         </Card>
       </div>
@@ -133,10 +152,15 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
             <CardTitle>Budget Overview</CardTitle>
-            <CardDescription>You've spent {progress.toFixed(0)}% of your budget this month.</CardDescription>
+            <CardDescription>{getBudgetStatusText()}</CardDescription>
         </CardHeader>
         <CardContent>
-            <Progress value={progress} className="h-3"/>
+            <Progress value={Math.min(progress, 100)} className={progressColorClass} />
+            {progress > 100 && (
+                <div className="mt-2 text-sm font-medium text-destructive">
+                    Overspent by { (progress - 100).toFixed(0) }%
+                </div>
+            )}
         </CardContent>
       </Card>
 

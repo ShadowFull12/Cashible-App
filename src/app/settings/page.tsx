@@ -5,11 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Palette, Trash2, Loader2, KeyRound, Sun, Moon, Laptop, Upload, CheckCircle2 } from "lucide-react";
+import { Palette, Trash2, Loader2, Sun, Moon, Laptop, Upload, CheckCircle2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 import React, { useState, useRef, useEffect } from "react";
-import { addCategory, deleteCategory } from "@/services/categoryService";
+import { addCategory, deleteCategory, updateCategory } from "@/services/categoryService";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import { useForm } from "react-hook-form";
@@ -49,6 +49,7 @@ export default function SettingsPage() {
     const { theme, setTheme } = useTheme();
 
     const [newCategoryName, setNewCategoryName] = useState("");
+    const [newCategoryColor, setNewCategoryColor] = useState("#22c55e");
     const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
     const [budget, setBudget] = useState(userData?.budget || 0);
     const [isSavingBudget, setIsSavingBudget] = useState(false);
@@ -87,9 +88,10 @@ export default function SettingsPage() {
         }
         setIsSubmittingCategory(true);
         try {
-            const newCategory = { name: newCategoryName, color: `#${Math.floor(Math.random()*16777215).toString(16)}` };
+            const newCategory = { name: newCategoryName, color: newCategoryColor };
             await addCategory(user.uid, newCategory);
             setNewCategoryName("");
+            setNewCategoryColor("#22c55e");
             toast.success("Category added!");
             await refreshData();
         } catch (error) {
@@ -99,16 +101,30 @@ export default function SettingsPage() {
         }
     };
     
-    const handleDeleteCategory = async (category: Category) => {
+    const handleDeleteCategory = async (categoryName: string) => {
         if (!user) return;
+        const categoryToDelete = categories.find(c => c.name === categoryName);
+        if (!categoryToDelete) return;
         try {
-            await deleteCategory(user.uid, category);
+            await deleteCategory(user.uid, categoryToDelete);
             toast.success("Category deleted!");
             await refreshData();
         } catch (error) {
             toast.error("Failed to delete category.");
         }
     };
+    
+    const handleCategoryColorChange = async (categoryName: string, newColor: string) => {
+        if (!user) return;
+        try {
+            await updateCategory(user.uid, categoryName, newColor);
+            await refreshData();
+            toast.success(`Color for ${categoryName} updated.`);
+        } catch (error) {
+            toast.error("Failed to update category color.");
+        }
+    };
+
 
     const handleSaveBudget = async () => {
         setIsSavingBudget(true);
@@ -245,18 +261,20 @@ export default function SettingsPage() {
                                 {isLoading ? <Loader2 className="animate-spin" /> : categories.map(cat => (
                                     <div key={cat.name} className="flex items-center justify-between rounded-lg border p-3">
                                         <div className="flex items-center gap-3">
-                                            <div className="h-8 w-8 rounded-md flex items-center justify-center" style={{backgroundColor: cat.color}}>
-                                                <Palette className="size-4 text-white"/>
-                                            </div>
+                                            <input type="color" value={cat.color} onChange={(e) => handleCategoryColorChange(cat.name, e.target.value)} className="w-8 h-8 rounded-md border-none cursor-pointer" style={{backgroundColor: cat.color}} />
                                             <span>{cat.name}</span>
                                         </div>
-                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat)}>
+                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat.name)}>
                                             <Trash2 className="size-4 text-red-500" />
                                         </Button>
                                     </div>
                                 ))}
                            </div>
                            <form onSubmit={handleAddCategory} className="flex items-end gap-4">
+                                <div className="space-y-2">
+                                    <Label htmlFor="new-category-color">Color</Label>
+                                    <Input type="color" id="new-category-color" value={newCategoryColor} onChange={e => setNewCategoryColor(e.target.value)} className="w-16 p-1" />
+                                </div>
                                <div className="flex-grow space-y-2">
                                    <Label htmlFor="new-category">New Category Name</Label>
                                    <Input id="new-category" placeholder="e.g. Health" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} />
