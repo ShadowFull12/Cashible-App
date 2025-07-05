@@ -11,8 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 import React, { useState, useRef, useEffect } from "react";
 import { addCategory, deleteCategory, updateCategory } from "@/services/categoryService";
-import { deleteRecurringExpense } from "@/services/recurringExpenseService";
-import { deleteTransactionsByRecurringId } from "@/services/transactionService";
+import { deleteRecurringExpense, deleteRecurringExpenseAndHistory } from "@/services/recurringExpenseService";
 import { toast } from "sonner";
 import { useTheme } from "next-themes";
 import { useForm } from "react-hook-form";
@@ -195,8 +194,8 @@ export default function SettingsPage() {
             await uploadAndSetProfileImage(avatarFile);
             toast.success("Avatar updated successfully!");
             setAvatarFile(null);
-        } catch (error) {
-            toast.error("Failed to upload avatar.");
+        } catch (error: any) {
+            toast.error("Failed to upload avatar.", { description: error.message });
             setAvatarPreview(user?.photoURL || null);
         } finally {
             setIsUploading(false);
@@ -237,12 +236,11 @@ export default function SettingsPage() {
     
     const handleDeleteAndEraseHistory = async (expenseId: string) => {
         try {
-            // This service function needs to be created
-            await deleteTransactionsByRecurringId(expenseId);
-            await deleteRecurringExpense(expenseId);
+            await deleteRecurringExpenseAndHistory(expenseId);
             await refreshData();
             toast.success("Recurring expense and its history deleted.");
         } catch (error) {
+            console.error(error);
             toast.error("Failed to delete recurring expense permanently.");
         } finally {
             setDeletingExpense(null);

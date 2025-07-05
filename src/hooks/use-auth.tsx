@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
@@ -97,25 +98,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const uploadAndSetProfileImage_ = async (file: File) => {
     if (!user) throw new Error("User not authenticated.");
-    
-    // Upload image and get URL
+
+    // 1. Upload image and get URL
     const photoURL = await userService.uploadProfileImage(user.uid, file);
     
-    // Update profile in Firebase Auth
+    // 2. Update profile in Firebase Auth
     await updateProfile(user, { photoURL });
     
-    // Update photoURL in Firestore user document
+    // 3. Update photoURL in Firestore user document
     await userService.updateUser(user.uid, { photoURL });
 
-    // The onAuthStateChanged listener might not fire for profile updates.
-    // To update the UI immediately, we get the fresh user object from the auth instance.
+    // 4. Force a refresh of the user object in our app's state to update the UI
     if (auth.currentUser) {
-        setUser(auth.currentUser);
+        // Create a new object to force React to recognize the change and re-render.
+        const updatedUser = { ...auth.currentUser };
+        setUser(updatedUser as User);
     }
     
-    // Refresh our custom user data from Firestore
+    // 5. Refresh our custom user data from Firestore to ensure everything is in sync
     await refreshUserData();
   };
+
 
   const updateUserPassword_ = async (currentPassword: string, newPassword: string) => {
     if (!user) throw new Error("User not authenticated.");

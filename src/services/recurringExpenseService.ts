@@ -2,6 +2,7 @@
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, Timestamp } from "firebase/firestore";
 import type { RecurringExpense } from "@/lib/data";
+import { deleteTransactionsByRecurringId } from "./transactionService";
 
 export async function addRecurringExpense(expense: Omit<RecurringExpense, 'id'>) {
     if (!db) throw new Error("Firebase is not configured.");
@@ -54,6 +55,17 @@ export async function deleteRecurringExpense(id: string) {
         await deleteDoc(doc(db, "recurring-expenses", id));
     } catch (error) {
         console.error(`Error deleting recurring expense ${id}:`, error);
+        throw error;
+    }
+}
+
+export async function deleteRecurringExpenseAndHistory(id: string) {
+    if (!db) throw new Error("Firebase is not configured.");
+    try {
+        await deleteTransactionsByRecurringId(id);
+        await deleteRecurringExpense(id);
+    } catch (error) {
+        console.error(`Error permanently deleting recurring expense ${id} and its history:`, error);
         throw error;
     }
 }
