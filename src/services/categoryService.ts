@@ -14,15 +14,18 @@ export const defaultCategories = [
 ];
 
 export async function getCategories(userId: string) {
+    if (!db) return []; // Gracefully handle missing config
     const userDocRef = doc(db, "users", userId);
     const userDoc = await getDoc(userDocRef);
     if (userDoc.exists()) {
-        return userDoc.data().categories || [];
+        const data = userDoc.data();
+        return data.categories || defaultCategories;
     }
-    return [];
+    return defaultCategories;
 }
 
 export async function addCategory(userId: string, category: { name: string; color: string }) {
+    if (!db) throw new Error("Firebase is not configured.");
     const userDocRef = doc(db, "users", userId);
     await updateDoc(userDocRef, {
         categories: arrayUnion(category)
@@ -31,6 +34,7 @@ export async function addCategory(userId: string, category: { name: string; colo
 }
 
 export async function deleteCategory(userId: string, category: { name: string; color: string }) {
+    if (!db) throw new Error("Firebase is not configured.");
     const userDocRef = doc(db, "users", userId);
     await updateDoc(userDocRef, {
         categories: arrayRemove(category)

@@ -13,6 +13,7 @@ export interface Transaction {
 }
 
 export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date'> & { date: Date | Timestamp }) {
+    if (!db) throw new Error("Firebase is not configured.");
     const docRef = await addDoc(collection(db, "transactions"), {
         ...transaction,
         date: transaction.date instanceof Date ? Timestamp.fromDate(transaction.date) : transaction.date,
@@ -21,6 +22,7 @@ export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date
 }
 
 export async function getTransactions(userId: string): Promise<Transaction[]> {
+    if (!db) return []; // Gracefully handle missing config
     const q = query(collection(db, "transactions"), where("userId", "==", userId));
     const querySnapshot = await getDocs(q);
     const transactions: Transaction[] = [];
@@ -36,5 +38,6 @@ export async function getTransactions(userId: string): Promise<Transaction[]> {
 }
 
 export async function deleteTransaction(transactionId: string) {
+    if (!db) throw new Error("Firebase is not configured.");
     await deleteDoc(doc(db, "transactions", transactionId));
 }
