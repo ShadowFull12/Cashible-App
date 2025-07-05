@@ -19,7 +19,7 @@ export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date
         console.error('Error adding transaction:', error);
         // Provide a more specific error message for permission issues
         if (error.code === 'permission-denied') {
-            throw new Error("Permission Denied: Could not add transaction. Please check Firestore security rules.");
+            throw new Error("Permission Denied: Could not add transaction. Please check your Firestore security rules.");
         }
         throw error;
     }
@@ -56,10 +56,14 @@ export async function deleteTransaction(transactionId: string) {
     }
 }
 
-export async function deleteTransactionsByRecurringId(recurringExpenseId: string) {
+export async function deleteTransactionsByRecurringId(userId: string, recurringExpenseId: string) {
     if (!db) throw new Error("Firebase is not configured.");
     
-    const q = query(collection(db, "transactions"), where("recurringExpenseId", "==", recurringExpenseId));
+    const q = query(
+        collection(db, "transactions"), 
+        where("recurringExpenseId", "==", recurringExpenseId),
+        where("userId", "==", userId)
+    );
     
     try {
         const querySnapshot = await getDocs(q);

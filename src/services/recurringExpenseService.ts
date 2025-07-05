@@ -59,10 +59,10 @@ export async function deleteRecurringExpense(id: string) {
     }
 }
 
-export async function deleteRecurringExpenseAndHistory(id: string) {
+export async function deleteRecurringExpenseAndHistory(userId: string, id: string) {
     if (!db) throw new Error("Firebase is not configured.");
     try {
-        await deleteTransactionsByRecurringId(id);
+        await deleteTransactionsByRecurringId(userId, id);
         await deleteRecurringExpense(id);
     } catch (error) {
         console.error(`Error permanently deleting recurring expense ${id} and its history:`, error);

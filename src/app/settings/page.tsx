@@ -238,8 +238,12 @@ export default function SettingsPage() {
     }
     
     const handleDeleteAndEraseHistory = async (expenseId: string) => {
+        if (!user) {
+            toast.error("You must be logged in to perform this action.");
+            return;
+        }
         try {
-            await deleteRecurringExpenseAndHistory(expenseId);
+            await deleteRecurringExpenseAndHistory(user.uid, expenseId);
             await refreshData();
             toast.success("Recurring expense and its history deleted.");
         } catch (error) {
@@ -272,7 +276,7 @@ export default function SettingsPage() {
                                         <AlertTriangle className="h-4 w-4" />
                                         <AlertTitle>Image Uploads Disabled</AlertTitle>
                                         <AlertDescription>
-                                            An ImgBB API key is not configured. Please get a free key from <a href="https://api.imgbb.com/" target="_blank" rel="noopener noreferrer" className="underline">api.imgbb.com</a> and add it to your <code>.env.local</code> file to enable avatar uploads.
+                                            An ImgBB API key is not configured. Please get a free key from <a href="https://api.imgbb.com/" target="_blank" rel="noopener noreferrer" className="underline">api.imgbb.com</a> and add it to your <code>.env.local</code> or <code>.env</code> file to enable avatar uploads.
                                         </AlertDescription>
                                     </Alert>
                                 )}
