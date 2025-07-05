@@ -149,8 +149,14 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
       onExpenseAdded();
       form.reset({ description: "", amount: 0, category: "", date: new Date(), isRecurring: false });
       onOpenChange(false);
-    } catch (error) {
-      toast.error("Failed to add expense. Please try again.");
+    } catch (error: any) {
+      if (error.code === 'permission-denied') {
+          toast.error("Permission Denied", {
+              description: "Could not add expense. Please check your Firestore security rules."
+          });
+      } else {
+        toast.error("Failed to add expense. Please try again.");
+      }
       console.error(error);
     } finally {
       setIsSubmitting(false);
