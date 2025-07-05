@@ -1,5 +1,3 @@
-"use client";
-
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
@@ -7,45 +5,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export default function LoginPage() {
+export default function SignupPage() {
   return (
     <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-background to-blue-100 p-4">
       <Card className="w-full max-w-md shadow-2xl transition-all animate-in fade-in-50 zoom-in-95">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 animate-in fade-in-0 slide-in-from-top-12 duration-1000">
-             <Logo />
+            <Logo />
           </div>
-          <CardTitle className="text-3xl font-bold font-headline">Welcome Back</CardTitle>
-          <CardDescription>Enter your credentials to access your dashboard.</CardDescription>
+          <CardTitle className="text-3xl font-bold font-headline">Create an Account</CardTitle>
+          <CardDescription>Enter your information to get started.</CardDescription>
         </CardHeader>
         <CardContent>
           <form className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Username</Label>
+              <Input id="username" placeholder="Jane Doe" required />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" placeholder="m@example.com" required />
             </div>
             <div className="space-y-2">
-              <div className="flex items-center">
-                <Label htmlFor="password">Password</Label>
-                <Link href="#" className="ml-auto inline-block text-sm underline">
-                  Forgot your password?
-                </Link>
-              </div>
+              <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" required />
             </div>
-             <Link href="/dashboard" className="w-full">
+            <Link href="/dashboard" className="w-full">
               <Button type="submit" className="w-full">
-                Login
+                Create Account
               </Button>
             </Link>
-            <Button variant="outline" className="w-full">
-              Login with Google
-            </Button>
           </form>
           <div className="mt-4 text-center text-sm">
-            Don&apos;t have an account?{" "}
-            <Link href="/signup" className="underline">
-              Sign up
+            Already have an account?{" "}
+            <Link href="/" className="underline">
+              Login
             </Link>
           </div>
         </CardContent>
