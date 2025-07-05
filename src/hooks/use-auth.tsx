@@ -21,6 +21,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [loading, setLoading] = useState(true);
 
   const refreshUserData = useCallback(async () => {
+    if (!auth || !db) return;
     const currentUser = auth.currentUser;
     if (currentUser) {
       const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
@@ -31,6 +32,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
+    // If firebase is not configured, don't do anything
+    if (!auth || !db) {
+        setLoading(false);
+        return;
+    }
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
@@ -48,6 +54,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const logout = async () => {
+    if (!auth) return;
     await firebaseSignOut(auth);
   };
 
