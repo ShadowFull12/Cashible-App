@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Palette, Trash2, Loader2, Sun, Moon, Laptop, Upload, CheckCircle2, Repeat, PauseCircle, PlayCircle } from "lucide-react";
+import { Palette, Trash2, Loader2, Sun, Moon, Laptop, Upload, CheckCircle2, Repeat, PauseCircle, PlayCircle, AlertTriangle } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 import React, { useState, useRef, useEffect } from "react";
@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import type { RecurringExpense } from "@/lib/data";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, { message: "Current password is required." }),
@@ -65,6 +66,8 @@ export default function SettingsPage() {
     const [originalCategoryColors, setOriginalCategoryColors] = useState<{[key: string]: string}>({});
     const [savingColor, setSavingColor] = useState<string | null>(null);
     const [deletingExpense, setDeletingExpense] = useState<RecurringExpense | null>(null);
+    
+    const isImgBbConfigured = !!process.env.NEXT_PUBLIC_IMGBB_API_KEY;
 
     const passwordForm = useForm<z.infer<typeof passwordSchema>>({
         resolver: zodResolver(passwordSchema),
@@ -264,10 +267,19 @@ export default function SettingsPage() {
                         <Card>
                             <CardHeader><CardTitle>Profile Settings</CardTitle><CardDescription>Manage your personal information and account settings.</CardDescription></CardHeader>
                             <CardContent className="space-y-8">
+                                {!isImgBbConfigured && (
+                                    <Alert variant="destructive">
+                                        <AlertTriangle className="h-4 w-4" />
+                                        <AlertTitle>Image Uploads Disabled</AlertTitle>
+                                        <AlertDescription>
+                                            An ImgBB API key is not configured. Please get a free key from <a href="https://api.imgbb.com/" target="_blank" rel="noopener noreferrer" className="underline">api.imgbb.com</a> and add it to your <code>.env.local</code> file to enable avatar uploads.
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
                                 <div className="flex items-center gap-6">
                                     <Avatar className="h-20 w-20"><AvatarImage src={avatarPreview || ''} alt="User Avatar" /><AvatarFallback>{userInitial}</AvatarFallback></Avatar>
                                     <div className="space-y-2">
-                                        <Button size="sm" onClick={() => avatarInputRef.current?.click()}><Upload className="mr-2" />Change Avatar</Button>
+                                        <Button size="sm" onClick={() => avatarInputRef.current?.click()} disabled={!isImgBbConfigured}><Upload className="mr-2" />Change Avatar</Button>
                                         <input type="file" accept="image/*" ref={avatarInputRef} onChange={handleAvatarChange} className="hidden" />
                                         {avatarFile && <Button size="sm" variant="secondary" onClick={handleAvatarUpload} disabled={isUploading}>{isUploading ? <Loader2 className="animate-spin" /> : "Save Avatar"}</Button>}
                                         <p className="text-xs text-muted-foreground">Recommended size: 200x200px</p>

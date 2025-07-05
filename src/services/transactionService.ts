@@ -15,8 +15,12 @@ export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date
             recurringExpenseId: transaction.recurringExpenseId || null,
         });
         return docRef.id;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error adding transaction:', error);
+        // Provide a more specific error message for permission issues
+        if (error.code === 'permission-denied') {
+            throw new Error("Permission Denied: Could not add transaction. Please check Firestore security rules.");
+        }
         throw error;
     }
 }
@@ -56,19 +60,22 @@ export async function deleteTransactionsByRecurringId(recurringExpenseId: string
     if (!db) throw new Error("Firebase is not configured.");
     
     const q = query(collection(db, "transactions"), where("recurringExpenseId", "==", recurringExpenseId));
-    const querySnapshot = await getDocs(q);
-
-    if (querySnapshot.empty) {
-        return;
-    }
-
-    const batch = writeBatch(db);
-    querySnapshot.forEach(doc => {
-        batch.delete(doc.ref);
-    });
     
     try {
+        const querySnapshot = await getDocs(q);
+
+        if (querySnapshot.empty) {
+            console.log("No transactions found for this recurring expense, nothing to delete.");
+            return;
+        }
+
+        const batch = writeBatch(db);
+        querySnapshot.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+        
         await batch.commit();
+        console.log(`Successfully deleted ${querySnapshot.size} historical transactions.`);
     } catch (error) {
         console.error(`Error deleting transactions for recurring expense ${recurringExpenseId}:`, error);
         throw error;
