@@ -31,8 +31,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 getCategories(user.uid).then(setCategories),
                 refreshUserData()
             ]);
-        } catch (error) {
-            toast.error("Failed to refresh data.");
+        } catch (error: any) {
+            if (error.code === 'permission-denied') {
+                toast.error("Permission Denied: Please check your Firestore security rules.");
+            } else {
+                toast.error("Failed to refresh data.");
+            }
             console.error(error);
         } finally {
             setIsLoading(false);
