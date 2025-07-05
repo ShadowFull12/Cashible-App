@@ -3,6 +3,7 @@ import "./globals.css";
 import { RootLayoutClient } from "@/components/layout/root-layout-client";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/sonner";
+import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
   title: "SpendWise",
@@ -25,10 +26,17 @@ export default function RootLayout({
         />
       </head>
       <body className="font-body">
-        <AuthProvider>
-          <RootLayoutClient>{children}</RootLayoutClient>
-          <Toaster />
-        </AuthProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthProvider>
+            <RootLayoutClient>{children}</RootLayoutClient>
+            <Toaster />
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

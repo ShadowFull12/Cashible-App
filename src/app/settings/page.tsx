@@ -4,36 +4,70 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Palette, Trash2, Loader2 } from "lucide-react";
+import { Palette, Trash2, Loader2, KeyRound, User, Mail, Sun, Moon, Laptop, Upload, IndianRupee } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
-import { useState } from "react";
+import React, { useState, useRef } from "react";
 import { addCategory, deleteCategory } from "@/services/categoryService";
 import { toast } from "sonner";
+import { useTheme } from "next-themes";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface Category {
     name: string;
     color: string;
 }
 
+const passwordSchema = z.object({
+  currentPassword: z.string().min(1, { message: "Current password is required." }),
+  newPassword: z.string().min(6, { message: "New password must be at least 6 characters." }),
+});
+
+const emailSchema = z.object({
+  newEmail: z.string().email({ message: "Invalid email address." }),
+  password: z.string().min(1, { message: "Password is required to change email." }),
+});
+
 export default function SettingsPage() {
-    const { user } = useAuth();
+    const { user, userData, updateUserProfile, uploadAndSetProfileImage, updateUserPassword, updateUserEmail } = useAuth();
     const { categories, isLoading, refreshData } = useData();
+    const { theme, setTheme } = useTheme();
+
     const [newCategoryName, setNewCategoryName] = useState("");
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSubmittingCategory, setIsSubmittingCategory] = useState(false);
+    const [budget, setBudget] = useState(userData?.budget || 0);
+    const [isSavingBudget, setIsSavingBudget] = useState(false);
+
+    const [avatarFile, setAvatarFile] = useState<File | null>(null);
+    const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.photoURL || null);
+    const [isUploading, setIsUploading] = useState(false);
+    const avatarInputRef = useRef<HTMLInputElement>(null);
+
+    const passwordForm = useForm<z.infer<typeof passwordSchema>>({
+        resolver: zodResolver(passwordSchema),
+        defaultValues: { currentPassword: "", newPassword: "" },
+    });
+
+    const emailForm = useForm<z.infer<typeof emailSchema>>({
+        resolver: zodResolver(emailSchema),
+        defaultValues: { newEmail: user?.email || "", password: "" },
+    });
     
+    const userInitial = user?.displayName ? user.displayName.charAt(0).toUpperCase() : (user?.email ? user.email.charAt(0).toUpperCase() : 'U');
+
     const handleAddCategory = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user || !newCategoryName) return;
-        
         if (categories.some(cat => cat.name.toLowerCase() === newCategoryName.toLowerCase())) {
             toast.error("Category with this name already exists.");
             return;
         }
-
-        setIsSubmitting(true);
+        setIsSubmittingCategory(true);
         try {
             const newCategory = { name: newCategoryName, color: `#${Math.floor(Math.random()*16777215).toString(16)}` };
             await addCategory(user.uid, newCategory);
@@ -43,7 +77,7 @@ export default function SettingsPage() {
         } catch (error) {
             toast.error("Failed to add category.");
         } finally {
-            setIsSubmitting(false);
+            setIsSubmittingCategory(false);
         }
     };
     
@@ -58,50 +92,125 @@ export default function SettingsPage() {
         }
     };
 
+    const handleSaveBudget = async () => {
+        setIsSavingBudget(true);
+        try {
+            await updateUserProfile({ budget });
+            toast.success("Budget updated successfully!");
+        } catch (error) {
+            toast.error("Failed to update budget.");
+        } finally {
+            setIsSavingBudget(false);
+        }
+    }
+
+    const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setAvatarFile(file);
+            setAvatarPreview(URL.createObjectURL(file));
+        }
+    };
+
+    const handleAvatarUpload = async () => {
+        if (!avatarFile) {
+            toast.error("Please select an image first.");
+            return;
+        }
+        setIsUploading(true);
+        try {
+            await uploadAndSetProfileImage(avatarFile);
+            toast.success("Avatar updated successfully!");
+            setAvatarFile(null);
+        } catch (error) {
+            toast.error("Failed to upload avatar.");
+            setAvatarPreview(user?.photoURL || null);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
+    const onPasswordChange = async (values: z.infer<typeof passwordSchema>) => {
+        try {
+            await updateUserPassword(values.currentPassword, values.newPassword);
+            toast.success("Password updated successfully.");
+            passwordForm.reset();
+        } catch (error: any) {
+            toast.error("Password change failed.", { description: error.message });
+        }
+    };
+
+    const onEmailChange = async (values: z.infer<typeof emailSchema>) => {
+         try {
+            await updateUserEmail(values.password, values.newEmail);
+            toast.success("Email updated successfully. Please verify your new email address.");
+            emailForm.reset({ newEmail: values.newEmail, password: "" });
+        } catch (error: any) {
+            toast.error("Email change failed.", { description: error.message });
+        }
+    }
+
+
     return (
         <div className="grid gap-6">
             <h1 className="text-3xl font-bold font-headline">Settings</h1>
-            <Tabs defaultValue="profile">
-                <TabsList>
+            <Tabs defaultValue="profile" className="w-full">
+                <TabsList className="grid w-full grid-cols-2 md:grid-cols-4">
                     <TabsTrigger value="profile">Profile</TabsTrigger>
                     <TabsTrigger value="categories">Categories</TabsTrigger>
-                    <TabsTrigger value="appearance" disabled>Appearance</TabsTrigger>
+                    <TabsTrigger value="appearance">Appearance</TabsTrigger>
+                    <TabsTrigger value="security">Security</TabsTrigger>
                 </TabsList>
+                
                 <TabsContent value="profile" className="mt-6">
                     <Card>
                         <CardHeader>
                             <CardTitle>Profile Settings</CardTitle>
                             <CardDescription>Manage your personal information and account settings.</CardDescription>
                         </CardHeader>
-                        <CardContent className="space-y-6">
+                        <CardContent className="space-y-8">
+                            <div className="flex items-center gap-6">
+                                <Avatar className="h-20 w-20">
+                                    <AvatarImage src={avatarPreview || ''} alt="User Avatar" />
+                                    <AvatarFallback>{userInitial}</AvatarFallback>
+                                </Avatar>
+                                <div className="space-y-2">
+                                    <Button size="sm" onClick={() => avatarInputRef.current?.click()}>
+                                        <Upload className="mr-2" />
+                                        Change Avatar
+                                    </Button>
+                                    <input type="file" accept="image/*" ref={avatarInputRef} onChange={handleAvatarChange} className="hidden" />
+                                    {avatarFile && <Button size="sm" variant="secondary" onClick={handleAvatarUpload} disabled={isUploading}>{isUploading ? <Loader2 className="animate-spin" /> : "Save Avatar"}</Button>}
+                                    <p className="text-xs text-muted-foreground">Recommended size: 200x200px</p>
+                                </div>
+                            </div>
                             <div className="space-y-2">
                                 <Label htmlFor="username">Username</Label>
-                                <Input id="username" defaultValue={user?.displayName || ''} disabled />
+                                <Input id="username" value={user?.displayName || ''} disabled />
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="email">Email</Label>
-                                <Input id="email" type="email" defaultValue={user?.email || ''} disabled />
+                                <Input id="email" type="email" value={user?.email || ''} disabled />
                             </div>
-                             <div className="space-y-2">
-                                <Label htmlFor="currency">Default Currency</Label>
-                                 <Select defaultValue="inr" disabled>
-                                    <SelectTrigger className="w-[180px]">
-                                        <SelectValue placeholder="Select currency" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="inr">INR (₹)</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                            <div className="space-y-2">
+                                <Label htmlFor="budget">Monthly Budget (₹)</Label>
+                                <div className="flex items-center gap-4">
+                                    <Input id="budget" type="number" value={budget} onChange={e => setBudget(Number(e.target.value))} className="max-w-xs" />
+                                    <Button onClick={handleSaveBudget} disabled={isSavingBudget}>
+                                        {isSavingBudget && <Loader2 className="mr-2 animate-spin" />}
+                                        Save Budget
+                                    </Button>
+                                </div>
                             </div>
-                            <Button disabled>Save Changes</Button>
                         </CardContent>
                     </Card>
                 </TabsContent>
+
                 <TabsContent value="categories" className="mt-6">
                     <Card>
                         <CardHeader>
                             <CardTitle>Expense Categories</CardTitle>
-                            <CardDescription>Add, edit, or remove categories to organize your spending.</CardDescription>
+                            <CardDescription>Add or remove categories to organize your spending.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-6">
                            <div className="space-y-4">
@@ -113,12 +222,9 @@ export default function SettingsPage() {
                                             </div>
                                             <span>{cat.name}</span>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <input type="color" value={cat.color} className="h-8 w-8 appearance-none border-none bg-transparent p-0 cursor-pointer [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-none" disabled/>
-                                            <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat)}>
-                                                <Trash2 className="size-4 text-red-500" />
-                                            </Button>
-                                        </div>
+                                        <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat)}>
+                                            <Trash2 className="size-4 text-red-500" />
+                                        </Button>
                                     </div>
                                 ))}
                            </div>
@@ -127,11 +233,71 @@ export default function SettingsPage() {
                                    <Label htmlFor="new-category">New Category Name</Label>
                                    <Input id="new-category" placeholder="e.g. Health" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} />
                                </div>
-                               <Button type="submit" disabled={isSubmitting}>
-                                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                               <Button type="submit" disabled={isSubmittingCategory}>
+                                 {isSubmittingCategory && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                  Add Category
                                 </Button>
                            </form>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+                
+                <TabsContent value="appearance" className="mt-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Appearance</CardTitle>
+                            <CardDescription>Customize the look and feel of the application.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-6">
+                           <div className="space-y-2">
+                            <Label>Theme</Label>
+                            <div className="grid grid-cols-3 gap-4">
+                               <Button variant={theme === 'light' ? 'default' : 'outline'} onClick={() => setTheme('light')}><Sun className="mr-2"/> Light</Button>
+                               <Button variant={theme === 'dark' ? 'default' : 'outline'} onClick={() => setTheme('dark')}><Moon className="mr-2"/> Dark</Button>
+                               <Button variant={theme === 'system' ? 'default' : 'outline'} onClick={() => setTheme('system')}><Laptop className="mr-2"/> System</Button>
+                            </div>
+                           </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="security" className="mt-6">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Security</CardTitle>
+                            <CardDescription>Manage your password and email settings.</CardDescription>
+                        </CardHeader>
+                        <CardContent className="space-y-8">
+                            <div>
+                                <h3 className="text-lg font-medium mb-4">Change Email</h3>
+                                <Form {...emailForm}>
+                                    <form onSubmit={emailForm.handleSubmit(onEmailChange)} className="space-y-4 max-w-sm">
+                                        <FormField control={emailForm.control} name="newEmail" render={({ field }) => (
+                                            <FormItem><FormLabel>New Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
+                                        )} />
+                                        <FormField control={emailForm.control} name="password" render={({ field }) => (
+                                            <FormItem><FormLabel>Current Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
+                                        )} />
+                                        <Button type="submit" disabled={emailForm.formState.isSubmitting}>
+                                            {emailForm.formState.isSubmitting && <Loader2 className="mr-2 animate-spin" />} Change Email</Button>
+                                    </form>
+                                </Form>
+                            </div>
+                             <div>
+                                <h3 className="text-lg font-medium mb-4">Change Password</h3>
+                                <Form {...passwordForm}>
+                                    <form onSubmit={passwordForm.handleSubmit(onPasswordChange)} className="space-y-4 max-w-sm">
+                                        <FormField control={passwordForm.control} name="currentPassword" render={({ field }) => (
+                                            <FormItem><FormLabel>Current Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
+                                        )} />
+                                        <FormField control={passwordForm.control} name="newPassword" render={({ field }) => (
+                                            <FormItem><FormLabel>New Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>
+                                        )} />
+                                        <Button type="submit" disabled={passwordForm.formState.isSubmitting}>
+                                            {passwordForm.formState.isSubmitting && <Loader2 className="mr-2 animate-spin" />} Change Password</Button>
+                                    </form>
+                                </Form>
+                            </div>
                         </CardContent>
                     </Card>
                 </TabsContent>

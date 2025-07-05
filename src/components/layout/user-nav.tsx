@@ -40,12 +40,8 @@ export function UserNav() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-full justify-start gap-2 px-2">
            <Avatar className="h-8 w-8">
-            {user.photoURL ? (
-                <AvatarImage src={user.photoURL} alt={user.displayName || "User"} />
-            ) : (
-                <AvatarImage src="https://placehold.co/100x100.png" alt="@user" data-ai-hint="profile picture" />
-            )}
-            <AvatarFallback>{userInitial}</AvatarFallback>
+                <AvatarImage src={user.photoURL || undefined} alt={user.displayName || "User"} />
+                <AvatarFallback>{userInitial}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col items-start truncate">
              <span className="text-sm font-medium text-sidebar-foreground truncate">{user.displayName || 'User'}</span>
@@ -64,10 +60,12 @@ export function UserNav() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
-          <DropdownMenuItem disabled>
-            <User className="mr-2 h-4 w-4" />
-            <span>Profile</span>
-          </DropdownMenuItem>
+          <Link href="/settings">
+            <DropdownMenuItem>
+              <User className="mr-2 h-4 w-4" />
+              <span>Profile</span>
+            </DropdownMenuItem>
+          </Link>
           <Link href="/settings">
             <DropdownMenuItem>
               <Settings className="mr-2 h-4 w-4" />

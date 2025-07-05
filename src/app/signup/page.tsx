@@ -53,7 +53,8 @@ export default function SignupPage() {
         displayName: values.username,
         email: values.email,
         categories: defaultCategories,
-        budget: 50000, // Default budget
+        budget: 0,
+        budgetIsSet: false, // Flag to trigger initial budget modal
       });
 
       toast.success("Account created successfully!");

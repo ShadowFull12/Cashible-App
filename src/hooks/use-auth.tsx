@@ -1,10 +1,13 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { User, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
+import { User, onAuthStateChanged, signOut as firebaseSignOut, updateProfile } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { toast } from "sonner";
+import { db } from '@/lib/firebase';
+import * as userService from '@/services/userService';
+import * as authService from '@/services/authService';
 
 interface AuthContextType {
   user: User | null;
@@ -12,6 +15,10 @@ interface AuthContextType {
   logout: () => Promise<void>;
   userData: any; 
   refreshUserData: () => Promise<void>;
+  updateUserProfile: (data: Partial<{ displayName: string; budget: number; budgetIsSet: boolean }>) => Promise<void>;
+  uploadAndSetProfileImage: (file: File) => Promise<void>;
+  updateUserPassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  updateUserEmail: (currentPassword: string, newEmail: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,9 +40,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     } catch (error: any) {
         console.error("Failed to fetch user data:", error);
-        if (error.code === 'unavailable' || error.message.includes('offline')) {
-             toast.error("Could not connect to the database. Please check your internet connection and ensure Firestore is enabled in your Firebase project.");
-        } else if (error.code === 'permission-denied') {
+        if (error.code === 'permission-denied') {
             toast.error("Permission Denied", {
                 description: "The app could not access user data. Please check your Firestore security rules in the Firebase Console."
             });
@@ -47,16 +52,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const refreshUserData = useCallback(async () => {
-    if (!auth || !db) return;
-    const currentUser = auth.currentUser;
-    if (currentUser) {
-      await fetchUserData(currentUser);
-    }
+    if (!auth?.currentUser) return;
+    await fetchUserData(auth.currentUser);
   }, [fetchUserData]);
 
   useEffect(() => {
-    // If firebase is not configured, don't do anything
-    if (!auth || !db) {
+    if (!auth) {
         setLoading(false);
         return;
     }
@@ -69,7 +70,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, [fetchUserData]);
 
@@ -77,13 +77,43 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!auth) return;
     await firebaseSignOut(auth);
   };
+  
+  const updateUserProfile_ = async (data: Partial<{ displayName: string; budget: number; budgetIsSet: boolean }>) => {
+    if (!user) throw new Error("User not authenticated.");
+    await userService.updateUser(user.uid, data);
+    await refreshUserData();
+  };
+
+  const uploadAndSetProfileImage_ = async (file: File) => {
+    if (!user) throw new Error("User not authenticated.");
+    const photoURL = await userService.uploadProfileImage(user.uid, file);
+    await updateProfile(user, { photoURL });
+    setUser({ ...user, photoURL }); // Force state update
+    await refreshUserData();
+  };
+
+  const updateUserPassword_ = async (currentPassword: string, newPassword: string) => {
+    if (!user) throw new Error("User not authenticated.");
+    await authService.changePassword(currentPassword, newPassword);
+  };
+
+  const updateUserEmail_ = async (currentPassword: string, newEmail: string) => {
+    if (!user) throw new Error("User not authenticated.");
+    await authService.changeEmail(currentPassword, newEmail);
+    // User object will update on next auth state change after email verification
+    await refreshUserData();
+  };
 
   const value = {
     user,
     loading,
     logout,
     userData,
-    refreshUserData
+    refreshUserData,
+    updateUserProfile: updateUserProfile_,
+    uploadAndSetProfileImage: uploadAndSetProfileImage_,
+    updateUserPassword: updateUserPassword_,
+    updateUserEmail: updateUserEmail_,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

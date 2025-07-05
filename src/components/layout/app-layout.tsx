@@ -9,13 +9,31 @@ import { Button } from "../ui/button";
 import { PlusCircle } from "lucide-react";
 import { AddExpenseDialog } from "../add-expense-dialog";
 import { useData } from "@/hooks/use-data";
+import { useAuth } from "@/hooks/use-auth";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { BottomNav } from "./bottom-nav";
+import { InitialBudgetModal } from "../initial-budget-modal";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isAddExpenseOpen, setIsAddExpenseOpen] = React.useState(false);
+  const [isBudgetModalOpen, setIsBudgetModalOpen] = React.useState(false);
   const { refreshData } = useData();
+  const { userData, loading: authLoading } = useAuth();
+  const isMobile = useIsMobile();
+
+  React.useEffect(() => {
+    if (!authLoading && userData && userData.budgetIsSet === false) {
+      setIsBudgetModalOpen(true);
+    }
+  }, [userData, authLoading]);
 
   const handleExpenseAdded = () => {
     refreshData();
+  };
+
+  const handleBudgetSet = () => {
+    refreshData();
+    setIsBudgetModalOpen(false);
   };
 
   return (
@@ -35,20 +53,24 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         </SidebarFooter>
       </Sidebar>
       <SidebarInset>
-        <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm sm:justify-end">
-          <div className="sm:hidden">
-            <SidebarTrigger />
-          </div>
-          <Button onClick={() => setIsAddExpenseOpen(true)}>
-            <PlusCircle className="mr-2 size-4" />
-            Add Expense
-          </Button>
-        </header>
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+        {!isMobile && (
+          <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b bg-background/80 px-4 backdrop-blur-sm sm:justify-end">
+            <div className="sm:hidden">
+              <SidebarTrigger />
+            </div>
+            <Button onClick={() => setIsAddExpenseOpen(true)}>
+              <PlusCircle className="mr-2 size-4" />
+              Add Expense
+            </Button>
+          </header>
+        )}
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 mb-16 md:mb-0">
           {children}
         </main>
+        {isMobile && <BottomNav onAddExpenseClick={() => setIsAddExpenseOpen(true)} />}
       </SidebarInset>
       <AddExpenseDialog open={isAddExpenseOpen} onOpenChange={setIsAddExpenseOpen} onExpenseAdded={handleExpenseAdded} />
+      <InitialBudgetModal open={isBudgetModalOpen} onOpenChange={setIsBudgetModalOpen} onBudgetSet={handleBudgetSet} />
     </SidebarProvider>
   );
 }

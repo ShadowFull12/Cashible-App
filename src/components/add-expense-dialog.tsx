@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
+import { useData } from "@/hooks/use-data";
 import { addTransaction } from "@/services/transactionService";
 
 const formSchema = z.object({
@@ -55,7 +56,8 @@ interface AddExpenseDialogProps {
 }
 
 export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded }: AddExpenseDialogProps) {
-  const { user, userData } = useAuth();
+  const { user } = useAuth();
+  const { categories } = useData();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -78,7 +80,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded }: AddExpe
       await addTransaction({ ...values, userId: user.uid });
       toast.success("Expense added successfully!");
       onExpenseAdded();
-      form.reset();
+      form.reset({ name: "", amount: 0, category: "", date: new Date() });
       onOpenChange(false);
     } catch (error) {
       toast.error("Failed to add expense. Please try again.");
@@ -131,14 +133,14 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded }: AddExpe
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Category</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
                         <SelectValue placeholder="Select a category" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {userData?.categories?.map((cat: any) => (
+                      {categories?.map((cat) => (
                         <SelectItem key={cat.name} value={cat.name}>
                           {cat.name}
                         </SelectItem>
