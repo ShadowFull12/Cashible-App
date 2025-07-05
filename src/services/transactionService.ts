@@ -1,5 +1,3 @@
-'use server';
-
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp } from "firebase/firestore";
 import type { Transaction } from "@/lib/data";

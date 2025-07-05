@@ -1,5 +1,3 @@
-'use server';
-
 import { db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { defaultCategories } from "@/lib/data";
