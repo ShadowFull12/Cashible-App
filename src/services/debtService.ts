@@ -50,15 +50,26 @@ export async function acceptSettlement(settlementId: string) {
         processedAt: Timestamp.now(),
     });
 
-    // Clean up the original notification and send a confirmation to the payer.
+    // Clean up the original request notification
     await deleteNotificationByRelatedId(settlementId);
 
+    // Notification to Payer (Debtor)
     await createNotification({
         userId: settlement.fromUserId,
         fromUser: settlement.toUser,
         type: 'settlement-confirmed',
         message: `${settlement.toUser.displayName} confirmed your payment of ₹${settlement.amount.toFixed(2)}.`,
         link: `/notifications`,
+        relatedId: settlementId,
+    });
+
+    // Notification to Receiver (Creditor)
+    await createNotification({
+        userId: settlement.toUserId,
+        fromUser: settlement.fromUser,
+        type: 'settlement-payment-received',
+        message: `You received a payment of ₹${settlement.amount.toFixed(2)} from ${settlement.fromUser.displayName}.`,
+        link: '/notifications',
         relatedId: settlementId,
     });
 }
@@ -97,13 +108,13 @@ export async function logSettlementAsExpense(settlementId: string, notificationI
     if (!settlementSnap.exists() || settlementSnap.data().status !== 'confirmed') {
         throw new Error("Settlement not found or not confirmed.");
     }
-    if (settlementSnap.data().payerTransactionId) {
+    const settlementData = settlementSnap.data();
+    if (settlementData.payerTransactionId) {
         const notificationRef = doc(db, "notifications", notificationId);
         await deleteDoc(notificationRef);
         throw new Error("This settlement has already been logged.");
     }
     
-    const settlementData = settlementSnap.data();
     const settlement = {
         id: settlementSnap.id,
         ...settlementData,
@@ -119,15 +130,59 @@ export async function logSettlementAsExpense(settlementId: string, notificationI
         description: `Settlement to ${settlement.toUser.displayName}`,
         amount: settlement.amount,
         category: "Settlement",
-        date: Timestamp.fromDate(settlement.processedAt!),
+        date: settlement.processedAt ? Timestamp.fromDate(settlement.processedAt) : Timestamp.now(),
         isSplit: false,
-        circleId: null, // Not a circle expense
+        circleId: null,
         recurringExpenseId: null,
         splitDetails: null
     });
     
     // 2. Update the settlement with the new transaction ID
     batch.update(settlementRef, { payerTransactionId: newTransactionRef.id });
+
+    // 3. Delete the actionable notification
+    const notificationRef = doc(db, "notifications", notificationId);
+    batch.delete(notificationRef);
+
+    await batch.commit();
+}
+
+export async function logSettlementAsIncome(settlementId: string, notificationId: string) {
+    if (!db) throw new Error("Firebase is not configured.");
+    
+    const batch = writeBatch(db);
+    const settlementRef = doc(db, "settlements", settlementId);
+    const settlementSnap = await getDoc(settlementRef);
+
+    if (!settlementSnap.exists() || settlementSnap.data().status !== 'confirmed') {
+        throw new Error("Settlement not found or not confirmed.");
+    }
+    const settlementData = settlementSnap.data();
+    if (settlementData.creditorIncomeLogged) {
+        // This case can happen if the user clicks quickly. Just delete the notification.
+        const notificationRef = doc(db, "notifications", notificationId);
+        await deleteDoc(notificationRef);
+        throw new Error("This income has already been logged.");
+    }
+    
+    const settlement = { id: settlementSnap.id, ...settlementData } as Settlement;
+
+    // 1. Create the negative expense transaction for the creditor
+    const newTransactionRef = doc(collection(db, "transactions"));
+    batch.set(newTransactionRef, {
+        userId: settlement.toUserId,
+        description: `Payment received from ${settlement.fromUser.displayName}`,
+        amount: -settlement.amount, // Negative amount for income
+        category: "Settlement",
+        date: settlementData.processedAt || Timestamp.now(),
+        isSplit: false,
+        circleId: null,
+        recurringExpenseId: null,
+        splitDetails: null
+    });
+    
+    // 2. Update the settlement to prevent duplicate logging
+    batch.update(settlementRef, { creditorIncomeLogged: true });
 
     // 3. Delete the actionable notification
     const notificationRef = doc(db, "notifications", notificationId);

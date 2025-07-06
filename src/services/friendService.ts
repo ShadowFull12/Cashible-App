@@ -1,7 +1,7 @@
 
 import { db } from "@/lib/firebase";
 import { 
-    collection, addDoc, getDocs, query, where, doc, updateDoc, Timestamp, writeBatch, deleteDoc, getDoc, or, onSnapshot, Unsubscribe, and
+    collection, addDoc, getDocs, query, where, doc, updateDoc, Timestamp, writeBatch, deleteDoc, getDoc, or, onSnapshot, Unsubscribe, and, WriteBatch
 } from "firebase/firestore";
 import type { UserProfile, FriendRequest } from "@/lib/data";
 import type { User } from 'firebase/auth';
@@ -203,4 +203,24 @@ export async function removeFriend(currentUserId: string, friendId: string) {
     });
 
     await batch.commit();
+}
+
+// 7. Add friend request deletions to a batch
+export async function addFriendRequestsDeletionsToBatch(userId: string, batch: WriteBatch) {
+    if (!db) return;
+
+    // Create two separate queries for requests sent and received
+    const toUserQuery = query(friendRequestsRef, where("toUserId", "==", userId));
+    const fromUserQuery = query(friendRequestsRef, where("fromUser.uid", "==", userId));
+    
+    const [toUserSnapshot, fromUserSnapshot] = await Promise.all([
+        getDocs(toUserQuery),
+        getDocs(fromUserQuery)
+    ]);
+
+    const docsToDelete = new Map<string, any>();
+    toUserSnapshot.forEach(doc => docsToDelete.set(doc.id, doc.ref));
+    fromUserSnapshot.forEach(doc => docsToDelete.set(doc.id, doc.ref));
+    
+    docsToDelete.forEach(ref => batch.delete(ref));
 }

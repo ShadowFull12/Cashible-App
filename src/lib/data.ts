@@ -108,6 +108,7 @@ export interface Settlement {
     createdAt: Date;
     processedAt?: Date | null;
     payerTransactionId?: string | null;
+    creditorIncomeLogged?: boolean;
 }
 
 
@@ -120,7 +121,8 @@ export type NotificationType =
     'expense-claim-accepted' |
     'expense-claim-rejected' |
     'settlement-request' | 
-    'settlement-confirmed' | 
+    'settlement-confirmed' | // To Payer
+    'settlement-payment-received' | // To Creditor
     'settlement-rejected' | 
     'circle-member-joined';
 

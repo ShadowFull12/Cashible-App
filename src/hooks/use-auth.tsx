@@ -169,12 +169,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const deleteAllUserData_ = async () => {
       if (!user) throw new Error("User not authenticated.");
       await userService.deleteAllUserData(user.uid);
+      await updateProfile(user, { photoURL: null });
       await refreshUserData();
   }
 
   const deleteAccount_ = async () => {
       if (!user) throw new Error("User not authenticated.");
-      // The re-authentication should have been done before calling this
       await userService.deleteAllUserData(user.uid);
       await firebaseDeleteUser(user);
   }

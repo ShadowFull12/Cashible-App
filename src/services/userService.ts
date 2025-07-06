@@ -5,9 +5,9 @@ import { defaultCategories } from "@/lib/data";
 import { addTransactionsDeletionsToBatch } from "./transactionService";
 import { addRecurringExpensesDeletionsToBatch } from "./recurringExpenseService";
 import { leaveCircle } from "./circleService";
-import { removeFriend } from "./friendService";
 import type { UserProfile } from "@/lib/data";
-
+import { addNotificationsDeletionsToBatch } from "./notificationService";
+import { addFriendRequestsDeletionsToBatch } from "./friendService";
 
 export async function updateUser(userId: string, data: object) {
     if (!db) throw new Error("Firestore is not initialized.");
@@ -131,22 +131,23 @@ export async function deleteAllUserData(userId: string) {
     // 1. Leave all circles
     const circleQuery = query(collection(db, "circles"), where("memberIds", "array-contains", userId));
     const circleDocs = await getDocs(circleQuery);
-    for (const doc of circleDocs.docs) {
-        await leaveCircle(doc.id, userId);
-    }
+    await Promise.all(circleDocs.docs.map(doc => leaveCircle(doc.id, userId)));
 
     // 2. Remove all friendships
     const friendshipQuery = query(collection(db, "friendships"), where("userIds", "array-contains", userId));
     const friendshipDocs = await getDocs(friendshipQuery);
-    for (const doc of friendshipDocs.docs) {
-        await deleteDoc(doc.ref);
-    }
+    const friendshipBatch = writeBatch(db);
+    friendshipDocs.forEach(doc => friendshipBatch.delete(doc.ref));
+    await friendshipBatch.commit();
+    
 
-    // 3. Delete transactions, recurring expenses, and reset user doc in a batch
+    // 3. Delete all other user-specific data in a single batch
     const batch = writeBatch(db);
 
     await addTransactionsDeletionsToBatch(userId, batch);
     await addRecurringExpensesDeletionsToBatch(userId, batch);
+    await addNotificationsDeletionsToBatch(userId, batch);
+    await addFriendRequestsDeletionsToBatch(userId, batch);
     
     const userDocRef = doc(db, "users", userId);
     batch.update(userDocRef, {

@@ -1,6 +1,6 @@
 
 import { db } from "@/lib/firebase";
-import { collection, addDoc, query, where, onSnapshot, Unsubscribe, Timestamp, updateDoc, doc, getDocs, writeBatch, deleteDoc } from "firebase/firestore";
+import { collection, addDoc, query, where, onSnapshot, Unsubscribe, Timestamp, updateDoc, doc, getDocs, writeBatch, deleteDoc, WriteBatch } from "firebase/firestore";
 import type { Notification, NotificationType, UserProfile } from "@/lib/data";
 
 const notificationsRef = collection(db, "notifications");
@@ -100,4 +100,13 @@ export async function deleteNotificationByRelatedId(relatedId: string) {
         batch.delete(doc.ref);
     });
     await batch.commit();
+}
+
+export async function addNotificationsDeletionsToBatch(userId: string, batch: WriteBatch) {
+    if (!db) return;
+    const q = query(notificationsRef, where("userId", "==", userId));
+    const querySnapshot = await getDocs(q);
+    querySnapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+    });
 }

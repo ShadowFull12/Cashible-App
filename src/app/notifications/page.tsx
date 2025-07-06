@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { Bell, Check, UserPlus, CircleDollarSign, BellRing, Loader2, UserCheck, UserX, X, FilePlus, CheckCircle2, XCircle, ClipboardCheck, ClipboardX, HandCoins } from 'lucide-react';
+import { Bell, Check, UserPlus, CircleDollarSign, BellRing, Loader2, UserCheck, UserX, X, FilePlus, CheckCircle2, XCircle, ClipboardCheck, ClipboardX, HandCoins, Wallet } from 'lucide-react';
 import type { Notification, UserProfile } from '@/lib/data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { acceptFriendRequest, rejectFriendRequest } from '@/services/friendService';
 import { deleteNotification } from '@/services/notificationService';
 import { acceptExpenseClaim, rejectExpenseClaim } from '@/services/expenseClaimService';
-import { acceptSettlement, rejectSettlement, logSettlementAsExpense } from '@/services/debtService';
+import { acceptSettlement, rejectSettlement, logSettlementAsExpense, logSettlementAsIncome } from '@/services/debtService';
 
 
 const iconMap: {[key: string]: React.ElementType} = {
@@ -29,7 +29,8 @@ const iconMap: {[key: string]: React.ElementType} = {
     'expense-claim-accepted': CheckCircle2,
     'expense-claim-rejected': XCircle,
     'settlement-request': HandCoins,
-    'settlement-confirmed': HandCoins,
+    'settlement-confirmed': HandCoins, // For payer
+    'settlement-payment-received': Wallet, // For creditor
     'settlement-rejected': XCircle,
     'circle-member-joined': UserCheck,
 };
@@ -48,7 +49,8 @@ export default function NotificationsPage() {
         const isActionable = notification.type === 'friend-request' ||
                              notification.type === 'expense-claim-request' ||
                              notification.type === 'settlement-request' ||
-                             notification.type === 'settlement-confirmed';
+                             notification.type === 'settlement-confirmed' ||
+                             notification.type === 'settlement-payment-received';
         
         if (isActionable) {
             return;
@@ -168,7 +170,6 @@ export default function NotificationsPage() {
         try {
             await logSettlementAsExpense(notification.relatedId, notification.id);
             toast.success("Settlement logged as a personal expense.");
-            // Data will refresh automatically due to listeners
         } catch (error: any) {
             toast.error("Failed to log settlement.", { description: error.message });
         } finally {
@@ -176,6 +177,18 @@ export default function NotificationsPage() {
         }
     }
 
+    const handleLogIncome = async (notification: Notification) => {
+        if (!notification.relatedId || !user) return;
+        setProcessingId(notification.id);
+        try {
+            await logSettlementAsIncome(notification.relatedId, notification.id);
+            toast.success("Income logged successfully.");
+        } catch (error: any) {
+            toast.error("Failed to log income.", { description: error.message });
+        } finally {
+            setProcessingId(null);
+        }
+    }
 
     return (
         <Card>
@@ -207,8 +220,9 @@ export default function NotificationsPage() {
                     const isClaimRequest = notification.type === 'expense-claim-request';
                     const isSettlementRequest = notification.type === 'settlement-request';
                     const isSettlementConfirmed = notification.type === 'settlement-confirmed';
+                    const isPaymentReceived = notification.type === 'settlement-payment-received';
                     
-                    const isActionable = !!matchingFriendRequest || isClaimRequest || isSettlementRequest || isSettlementConfirmed;
+                    const isActionable = !!matchingFriendRequest || isClaimRequest || isSettlementRequest || isSettlementConfirmed || isPaymentReceived;
                     const isProcessing = (matchingFriendRequest && processingId === matchingFriendRequest.id) || processingId === notification.id;
 
                     return (
@@ -274,6 +288,14 @@ export default function NotificationsPage() {
                                         <div className="flex gap-2 mt-2">
                                             <Button size="sm" onClick={(e) => { e.stopPropagation(); handleLogSettlement(notification); }} disabled={isProcessing}>
                                                 {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <ClipboardCheck className="mr-2 size-4"/>} Log as Expense
+                                            </Button>
+                                        </div>
+                                    )}
+
+                                    {isPaymentReceived && (
+                                        <div className="flex gap-2 mt-2">
+                                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleLogIncome(notification); }} disabled={isProcessing}>
+                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <Wallet className="mr-2 size-4"/>} Log as Income
                                             </Button>
                                         </div>
                                     )}

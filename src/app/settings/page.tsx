@@ -1,3 +1,4 @@
+
 "use client";
 
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -57,8 +58,8 @@ function DangerZone() {
 
     const dialogTitle = actionType === 'deleteData' ? 'Delete All Your Data?' : 'Delete Your Account?';
     const dialogDescription = actionType === 'deleteData' 
-        ? "This will permanently delete all your transactions and recurring payments. Your account will not be deleted."
-        : "This will permanently delete your account and all associated data, including transactions. This action is irreversible.";
+        ? "This will permanently delete all your transactions, circles, friends, and notifications. Your account will not be deleted, and you can start fresh."
+        : "This will permanently delete your account and all associated data. This action is irreversible.";
 
     const handleConfirm = async () => {
         if (!actionType) return;
@@ -70,6 +71,7 @@ function DangerZone() {
                 await deleteAllUserData();
                 toast.success("All your data has been deleted.", { description: "Your account has been reset."});
                 setDialogOpen(false);
+                router.push('/dashboard');
             } else if (actionType === 'deleteAccount') {
                 await deleteAccount();
                 toast.success("Your account has been permanently deleted.", { description: "We're sad to see you go."});
