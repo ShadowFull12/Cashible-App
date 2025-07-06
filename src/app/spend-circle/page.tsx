@@ -13,7 +13,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 import { UserProfile, FriendRequest as FriendRequestData, Circle } from '@/lib/data';
 import { searchUsersByEmail } from '@/services/userService';
-import { sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend } from '@/services/friendService';
+import { sendFriendRequest, removeFriend } from '@/services/friendService';
 import { Loader2, UserPlus, UserCheck, UserX, Clock, Search, ArrowRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
@@ -116,72 +116,6 @@ function AddFriendTab() {
                     );
                 })}
             </div>
-        </div>
-    );
-}
-
-function RequestsTab() {
-    const { user } = useAuth();
-    const { friendRequests, isLoading, refreshData } = useData();
-    const [isProcessing, setIsProcessing] = useState<{[key: string]: boolean}>({});
-
-    const incomingRequests = useMemo(() => {
-        return friendRequests.filter(req => req.toUserId === user?.uid && req.status === 'pending');
-    }, [friendRequests, user]);
-    
-    const handleAccept = async (request: FriendRequestData) => {
-        if(!user) return;
-        setIsProcessing(prev => ({...prev, [request.id]: true}));
-        try {
-            await acceptFriendRequest(request.id, user, request.fromUser);
-            toast.success(`${request.fromUser.displayName} is now your friend!`);
-            await refreshData();
-        } catch (error) {
-            toast.error("Failed to accept request.");
-            console.error(error);
-        } finally {
-            setIsProcessing(prev => ({...prev, [request.id]: false}));
-        }
-    }
-
-    const handleDecline = async (requestId: string) => {
-        setIsProcessing(prev => ({...prev, [requestId]: true}));
-        try {
-            await rejectFriendRequest(requestId);
-            toast.info("Friend request declined.");
-            await refreshData();
-        } catch (error) {
-            toast.error("Failed to decline request.");
-        } finally {
-            setIsProcessing(prev => ({...prev, [requestId]: false}));
-        }
-    }
-
-    if (isLoading) return <Skeleton className="h-40 w-full" />;
-
-    return (
-        <div className="space-y-4">
-            <h3 className="text-lg font-medium">Incoming Friend Requests</h3>
-            {incomingRequests.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">You have no new friend requests.</p>}
-            {incomingRequests.map(req => (
-                <div key={req.id} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div className="flex items-center gap-4">
-                        <Avatar><AvatarImage src={req.fromUser.photoURL || undefined} /><AvatarFallback>{req.fromUser.displayName.charAt(0)}</AvatarFallback></Avatar>
-                        <div>
-                            <p className="font-semibold">{req.fromUser.displayName}</p>
-                            <p className="text-sm text-muted-foreground">{req.fromUser.email}</p>
-                        </div>
-                    </div>
-                    <div className="flex gap-2">
-                         <Button size="sm" onClick={() => handleAccept(req)} disabled={isProcessing[req.id]}>
-                            {isProcessing[req.id] ? <Loader2 className="animate-spin" /> : <UserCheck />}
-                         </Button>
-                         <Button size="sm" variant="destructive" onClick={() => handleDecline(req.id)} disabled={isProcessing[req.id]}>
-                            {isProcessing[req.id] ? <Loader2 className="animate-spin" /> : <UserX />}
-                         </Button>
-                    </div>
-                </div>
-            ))}
         </div>
     );
 }
@@ -309,17 +243,13 @@ export default function SpendCirclePage() {
                 </CardHeader>
                 <CardContent>
                      <Tabs defaultValue="friends">
-                        <TabsList className="grid w-full grid-cols-4">
+                        <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="friends">My Friends</TabsTrigger>
-                            <TabsTrigger value="requests">Requests</TabsTrigger>
                             <TabsTrigger value="circles">My Circles</TabsTrigger>
                             <TabsTrigger value="add">Add Friend</TabsTrigger>
                         </TabsList>
                         <TabsContent value="friends" className="mt-6">
                             <FriendsTab />
-                        </TabsContent>
-                        <TabsContent value="requests" className="mt-6">
-                            <RequestsTab />
                         </TabsContent>
                          <TabsContent value="circles" className="mt-6">
                             <CirclesTab />

@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, History, Lightbulb, Users, Plus, Calendar, Bell } from "lucide-react";
+import { LayoutDashboard, History, Lightbulb, Users, Plus, Calendar, Bell, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { useData } from "@/hooks/use-data";
@@ -32,14 +32,13 @@ export function BottomNav({ onAddExpenseClick }: BottomNavProps) {
           <Link href={item.href} key={item.href} className="flex-1 relative">
             <div
               className={cn(
-                "flex h-full flex-col items-center justify-center gap-1 text-sm font-medium transition-colors",
+                "flex h-full items-center justify-center text-sm font-medium transition-colors",
                 pathname.startsWith(item.href)
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <item.icon className="size-5" />
-              <span className="text-xs">{item.label}</span>
+              <item.icon className="size-6" />
             </div>
              {item.href === '/notifications' && unreadNotificationCount > 0 && (
                 <div className="absolute top-2 right-1/2 translate-x-3 h-4 min-w-[1rem] px-1 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
@@ -63,14 +62,13 @@ export function BottomNav({ onAddExpenseClick }: BottomNavProps) {
           <Link href={item.href} key={item.href} className="flex-1 relative">
             <div
               className={cn(
-                "flex h-full flex-col items-center justify-center gap-1 text-sm font-medium transition-colors",
+                "flex h-full items-center justify-center text-sm font-medium transition-colors",
                 pathname.startsWith(item.href)
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <item.icon className="size-5" />
-               <span className="text-xs">{item.label}</span>
+              <item.icon className="size-6" />
             </div>
             {item.href === '/notifications' && unreadNotificationCount > 0 && (
                 <div className="absolute top-2 right-1/2 translate-x-3 h-4 min-w-[1rem] px-1 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
