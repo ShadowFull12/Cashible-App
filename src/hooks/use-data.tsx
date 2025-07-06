@@ -7,8 +7,9 @@ import { getTransactions, addTransaction } from '@/services/transactionService';
 import { getCategories } from '@/services/categoryService';
 import { getRecurringExpenses, updateRecurringExpense } from '@/services/recurringExpenseService';
 import { getFriends, getFriendRequests } from '@/services/friendService';
+import { getCirclesForUser } from '@/services/circleService';
 import { toast } from 'sonner';
-import type { Transaction, RecurringExpense, UserProfile, FriendRequest } from '@/lib/data';
+import type { Transaction, RecurringExpense, UserProfile, FriendRequest, Circle } from '@/lib/data';
 
 interface DataContextType {
     transactions: Transaction[];
@@ -16,6 +17,7 @@ interface DataContextType {
     recurringExpenses: RecurringExpense[];
     friends: UserProfile[];
     friendRequests: FriendRequest[];
+    circles: Circle[];
     isLoading: boolean;
     refreshData: () => Promise<void>;
     newExpenseDefaultDate: Date | null;
@@ -31,6 +33,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
     const [friends, setFriends] = useState<UserProfile[]>([]);
     const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
+    const [circles, setCircles] = useState<Circle[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [newExpenseDefaultDate, setNewExpenseDefaultDate] = useState<Date | null>(null);
     
@@ -90,6 +93,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 getCategories(user.uid).then(setCategories),
                 getFriends(user.uid).then(setFriends),
                 getFriendRequests(user.uid).then(setFriendRequests),
+                getCirclesForUser(user.uid).then(setCircles),
                 refreshUserData()
             ]);
         } catch (error: any) {
@@ -115,6 +119,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setRecurringExpenses([]);
             setFriends([]);
             setFriendRequests([]);
+            setCircles([]);
             setIsLoading(false);
         }
     }, [user, refreshData]);
@@ -131,6 +136,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         recurringExpenses,
         friends,
         friendRequests,
+        circles,
         isLoading,
         refreshData: refreshData as () => Promise<void>,
         newExpenseDefaultDate,

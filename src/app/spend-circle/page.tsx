@@ -10,12 +10,13 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
-import { UserProfile, FriendRequest as FriendRequestData } from '@/lib/data';
+import { UserProfile, FriendRequest as FriendRequestData, Circle } from '@/lib/data';
 import { searchUsersByEmail } from '@/services/userService';
 import { sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend } from '@/services/friendService';
 import { Loader2, UserPlus, UserCheck, UserX, Clock, Search } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { CreateCircleDialog } from '@/components/create-circle-dialog';
 
 
 function AddFriendTab() {
@@ -237,6 +238,57 @@ function FriendsTab() {
     );
 }
 
+function CirclesTab() {
+    const { circles, isLoading } = useData();
+    const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+    if (isLoading) {
+        return <Skeleton className="h-40 w-full" />;
+    }
+
+    return (
+        <>
+        <div className="space-y-4">
+            <div className="flex justify-between items-center">
+                <h3 className="text-lg font-medium">My Circles ({circles.length})</h3>
+                <Button onClick={() => setIsCreateOpen(true)}>Create Circle</Button>
+            </div>
+            {circles.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                    You're not part of any circles yet. Create one to start splitting expenses with groups!
+                </p>
+            ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {circles.map(circle => (
+                        <Card key={circle.id}>
+                            <CardHeader>
+                                <CardTitle>{circle.name}</CardTitle>
+                                <CardDescription>{Object.keys(circle.members).length} members</CardDescription>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="flex -space-x-2 overflow-hidden">
+                                    {Object.values(circle.members).slice(0, 5).map(member => (
+                                        <Avatar key={member.uid} className="inline-block h-8 w-8 rounded-full ring-2 ring-background">
+                                            <AvatarImage src={member.photoURL || undefined} />
+                                            <AvatarFallback>{member.displayName.charAt(0)}</AvatarFallback>
+                                        </Avatar>
+                                    ))}
+                                    {Object.keys(circle.members).length > 5 && (
+                                        <Avatar className="inline-block h-8 w-8 rounded-full ring-2 ring-background">
+                                            <AvatarFallback>+{Object.keys(circle.members).length - 5}</AvatarFallback>
+                                        </Avatar>
+                                    )}
+                                </div>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            )}
+        </div>
+        <CreateCircleDialog open={isCreateOpen} onOpenChange={setIsCreateOpen} />
+        </>
+    );
+}
 
 export default function SpendCirclePage() {
     return (
@@ -245,13 +297,14 @@ export default function SpendCirclePage() {
             <Card>
                 <CardHeader>
                     <CardTitle>Manage Your Social Circle</CardTitle>
-                    <CardDescription>Add friends to prepare for splitting expenses and creating group budgets.</CardDescription>
+                    <CardDescription>Add friends, create circles, and prepare for splitting expenses.</CardDescription>
                 </CardHeader>
                 <CardContent>
                      <Tabs defaultValue="friends">
-                        <TabsList className="grid w-full grid-cols-3">
+                        <TabsList className="grid w-full grid-cols-4">
                             <TabsTrigger value="friends">My Friends</TabsTrigger>
                             <TabsTrigger value="requests">Requests</TabsTrigger>
+                            <TabsTrigger value="circles">My Circles</TabsTrigger>
                             <TabsTrigger value="add">Add Friend</TabsTrigger>
                         </TabsList>
                         <TabsContent value="friends" className="mt-6">
@@ -259,6 +312,9 @@ export default function SpendCirclePage() {
                         </TabsContent>
                         <TabsContent value="requests" className="mt-6">
                             <RequestsTab />
+                        </TabsContent>
+                         <TabsContent value="circles" className="mt-6">
+                            <CirclesTab />
                         </TabsContent>
                          <TabsContent value="add" className="mt-6">
                             <AddFriendTab />

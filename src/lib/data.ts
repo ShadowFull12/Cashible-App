@@ -46,3 +46,12 @@ export interface FriendRequest {
     status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
     createdAt: Date;
 }
+
+export interface Circle {
+    id?: string;
+    name: string;
+    ownerId: string;
+    memberIds: string[]; // For querying
+    members: { [uid: string]: UserProfile }; // For storing member details
+    createdAt: Date;
+}
