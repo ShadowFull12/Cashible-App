@@ -1,6 +1,5 @@
-
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, query, where, Timestamp } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc } from "firebase/firestore";
 import type { UserProfile, Circle } from "@/lib/data";
 
 const circlesRef = collection(db, "circles");
@@ -46,4 +45,20 @@ export async function getCirclesForUser(userId: string): Promise<Circle[]> {
     });
 
     return circles.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
+
+export async function getCircleById(circleId: string): Promise<Circle | null> {
+    if (!db) return null;
+    const circleDocRef = doc(db, "circles", circleId);
+    const docSnap = await getDoc(circleDocRef);
+    if (docSnap.exists()) {
+        const data = docSnap.data();
+        return {
+            id: docSnap.id,
+            ...data,
+            createdAt: (data.createdAt as Timestamp).toDate(),
+        } as Circle;
+    }
+    return null;
 }

@@ -2,6 +2,7 @@
 "use client";
 
 import React, { useState, useMemo } from 'react';
+import Link from 'next/link';
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,7 +14,7 @@ import { useData } from "@/hooks/use-data";
 import { UserProfile, FriendRequest as FriendRequestData, Circle } from '@/lib/data';
 import { searchUsersByEmail } from '@/services/userService';
 import { sendFriendRequest, acceptFriendRequest, rejectFriendRequest, removeFriend } from '@/services/friendService';
-import { Loader2, UserPlus, UserCheck, UserX, Clock, Search } from 'lucide-react';
+import { Loader2, UserPlus, UserCheck, UserX, Clock, Search, ArrowRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { CreateCircleDialog } from '@/components/create-circle-dialog';
@@ -49,7 +50,7 @@ function AddFriendTab() {
                 uid: user.uid,
                 displayName: user.displayName,
                 email: user.email!,
-                photoURL: user.photoURL || '',
+                photoURL: user.photoURL || undefined,
             };
             await sendFriendRequest(fromUser, toUser.uid);
             toast.success(`Friend request sent to ${toUser.displayName}`);
@@ -129,13 +130,15 @@ function RequestsTab() {
     }, [friendRequests, user]);
     
     const handleAccept = async (request: FriendRequestData) => {
+        if(!user) return;
         setIsProcessing(prev => ({...prev, [request.id]: true}));
         try {
-            await acceptFriendRequest(request.id, user!, request.fromUser);
+            await acceptFriendRequest(request.id, user, request.fromUser);
             toast.success(`${request.fromUser.displayName} is now your friend!`);
             await refreshData();
         } catch (error) {
             toast.error("Failed to accept request.");
+            console.error(error);
         } finally {
             setIsProcessing(prev => ({...prev, [request.id]: false}));
         }
@@ -260,12 +263,12 @@ function CirclesTab() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {circles.map(circle => (
-                        <Card key={circle.id}>
+                        <Card key={circle.id} className="flex flex-col">
                             <CardHeader>
                                 <CardTitle>{circle.name}</CardTitle>
                                 <CardDescription>{Object.keys(circle.members).length} members</CardDescription>
                             </CardHeader>
-                            <CardContent>
+                            <CardContent className="flex-grow">
                                 <div className="flex -space-x-2 overflow-hidden">
                                     {Object.values(circle.members).slice(0, 5).map(member => (
                                         <Avatar key={member.uid} className="inline-block h-8 w-8 rounded-full ring-2 ring-background">
@@ -279,6 +282,11 @@ function CirclesTab() {
                                         </Avatar>
                                     )}
                                 </div>
+                            </CardContent>
+                            <CardContent>
+                                 <Link href={`/spend-circle/${circle.id}`} className="text-sm font-medium text-primary hover:underline flex items-center gap-1">
+                                    View Details <ArrowRight className="size-4" />
+                                </Link>
                             </CardContent>
                         </Card>
                     ))}

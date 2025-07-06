@@ -1,3 +1,4 @@
+import type { Timestamp } from "firebase/firestore";
 
 export const defaultCategories = [
     { name: "Groceries", color: "#22c55e" },
@@ -19,6 +20,8 @@ export interface Transaction {
     category: string;
     date: Date;
     recurringExpenseId?: string;
+    isSplit?: boolean;
+    circleId?: string | null;
 }
 
 export interface RecurringExpense {
@@ -54,4 +57,28 @@ export interface Circle {
     memberIds: string[]; // For querying
     members: { [uid: string]: UserProfile }; // For storing member details
     createdAt: Date;
+}
+
+export interface Debt {
+    id?: string;
+    circleId: string | null;
+    transactionId: string;
+    debtorId: string;
+    creditorId: string;
+    amount: number;
+    isSettled: boolean;
+    createdAt: Date;
+}
+
+export type SplitType = 'equally'; // More can be added later
+
+export interface SplitMember extends UserProfile {
+    share: number;
+    isPayer: boolean;
+}
+
+export interface SplitDetails {
+    type: SplitType;
+    members: SplitMember[];
+    total: number;
 }

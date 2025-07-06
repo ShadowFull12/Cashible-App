@@ -1,6 +1,7 @@
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, writeBatch, updateDoc, WriteBatch } from "firebase/firestore";
-import type { Transaction } from "@/lib/data";
+import type { Transaction, SplitDetails } from "@/lib/data";
+import { addDebtCreationToBatch } from "./debtService";
 
 export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date'> & { date: Date | Timestamp }) {
     if (!db) throw new Error("Firebase is not configured.");
@@ -12,12 +13,51 @@ export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date
             category: transaction.category,
             date: transaction.date instanceof Date ? Timestamp.fromDate(transaction.date) : transaction.date,
             recurringExpenseId: transaction.recurringExpenseId || null,
+            isSplit: false,
+            circleId: null,
         });
         return docRef.id;
     } catch (error: any) {
         console.error('Error adding transaction:', error);
         if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission-denied'))) {
             throw new Error("Permission Denied: Could not add transaction. This is likely a Firestore Security Rules issue.");
+        }
+        throw error;
+    }
+}
+
+export async function addSplitTransaction(transaction: Omit<Transaction, 'id' | 'date'> & { date: Date | Timestamp }, splitDetails: SplitDetails) {
+    if (!db) throw new Error("Firebase is not configured.");
+    
+    const payer = splitDetails.members.find(m => m.isPayer);
+    if (!payer || payer.uid !== transaction.userId) {
+        throw new Error("Payer in split details must match the transaction user.");
+    }
+    
+    try {
+        const batch = writeBatch(db);
+
+        // 1. Create the main transaction document
+        const transactionRef = doc(collection(db, "transactions"));
+        batch.set(transactionRef, {
+            ...transaction,
+            date: transaction.date instanceof Date ? Timestamp.fromDate(transaction.date) : transaction.date,
+            recurringExpenseId: null,
+            isSplit: true,
+        });
+
+        // 2. Create all the debt documents
+        addDebtCreationToBatch(batch, transactionRef.id, splitDetails, transaction.circleId || null);
+        
+        // 3. Commit the batch
+        await batch.commit();
+
+        return transactionRef.id;
+
+    } catch (error: any) {
+        console.error('Error adding split transaction:', error);
+         if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission-denied'))) {
+            throw new Error("Permission Denied: Could not add split transaction. This is likely a Firestore Security Rules issue.");
         }
         throw error;
     }
