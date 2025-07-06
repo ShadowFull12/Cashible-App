@@ -20,47 +20,36 @@ service cloud.firestore {
     match /friend-requests/{requestId} {
       allow create: if request.auth.uid == request.resource.data.fromUser.uid;
       allow read: if request.auth.uid == resource.data.fromUser.uid || request.auth.uid == resource.data.toUserId;
-      // Allow recipient to accept/reject (by deleting the request)
-      allow delete: if request.auth.uid == resource.data.toUserId;
+      // Allow recipient to accept/reject (update) or delete the request
+      allow update, delete: if request.auth.uid == resource.data.toUserId;
     }
     
     match /friendships/{friendshipId} {
         allow read, delete: if request.auth.uid in resource.data.userIds;
         allow create: if request.auth.uid in request.resource.data.userIds;
-        allow update: if request.auth.uid in resource.data.userIds;
     }
     
     match /circles/{circleId} {
         allow read: if request.auth.uid in resource.data.memberIds;
         allow create: if request.auth.uid == request.resource.data.ownerId;
-        allow update, delete: if request.auth.uid == resource.data.ownerId;
+        // Any member can update the circle (e.g., to leave it)
+        allow update: if request.auth.uid in resource.data.memberIds;
+        // Only the last member can delete the circle document
+        allow delete: if resource.data.memberIds.length == 1 && request.auth.uid in resource.data.memberIds;
     }
 
     match /debts/{debtId} {
-      allow read, update: if request.auth.uid in resource.data.involvedUids;
       allow create: if request.auth.uid in request.resource.data.involvedUids;
-      // Circle owner can delete mistaken debts.
-      allow delete: if resource.data.circleId != null && 
-                      exists(/databases/$(database)/documents/circles/$(resource.data.circleId)) &&
-                      get(/databases/$(database)/documents/circles/$(resource.data.circleId)).data.ownerId == request.auth.uid;
-    }
-    
-    match /circle-invitations/{invitationId} {
-      // The recipient of the invite can read it.
-      allow read: if request.auth.uid == resource.data.toUserId;
-      // The sender can create it.
-      allow create: if request.auth.uid == request.resource.data.fromUser.uid;
-      // The recipient can delete it (reject), OR the circle owner can delete it (cleanup).
-      allow delete: if request.auth.uid == resource.data.toUserId || 
-                      (resource.data.circleId != null && 
-                       exists(/databases/$(database)/documents/circles/$(resource.data.circleId)) && 
-                       get(/databases/$(database)/documents/circles/$(resource.data.circleId)).data.ownerId == request.auth.uid);
+      allow read, update: if request.auth.uid in resource.data.involvedUids;
+      
+      // Allow deletion ONLY IF it's part of a circle deletion by the last member.
+      // This is crucial for the "leave circle" and "delete data" features to work.
+      allow delete: if get(/databases/$(database)/documents/circles/$(resource.data.circleId)).data.memberIds.length == 1 
+                      && request.auth.uid in get(/databases/$(database)/documents/circles/$(resource.data.circleId)).data.memberIds;
     }
 
     match /notifications/{notificationId} {
-      // Allow the recipient to read, update, and delete their notification.
       allow read, update, delete: if request.auth.uid == resource.data.userId;
-      // Allow the sender of the action to create the notification for the recipient
       allow create: if request.auth.uid == request.resource.data.fromUser.uid;
     }
   }
