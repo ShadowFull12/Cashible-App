@@ -1,3 +1,4 @@
+
 "use client";
 
 import { AlertTriangle, IndianRupee, MoreHorizontal, Wallet, Loader2 } from "lucide-react";
@@ -30,15 +31,15 @@ import { useData } from "@/hooks/use-data";
 import React, { useMemo } from "react";
 import { deleteTransaction } from "@/services/transactionService";
 import { toast } from "sonner";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { cn } from "@/lib/utils";
 import { AddExpenseDialog } from "@/components/add-expense-dialog";
 import type { Transaction } from "@/lib/data";
 
 
 export default function DashboardPage() {
-  const { userData } = useAuth();
-  const { transactions, categories, isLoading, refreshData } = useData();
+  const { user, userData } = useAuth();
+  const { transactions, categories, isLoading, refreshData, settlements } = useData();
   const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
   
   const categoryColors = useMemo(() => {
@@ -60,18 +61,25 @@ export default function DashboardPage() {
 
   const budget = userData?.budget || 50000;
 
-  const spent = useMemo(() => {
+  const monthlyTotals = useMemo(() => {
+    if (!user) return { expenses: 0, income: 0 };
     const now = new Date();
     const firstDay = startOfMonth(now);
     const lastDay = endOfMonth(now);
-    return transactions
-        .filter(t => {
-            const transactionDate = new Date(t.date);
-            return transactionDate >= firstDay && transactionDate <= lastDay;
-        })
+    const currentMonthInterval = { start: firstDay, end: lastDay };
+
+    const expenses = transactions
+        .filter(t => t.amount > 0 && isWithinInterval(t.date, currentMonthInterval))
         .reduce((sum, t) => sum + t.amount, 0);
-  }, [transactions]);
-  
+
+    const income = settlements
+        .filter(s => s.status === 'confirmed' && s.toUserId === user.uid && s.processedAt && isWithinInterval(s.processedAt, currentMonthInterval))
+        .reduce((sum, s) => sum + s.amount, 0);
+
+    return { expenses, income };
+  }, [transactions, settlements, user]);
+
+  const spent = monthlyTotals.expenses - monthlyTotals.income;
   const remaining = budget - spent;
   const progress = budget > 0 ? (spent / budget) * 100 : 0;
   
@@ -85,7 +93,7 @@ export default function DashboardPage() {
 
     last10Days.forEach(day => dailyMap.set(day, 0));
     
-    transactions.forEach(t => {
+    transactions.filter(t => t.amount > 0).forEach(t => {
         const day = format(t.date, 'dd');
         if(dailyMap.has(day)) {
             dailyMap.set(day, (dailyMap.get(day) || 0) + t.amount);
@@ -135,7 +143,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">₹{spent.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">in total</p>
+            <p className="text-xs text-muted-foreground">in total (expenses - income)</p>
           </CardContent>
         </Card>
         <Card className={cn(remaining < 0 && "border-destructive/50 text-destructive")}>
@@ -203,7 +211,7 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {transactions.slice(0,4).map((t) => (
+                {transactions.filter(t => t.amount > 0).slice(0,4).map((t) => (
                   <TableRow key={t.id}>
                     <TableCell>
                       <div className="font-medium">{t.description}</div>

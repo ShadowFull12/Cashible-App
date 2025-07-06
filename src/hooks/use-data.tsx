@@ -10,7 +10,8 @@ import { getFriendsListener, getFriendRequestsListener } from '@/services/friend
 import { getCirclesForUserListener } from '@/services/circleService';
 import { getNotificationsForUser, markNotificationAsRead, markAllNotificationsAsRead } from '@/services/notificationService';
 import { toast } from 'sonner';
-import type { Transaction, RecurringExpense, UserProfile, FriendRequest, Circle, Notification } from '@/lib/data';
+import type { Transaction, RecurringExpense, UserProfile, FriendRequest, Circle, Notification, Settlement } from '@/lib/data';
+import { getSettlementsForUserListener } from '@/services/debtService';
 
 interface DataContextType {
     transactions: Transaction[];
@@ -19,6 +20,7 @@ interface DataContextType {
     friends: UserProfile[];
     friendRequests: FriendRequest[];
     circles: Circle[];
+    settlements: Settlement[];
     notifications: Notification[];
     unreadNotificationCount: number;
     isLoading: boolean;
@@ -39,6 +41,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [friends, setFriends] = useState<UserProfile[]>([]);
     const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
     const [circles, setCircles] = useState<Circle[]>([]);
+    const [settlements, setSettlements] = useState<Settlement[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [newExpenseDefaultDate, setNewExpenseDefaultDate] = useState<Date | null>(null);
@@ -125,6 +128,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setFriends([]);
             setFriendRequests([]);
             setCircles([]);
+            setSettlements([]);
             setNotifications([]);
             setIsLoading(false);
         } else {
@@ -188,6 +192,16 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setCircles([]);
         }
     }, [user]);
+
+    // Listener for settlements
+    useEffect(() => {
+        if (user) {
+            const unsubscribe = getSettlementsForUserListener(user.uid, setSettlements);
+            return () => unsubscribe();
+        } else {
+            setSettlements([]);
+        }
+    }, [user]);
     
 
     const markAsRead = async (notificationId: string) => {
@@ -216,6 +230,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         friends,
         friendRequests,
         circles,
+        settlements,
         notifications,
         unreadNotificationCount,
         isLoading,

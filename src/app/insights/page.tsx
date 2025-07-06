@@ -10,29 +10,33 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, XA
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useData } from "@/hooks/use-data";
-import { format, startOfMonth, endOfMonth, differenceInDays } from "date-fns";
+import { format, startOfMonth, endOfMonth, differenceInDays, isWithinInterval } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { useAuth } from "@/hooks/use-auth";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF', '#FF5733', '#3b82f6', '#ec4899'];
 
 export default function InsightsPage() {
-  const { transactions, isLoading } = useData();
+  const { transactions, isLoading, settlements } = useData();
+  const { user } = useAuth();
   const [insights, setInsights] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  
+  const positiveTransactions = useMemo(() => transactions.filter(t => t.amount > 0), [transactions]);
 
   const categoryData = useMemo(() => {
     const categoryMap = new Map<string, number>();
-    transactions.forEach(t => {
+    positiveTransactions.forEach(t => {
       categoryMap.set(t.category, (categoryMap.get(t.category) || 0) + t.amount);
     });
     return Array.from(categoryMap.entries()).map(([name, value]) => ({ name, value })).sort((a,b) => b.value - a.value);
-  }, [transactions]);
+  }, [positiveTransactions]);
   
   const monthlySpending = useMemo(() => {
-    if (!transactions || transactions.length === 0) return [];
+    if (!positiveTransactions || positiveTransactions.length === 0) return [];
     const monthMap = new Map<string, number>();
-    transactions.forEach(t => {
+    positiveTransactions.forEach(t => {
       const monthKey = format(t.date, 'yyyy-MM');
       monthMap.set(monthKey, (monthMap.get(monthKey) || 0) + t.amount);
     });
@@ -41,7 +45,7 @@ export default function InsightsPage() {
         .sort((a, b) => a[0].localeCompare(b[0]))
         .slice(-6) // show last 6 months
         .map(([month, total]) => ({ month: format(new Date(month), 'MMM yy'), total }));
-  }, [transactions]);
+  }, [positiveTransactions]);
 
   const spendingByDay = useMemo(() => {
     const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -50,29 +54,40 @@ export default function InsightsPage() {
         return acc;
     }, {} as {[key: string]: number});
     
-    transactions.forEach(t => {
+    positiveTransactions.forEach(t => {
         const dayOfWeek = days[t.date.getDay()];
         dailyMap[dayOfWeek] += t.amount;
     });
     
     return days.map(day => ({ name: day, total: dailyMap[day] }));
-  }, [transactions]);
+  }, [positiveTransactions]);
   
   const insightMetrics = useMemo(() => {
-    if (transactions.length === 0) return { topCategory: 'N/A', avgDaily: 0, totalSpent: 0 };
+    if (transactions.length === 0 && settlements.length === 0) return { topCategory: 'N/A', avgDaily: 0, totalSpent: 0 };
     
-    const firstDay = startOfMonth(new Date());
-    const lastDay = endOfMonth(new Date());
-    const thisMonthTransactions = transactions.filter(t => t.date >= firstDay && t.date <= lastDay);
+    const now = new Date();
+    const firstDay = startOfMonth(now);
+    const lastDay = endOfMonth(now);
+    const currentMonthInterval = { start: firstDay, end: lastDay };
 
+    const thisMonthExpenses = transactions
+        .filter(t => t.amount > 0 && isWithinInterval(t.date, currentMonthInterval))
+        .reduce((sum, t) => sum + t.amount, 0);
+    
+    const thisMonthIncome = settlements
+        .filter(s => s.status === 'confirmed' && s.toUserId === user?.uid && s.processedAt && isWithinInterval(s.processedAt, currentMonthInterval))
+        .reduce((sum, s) => sum + s.amount, 0);
+
+    const netSpent = thisMonthExpenses - thisMonthIncome;
+    
     const topCategory = categoryData[0]?.name || 'N/A';
     
-    const totalSpent = thisMonthTransactions.reduce((sum, t) => sum + t.amount, 0);
-    const daysInMonthSoFar = differenceInDays(new Date(), firstDay) + 1;
-    const avgDaily = daysInMonthSoFar > 0 ? totalSpent / daysInMonthSoFar : 0;
+    const daysInMonthSoFar = differenceInDays(now, firstDay) + 1;
+    const avgDaily = daysInMonthSoFar > 0 ? netSpent / daysInMonthSoFar : 0;
     
-    return { topCategory, avgDaily: Math.round(avgDaily), totalSpent };
-  }, [transactions, categoryData]);
+    return { topCategory, avgDaily: Math.round(avgDaily), totalSpent: netSpent };
+  }, [transactions, settlements, user?.uid, categoryData]);
+
 
   const handleGenerateInsights = async () => {
     setIsGenerating(true);
@@ -140,7 +155,7 @@ export default function InsightsPage() {
                  {isLoading ? <Skeleton className="h-12 w-1/2" /> : (
                     <div className="text-2xl font-bold">₹{insightMetrics.avgDaily.toLocaleString()}</div>
                  )}
-                <p className="text-xs text-muted-foreground">Based on your spending this month</p>
+                <p className="text-xs text-muted-foreground">Based on your net spending this month</p>
             </CardContent>
         </Card>
       </div>

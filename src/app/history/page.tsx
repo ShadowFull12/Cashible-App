@@ -2,7 +2,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { HandCoins, MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import React from "react";
@@ -35,11 +35,12 @@ import { deleteTransaction } from "@/services/transactionService";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Transaction } from "@/lib/data";
 import { AddExpenseDialog } from "@/components/add-expense-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export default function HistoryPage() {
-  const { transactions, categories, isLoading, refreshData } = useData();
+  const { transactions, categories, isLoading, refreshData, settlements } = useData();
   const [filterDescription, setFilterDescription] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterMonth, setFilterMonth] = useState<string>("all");
@@ -58,8 +59,9 @@ export default function HistoryPage() {
     }, {} as {[key: string]: string});
   }, [categories]);
 
-  const filteredTransactions = useMemo(() => {
+  const filteredExpenses = useMemo(() => {
     return transactions.filter(t => {
+      if (t.amount <= 0) return false;
       const descriptionMatch = (t.description || "").toLowerCase().includes(filterDescription.toLowerCase());
       const categoryMatch = filterCategory === 'all' || t.category === filterCategory;
       const monthMatch = filterMonth === 'all' || t.date.getMonth().toString() === filterMonth;
@@ -67,6 +69,16 @@ export default function HistoryPage() {
       return descriptionMatch && categoryMatch && monthMatch && yearMatch;
     });
   }, [transactions, filterDescription, filterCategory, filterMonth, filterYear]);
+  
+  const filteredIncome = useMemo(() => {
+      return settlements.filter(s => {
+          if (s.status !== 'confirmed') return false;
+          const date = s.processedAt || s.createdAt;
+          const monthMatch = filterMonth === 'all' || date.getMonth().toString() === filterMonth;
+          const yearMatch = date.getFullYear().toString() === filterYear;
+          return monthMatch && yearMatch;
+      });
+  }, [settlements, filterMonth, filterYear]);
 
   const handleDelete = async (id: string) => {
     try {
@@ -91,8 +103,8 @@ export default function HistoryPage() {
     <>
     <Card>
       <CardHeader>
-        <CardTitle>Transaction History</CardTitle>
-        <CardDescription>A detailed list of all your past transactions.</CardDescription>
+        <CardTitle>Activity History</CardTitle>
+        <CardDescription>A detailed list of all your past expenses and income.</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:flex lg:flex-wrap">
@@ -135,79 +147,133 @@ export default function HistoryPage() {
                 </SelectContent>
             </Select>
         </div>
-        <div className="relative w-full">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Transaction</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="w-[10px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                Array.from({length: 5}).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell>
-                  </TableRow>
-                ))
-              ) : filteredTransactions.length > 0 ? (
-                filteredTransactions.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell>
-                    <div className="font-medium">{t.description}</div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="flex items-center gap-2" style={{borderColor: categoryColors[t.category]}}>
-                      <span className={`inline-block h-2 w-2 rounded-full`} style={{backgroundColor: categoryColors[t.category]}}></span>
-                      {t.category}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>{format(t.date, "PPP")}</TableCell>
-                  <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
-                  <TableCell>
-                      <AlertDialog>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                                <MoreHorizontal className="size-4" />
-                            </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => handleEdit(t)}>Edit</DropdownMenuItem>
-                            <AlertDialogTrigger asChild>
-                                <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
-                            </AlertDialogTrigger>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                This action cannot be undone. This will permanently delete this transaction.
-                            </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(t.id!)}>Delete</AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
-                  </TableCell>
-                </TableRow>
-              ))
-              ) : (
-                  <TableRow>
-                      <TableCell colSpan={5} className="text-center h-24">
-                          No transactions found for the selected filters.
-                      </TableCell>
-                  </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <Tabs defaultValue="expenses" className="w-full">
+            <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="expenses">Expenses</TabsTrigger>
+                <TabsTrigger value="income">Income</TabsTrigger>
+            </TabsList>
+            <TabsContent value="expenses" className="mt-4">
+                <div className="relative w-full">
+                <Table>
+                    <TableHeader>
+                    <TableRow>
+                        <TableHead>Transaction</TableHead>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                        <TableHead className="w-[10px]"></TableHead>
+                    </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                    {isLoading ? (
+                        Array.from({length: 5}).map((_, i) => (
+                        <TableRow key={i}>
+                            <TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell>
+                        </TableRow>
+                        ))
+                    ) : filteredExpenses.length > 0 ? (
+                        filteredExpenses.map((t) => (
+                        <TableRow key={t.id}>
+                        <TableCell>
+                            <div className="font-medium">{t.description}</div>
+                        </TableCell>
+                        <TableCell>
+                            <Badge variant="outline" className="flex items-center gap-2" style={{borderColor: categoryColors[t.category]}}>
+                            <span className={`inline-block h-2 w-2 rounded-full`} style={{backgroundColor: categoryColors[t.category]}}></span>
+                            {t.category}
+                            </Badge>
+                        </TableCell>
+                        <TableCell>{format(t.date, "PPP")}</TableCell>
+                        <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
+                        <TableCell>
+                            <AlertDialog>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                        <MoreHorizontal className="size-4" />
+                                    </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleEdit(t)}>Edit</DropdownMenuItem>
+                                    <AlertDialogTrigger asChild>
+                                        <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
+                                    </AlertDialogTrigger>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This action cannot be undone. This will permanently delete this transaction.
+                                    </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction onClick={() => handleDelete(t.id!)}>Delete</AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </TableCell>
+                        </TableRow>
+                    ))
+                    ) : (
+                        <TableRow>
+                            <TableCell colSpan={5} className="text-center h-24">
+                                No expenses found for the selected filters.
+                            </TableCell>
+                        </TableRow>
+                    )}
+                    </TableBody>
+                </Table>
+                </div>
+            </TabsContent>
+            <TabsContent value="income" className="mt-4">
+                 <div className="relative w-full">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Details</TableHead>
+                        <TableHead>Date</TableHead>
+                        <TableHead>Source</TableHead>
+                        <TableHead className="text-right">Amount</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        {isLoading ? (
+                            Array.from({length: 3}).map((_, i) => (
+                                <TableRow key={i}>
+                                    <TableCell colSpan={4}><Skeleton className="h-8 w-full" /></TableCell>
+                                </TableRow>
+                            ))
+                        ) : filteredIncome.length > 0 ? (
+                            filteredIncome.map(s => (
+                                <TableRow key={s.id}>
+                                    <TableCell className="font-medium">
+                                        Payment from {s.fromUser.displayName}
+                                    </TableCell>
+                                    <TableCell>{format(s.processedAt || s.createdAt, "PPP")}</TableCell>
+                                    <TableCell>
+                                        <Badge variant="secondary" className="text-green-600">
+                                            <HandCoins className="mr-1 size-3" /> Settlement
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell className="text-right text-green-500 font-bold">
+                                        +₹{s.amount.toLocaleString()}
+                                    </TableCell>
+                                </TableRow>
+                            ))
+                        ) : (
+                            <TableRow>
+                                <TableCell colSpan={4} className="text-center h-24">
+                                    No income recorded for the selected filters.
+                                </TableCell>
+                            </TableRow>
+                        )}
+                    </TableBody>
+                  </Table>
+                </div>
+            </TabsContent>
+        </Tabs>
       </CardContent>
     </Card>
      {editingTransaction && (

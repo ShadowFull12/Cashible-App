@@ -8,6 +8,7 @@ import { leaveCircle } from "./circleService";
 import type { UserProfile } from "@/lib/data";
 import { addNotificationsDeletionsToBatch } from "./notificationService";
 import { addFriendRequestsDeletionsToBatch } from "./friendService";
+import { addAllUserSettlementsDeletionsToBatch } from "./debtService";
 
 export async function updateUser(userId: string, data: object) {
     if (!db) throw new Error("Firestore is not initialized.");
@@ -148,6 +149,7 @@ export async function deleteAllUserData(userId: string) {
     await addRecurringExpensesDeletionsToBatch(userId, batch);
     await addNotificationsDeletionsToBatch(userId, batch);
     await addFriendRequestsDeletionsToBatch(userId, batch);
+    await addAllUserSettlementsDeletionsToBatch(userId, batch);
     
     const userDocRef = doc(db, "users", userId);
     batch.update(userDocRef, {

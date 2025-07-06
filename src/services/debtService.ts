@@ -1,6 +1,6 @@
 
 import { db } from "@/lib/firebase";
-import { collection, doc, getDocs, query, where, Timestamp, writeBatch, WriteBatch, updateDoc, getDoc, deleteDoc, addDoc } from "firebase/firestore";
+import { collection, doc, getDocs, query, where, Timestamp, writeBatch, WriteBatch, updateDoc, getDoc, deleteDoc, addDoc, onSnapshot, Unsubscribe, or } from "firebase/firestore";
 import type { Debt, SplitDetails, Transaction, UserProfile, Settlement } from "@/lib/data";
 import { getTransactionById, addTransaction, updateTransaction } from "./transactionService";
 import { createNotification, deleteNotificationByRelatedId } from "./notificationService";
@@ -159,32 +159,15 @@ export async function logSettlementAsIncome(settlementId: string, notificationId
     }
     const settlementData = settlementSnap.data();
     if (settlementData.creditorIncomeLogged) {
-        // This case can happen if the user clicks quickly. Just delete the notification.
         const notificationRef = doc(db, "notifications", notificationId);
         await deleteDoc(notificationRef);
         throw new Error("This income has already been logged.");
     }
     
-    const settlement = { id: settlementSnap.id, ...settlementData } as Settlement;
-
-    // 1. Create the negative expense transaction for the creditor
-    const newTransactionRef = doc(collection(db, "transactions"));
-    batch.set(newTransactionRef, {
-        userId: settlement.toUserId,
-        description: `Payment received from ${settlement.fromUser.displayName}`,
-        amount: -settlement.amount, // Negative amount for income
-        category: "Settlement",
-        date: settlementData.processedAt || Timestamp.now(),
-        isSplit: false,
-        circleId: null,
-        recurringExpenseId: null,
-        splitDetails: null
-    });
-    
-    // 2. Update the settlement to prevent duplicate logging
+    // 1. Update the settlement to prevent duplicate logging
     batch.update(settlementRef, { creditorIncomeLogged: true });
 
-    // 3. Delete the actionable notification
+    // 2. Delete the actionable notification
     const notificationRef = doc(db, "notifications", notificationId);
     batch.delete(notificationRef);
 
@@ -195,6 +178,43 @@ export async function logSettlementAsIncome(settlementId: string, notificationId
 export async function addCircleSettlementsDeletionsToBatch(circleId: string, batch: WriteBatch) {
     if (!db) return;
     const q = query(collection(db, "settlements"), where("circleId", "==", circleId));
+    const querySnapshot = await getDocs(q);
+    querySnapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+    });
+}
+
+export function getSettlementsForUserListener(userId: string, callback: (settlements: Settlement[]) => void): Unsubscribe {
+    if (!db) return () => {};
+    const settlementsRef = collection(db, "settlements");
+    const q = query(settlementsRef, or(where("fromUserId", "==", userId), where("toUserId", "==", userId)));
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const settlements: Settlement[] = [];
+        querySnapshot.forEach(doc => {
+            const data = doc.data();
+            settlements.push({
+                id: doc.id,
+                ...data,
+                createdAt: (data.createdAt as Timestamp).toDate(),
+                processedAt: data.processedAt ? (data.processedAt as Timestamp).toDate() : null,
+            } as Settlement);
+        });
+        callback(settlements.sort((a, b) => {
+            const dateA = a.processedAt || a.createdAt;
+            const dateB = b.processedAt || b.createdAt;
+            return dateB.getTime() - dateA.getTime();
+        }));
+    }, (error) => {
+        console.error(`Error listening to user settlements for ${userId}:`, error);
+    });
+
+    return unsubscribe;
+}
+
+export async function addAllUserSettlementsDeletionsToBatch(userId: string, batch: WriteBatch) {
+    if (!db) return;
+    const q = query(collection(db, "settlements"), or(where("fromUserId", "==", userId), where("toUserId", "==", userId)));
     const querySnapshot = await getDocs(q);
     querySnapshot.forEach((doc) => {
         batch.delete(doc.ref);
