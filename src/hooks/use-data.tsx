@@ -7,10 +7,10 @@ import { getTransactions, addTransaction } from '@/services/transactionService';
 import { getCategories } from '@/services/categoryService';
 import { getRecurringExpenses, updateRecurringExpense } from '@/services/recurringExpenseService';
 import { getFriendsListener, getFriendRequestsListener } from '@/services/friendService';
-import { getCirclesForUserListener, getCircleInvitationsListener } from '@/services/circleService';
+import { getCirclesForUserListener } from '@/services/circleService';
 import { getNotificationsForUser, markNotificationAsRead, markAllNotificationsAsRead } from '@/services/notificationService';
 import { toast } from 'sonner';
-import type { Transaction, RecurringExpense, UserProfile, FriendRequest, Circle, Notification, CircleInvitation } from '@/lib/data';
+import type { Transaction, RecurringExpense, UserProfile, FriendRequest, Circle, Notification } from '@/lib/data';
 
 interface DataContextType {
     transactions: Transaction[];
@@ -19,7 +19,6 @@ interface DataContextType {
     friends: UserProfile[];
     friendRequests: FriendRequest[];
     circles: Circle[];
-    circleInvitations: CircleInvitation[];
     notifications: Notification[];
     unreadNotificationCount: number;
     isLoading: boolean;
@@ -40,7 +39,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [friends, setFriends] = useState<UserProfile[]>([]);
     const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
     const [circles, setCircles] = useState<Circle[]>([]);
-    const [circleInvitations, setCircleInvitations] = useState<CircleInvitation[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [newExpenseDefaultDate, setNewExpenseDefaultDate] = useState<Date | null>(null);
@@ -131,7 +129,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setFriends([]);
             setFriendRequests([]);
             setCircles([]);
-            setCircleInvitations([]);
             setNotifications([]);
             setIsLoading(false);
         }
@@ -187,16 +184,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user]);
     
-    // Listener for circle invitations
-    useEffect(() => {
-        if (user) {
-            const unsubscribe = getCircleInvitationsListener(user.uid, setCircleInvitations);
-            return () => unsubscribe();
-        } else {
-            setCircleInvitations([]);
-        }
-    }, [user]);
-
 
     const markAsRead = async (notificationId: string) => {
         try {
@@ -224,7 +211,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         friends,
         friendRequests,
         circles,
-        circleInvitations,
         notifications,
         unreadNotificationCount,
         isLoading,

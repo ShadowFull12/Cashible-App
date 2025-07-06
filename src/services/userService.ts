@@ -1,9 +1,11 @@
 
 import { db } from "@/lib/firebase";
-import { doc, updateDoc, writeBatch, collection, query, where, getDocs, limit } from "firebase/firestore";
+import { doc, updateDoc, writeBatch, collection, query, where, getDocs, limit, deleteDoc } from "firebase/firestore";
 import { defaultCategories } from "@/lib/data";
 import { addTransactionsDeletionsToBatch } from "./transactionService";
 import { addRecurringExpensesDeletionsToBatch } from "./recurringExpenseService";
+import { leaveCircle } from "./circleService";
+import { removeFriend } from "./friendService";
 import type { UserProfile } from "@/lib/data";
 
 
@@ -126,15 +128,26 @@ export async function uploadProfileImage(file: File): Promise<string> {
 export async function deleteAllUserData(userId: string) {
     if (!db) throw new Error("Firestore is not initialized.");
 
+    // 1. Leave all circles
+    const circleQuery = query(collection(db, "circles"), where("memberIds", "array-contains", userId));
+    const circleDocs = await getDocs(circleQuery);
+    for (const doc of circleDocs.docs) {
+        await leaveCircle(doc.id, userId);
+    }
+
+    // 2. Remove all friendships
+    const friendshipQuery = query(collection(db, "friendships"), where("userIds", "array-contains", userId));
+    const friendshipDocs = await getDocs(friendshipQuery);
+    for (const doc of friendshipDocs.docs) {
+        await deleteDoc(doc.ref);
+    }
+
+    // 3. Delete transactions, recurring expenses, and reset user doc in a batch
     const batch = writeBatch(db);
 
-    // 1. Delete all transactions
     await addTransactionsDeletionsToBatch(userId, batch);
-    
-    // 2. Delete all recurring expenses
     await addRecurringExpensesDeletionsToBatch(userId, batch);
-
-    // 3. Reset the user document to its default state
+    
     const userDocRef = doc(db, "users", userId);
     batch.update(userDocRef, {
         budget: 0,

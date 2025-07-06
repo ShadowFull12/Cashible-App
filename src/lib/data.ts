@@ -1,3 +1,4 @@
+
 import type { Timestamp } from "firebase/firestore";
 
 export const defaultCategories = [
@@ -91,7 +92,7 @@ export interface SplitDetails {
     total: number;
 }
 
-export type NotificationType = 'friend-request' | 'circle-invitation' | 'debt-settlement-request' | 'debt-settlement-confirmed' | 'circle-deleted' | 'circle-join';
+export type NotificationType = 'friend-request' | 'debt-settlement-request' | 'debt-settlement-confirmed';
 
 export interface Notification {
     id: string;
@@ -101,16 +102,6 @@ export interface Notification {
     message: string;
     link: string;
     read: boolean;
-    relatedId?: string; // e.g., friend request ID, invitation ID
-    createdAt: Date;
-}
-
-export interface CircleInvitation {
-    id: string;
-    circleId: string;
-    circleName: string;
-    fromUser: UserProfile;
-    toUserId: string;
-    status: 'pending' | 'accepted' | 'rejected';
+    relatedId?: string; // e.g., friend request ID
     createdAt: Date;
 }

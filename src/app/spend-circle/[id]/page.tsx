@@ -1,20 +1,20 @@
+
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { getCircleById, deleteCircle } from '@/services/circleService';
+import { getCircleById, leaveCircle } from '@/services/circleService';
 import { getDebtsForCircle, initiateSettlement, cancelSettlement, rejectSettlement, confirmSettlement, logSettledDebtAsExpense, deleteDebtById } from '@/services/debtService';
 import type { Circle, Debt, UserProfile, DebtSettlementStatus } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, ArrowRight, Users, VenetianMask, Check, Loader2, List, UserPlus, AlertCircle, Clock, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Users, VenetianMask, Check, Loader2, List, AlertCircle, Clock, CheckCircle2, XCircle, Trash2, LogOut } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { InviteToCircleDialog } from '@/components/invite-to-circle-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
 
@@ -40,7 +40,6 @@ export default function CircleDetailPage() {
     const [debts, setDebts] = useState<Debt[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [processingState, setProcessingState] = useState<ProcessingState>(null);
-    const [isInviteOpen, setIsInviteOpen] = useState(false);
     const [fetchError, setFetchError] = useState<string | null>(null);
 
     const fetchCircleData = useCallback(async () => {
@@ -163,14 +162,14 @@ export default function CircleDetailPage() {
         }
     }
 
-    const handleDeleteCircle = async () => {
-        if (!circle || !user || user.uid !== circle.ownerId) return;
+    const handleLeaveCircle = async () => {
+        if (!circle || !user) return;
         try {
-            await deleteCircle(circle.id, user.uid);
-            toast.success(`Circle "${circle.name}" has been deleted.`);
+            await leaveCircle(circle.id, user.uid);
+            toast.success(`You have left the circle "${circle.name}".`);
             router.push('/spend-circle');
         } catch (error: any) {
-            toast.error("Failed to delete circle.", { description: error.message });
+            toast.error("Failed to leave circle.", { description: error.message });
         }
     }
 
@@ -326,20 +325,15 @@ export default function CircleDetailPage() {
                                 {member.uid === user?.uid && <Badge>You</Badge>}
                             </div>
                         ))}
-                         <Button variant="outline" className="w-full mt-4" onClick={() => setIsInviteOpen(true)} disabled={user?.uid !== circle.ownerId}>
-                            <UserPlus className="mr-2" /> Invite Friends
-                         </Button>
-                         {user?.uid === circle.ownerId && (
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" className="w-full mt-2"><Trash2 className="mr-2"/>Delete Circle</Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader><AlertDialogTitle>Delete "{circle.name}"?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the circle and all associated debts for everyone. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
-                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteCircle}>Confirm & Delete</AlertDialogAction></AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        )}
+                         <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                 <Button variant="destructive" className="w-full mt-4"><LogOut className="mr-2"/>Leave Circle</Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader><AlertDialogTitle>Leave "{circle.name}"?</AlertDialogTitle><AlertDialogDescription>You will be removed from this circle. If you are the last member, the circle and all its debts will be permanently deleted.</AlertDialogDescription></AlertDialogHeader>
+                                <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleLeaveCircle}>Confirm & Leave</AlertDialogAction></AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
                     </CardContent>
                 </Card>
             </div>
@@ -393,7 +387,6 @@ export default function CircleDetailPage() {
                 </CardContent>
             </Card>
         </div>
-        {circle && <InviteToCircleDialog open={isInviteOpen} onOpenChange={setIsInviteOpen} circle={circle} onInviteSent={fetchCircleData} />}
         </>
     );
 }
