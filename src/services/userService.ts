@@ -16,17 +16,35 @@ export async function uploadProfileImage(file: File): Promise<string> {
     const formData = new FormData();
     formData.append("image", file);
 
-    const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
-        method: 'POST',
-        body: formData,
-    });
+    try {
+        const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+            method: 'POST',
+            body: formData,
+        });
 
-    const result = await response.json();
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error("ImgBB API Error - Non-OK response:", { 
+                status: response.status, 
+                statusText: response.statusText,
+                body: errorText 
+            });
+            throw new Error(`Failed to upload image. Server responded with ${response.status}: ${errorText || response.statusText}`);
+        }
 
-    if (!response.ok || !result.success) {
-        console.error("ImgBB API Error:", result);
-        throw new Error(result?.error?.message || "Failed to upload image via ImgBB.");
+        const result = await response.json();
+
+        if (!result.success) {
+            console.error("ImgBB API Error - Success False:", result);
+            throw new Error(result?.error?.message || "Upload failed due to a generic API error.");
+        }
+
+        return result.data.url;
+    } catch (error) {
+        console.error("Error during image upload fetch/parse:", error);
+        if (error instanceof Error) {
+           throw new Error(`A network or parsing error occurred: ${error.message}`);
+        }
+        throw new Error("An unknown error occurred during image upload.");
     }
-
-    return result.data.url;
 }

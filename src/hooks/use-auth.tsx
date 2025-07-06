@@ -100,7 +100,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (!user) throw new Error("User not authenticated.");
 
     // 1. Upload image and get URL
-    const photoURL = await userService.uploadProfileImage(user.uid, file);
+    const photoURL = await userService.uploadProfileImage(file);
     
     // 2. Update profile in Firebase Auth
     await updateProfile(user, { photoURL });
@@ -111,7 +111,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // 4. Force a refresh of the user object in our app's state to update the UI
     if (auth.currentUser) {
         // Create a new object to force React to recognize the change and re-render.
-        const updatedUser = { ...auth.currentUser };
+        const updatedUser = { ...auth.currentUser, photoURL }; // Ensure photoURL is updated here
         setUser(updatedUser as User);
     }
     
