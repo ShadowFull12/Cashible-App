@@ -23,7 +23,8 @@ export function HistoryTab({ circle, transactions, settlements }: HistoryTabProp
         const items: HistoryItem[] = [];
         
         transactions.forEach(tx => {
-            if (tx.isSplit) {
+            // A transaction must be a split and have details to be included in circle history
+            if (tx.isSplit && tx.splitDetails) { 
                 items.push({ ...tx, type: 'transaction' });
             }
         });
@@ -44,6 +45,7 @@ export function HistoryTab({ circle, transactions, settlements }: HistoryTabProp
 
     const getPayer = (item: HistoryItem): UserProfile | undefined => {
         if (item.type === 'transaction') {
+            // With the check in historyItems, splitDetails is guaranteed to exist here.
             return circle.members[item.splitDetails!.payerId];
         }
         return item.fromUser;
