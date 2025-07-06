@@ -53,22 +53,27 @@ export async function acceptSettlement(settlementId: string) {
     // Clean up the original request notification
     await deleteNotificationByRelatedId(settlementId);
 
-    // Notification to Payer (Debtor)
+    const payerId = settlement.fromUserId;
+    const creditorId = settlement.toUserId;
+    const payerProfile = settlement.fromUser;
+    const creditorProfile = settlement.toUser;
+
+    // Notification to Payer (who should log an expense)
     await createNotification({
-        userId: settlement.fromUserId,
-        fromUser: settlement.toUser,
-        type: 'settlement-confirmed',
-        message: `${settlement.toUser.displayName} confirmed your payment of ₹${settlement.amount.toFixed(2)}.`,
+        userId: payerId,
+        fromUser: creditorProfile,
+        type: 'settlement-expense-pending',
+        message: `${creditorProfile.displayName} confirmed your payment of ₹${settlement.amount.toFixed(2)}.`,
         link: `/notifications`,
         relatedId: settlementId,
     });
 
-    // Notification to Receiver (Creditor)
+    // Notification to Creditor (who should log income)
     await createNotification({
-        userId: settlement.toUserId,
-        fromUser: settlement.fromUser,
-        type: 'settlement-payment-received',
-        message: `You received a payment of ₹${settlement.amount.toFixed(2)} from ${settlement.fromUser.displayName}.`,
+        userId: creditorId,
+        fromUser: payerProfile,
+        type: 'settlement-income-pending',
+        message: `You received a payment of ₹${settlement.amount.toFixed(2)} from ${payerProfile.displayName}.`,
         link: '/notifications',
         relatedId: settlementId,
     });

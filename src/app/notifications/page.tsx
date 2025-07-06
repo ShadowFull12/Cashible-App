@@ -22,17 +22,20 @@ import { acceptSettlement, rejectSettlement, logSettlementAsExpense, logSettleme
 
 const iconMap: {[key: string]: React.ElementType} = {
     'friend-request': UserPlus,
-    'debt-settlement-request': CircleDollarSign, // This is legacy, will be phased out
-    'debt-settlement-confirmed': Check,
-    'debt-settlement-rejected': XCircle,
     'expense-claim-request': FilePlus,
     'expense-claim-accepted': CheckCircle2,
     'expense-claim-rejected': XCircle,
     'settlement-request': HandCoins,
-    'settlement-confirmed': HandCoins, // For payer
-    'settlement-payment-received': Wallet, // For creditor
+    'settlement-expense-pending': Wallet,
+    'settlement-income-pending': Wallet,
     'settlement-rejected': XCircle,
     'circle-member-joined': UserCheck,
+    // Legacy types
+    'debt-settlement-request': CircleDollarSign,
+    'debt-settlement-confirmed': Check,
+    'debt-settlement-rejected': XCircle,
+    'settlement-confirmed': HandCoins,
+    'settlement-payment-received': Wallet,
 };
 
 export default function NotificationsPage() {
@@ -49,8 +52,8 @@ export default function NotificationsPage() {
         const isActionable = notification.type === 'friend-request' ||
                              notification.type === 'expense-claim-request' ||
                              notification.type === 'settlement-request' ||
-                             notification.type === 'settlement-confirmed' ||
-                             notification.type === 'settlement-payment-received';
+                             notification.type === 'settlement-expense-pending' ||
+                             notification.type === 'settlement-income-pending';
         
         if (isActionable) {
             return;
@@ -219,10 +222,10 @@ export default function NotificationsPage() {
                     
                     const isClaimRequest = notification.type === 'expense-claim-request';
                     const isSettlementRequest = notification.type === 'settlement-request';
-                    const isSettlementConfirmed = notification.type === 'settlement-confirmed';
-                    const isPaymentReceived = notification.type === 'settlement-payment-received';
+                    const isSettlementExpensePending = notification.type === 'settlement-expense-pending';
+                    const isSettlementIncomePending = notification.type === 'settlement-income-pending';
                     
-                    const isActionable = !!matchingFriendRequest || isClaimRequest || isSettlementRequest || isSettlementConfirmed || isPaymentReceived;
+                    const isActionable = !!matchingFriendRequest || isClaimRequest || isSettlementRequest || isSettlementExpensePending || isSettlementIncomePending;
                     const isProcessing = (matchingFriendRequest && processingId === matchingFriendRequest.id) || processingId === notification.id;
 
                     return (
@@ -284,7 +287,7 @@ export default function NotificationsPage() {
                                         </div>
                                     )}
 
-                                    {isSettlementConfirmed && (
+                                    {isSettlementExpensePending && (
                                         <div className="flex gap-2 mt-2">
                                             <Button size="sm" onClick={(e) => { e.stopPropagation(); handleLogSettlement(notification); }} disabled={isProcessing}>
                                                 {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <ClipboardCheck className="mr-2 size-4"/>} Log as Expense
@@ -292,7 +295,7 @@ export default function NotificationsPage() {
                                         </div>
                                     )}
 
-                                    {isPaymentReceived && (
+                                    {isSettlementIncomePending && (
                                         <div className="flex gap-2 mt-2">
                                             <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleLogIncome(notification); }} disabled={isProcessing}>
                                                 {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <Wallet className="mr-2 size-4"/>} Log as Income

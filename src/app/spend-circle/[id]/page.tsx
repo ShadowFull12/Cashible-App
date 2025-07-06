@@ -28,7 +28,7 @@ export default function CircleDetailPage() {
     const router = useRouter();
     const params = useParams();
     const circleId = params.id as string;
-    const { setIsAddExpenseOpen, setNewExpenseDefaultCircleId } = useData();
+    const { setNewExpenseDefaultCircleId } = useData();
 
     const [circle, setCircle] = useState<Circle | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -38,10 +38,14 @@ export default function CircleDetailPage() {
 
     const isOwner = useMemo(() => circle?.ownerId === user?.uid, [circle, user]);
 
-    const handleAddExpenseClick = () => {
-        setNewExpenseDefaultCircleId(circleId);
-        setIsAddExpenseOpen(true);
-    };
+    useEffect(() => {
+        if (circleId) {
+            setNewExpenseDefaultCircleId(circleId);
+        }
+        return () => {
+            setNewExpenseDefaultCircleId(null);
+        };
+    }, [circleId, setNewExpenseDefaultCircleId]);
 
     useEffect(() => {
         if (!circleId || !user) {
@@ -135,7 +139,6 @@ export default function CircleDetailPage() {
                             </Avatar>
                         )}
                     </div>
-                    <Button onClick={handleAddExpenseClick}><PlusCircle className="mr-2"/> Add Expense</Button>
                 </div>
             </div>
 

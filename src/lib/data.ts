@@ -115,15 +115,12 @@ export interface Settlement {
 
 export type NotificationType = 
     'friend-request' | 
-    'debt-settlement-request' | 
-    'debt-settlement-confirmed' | 
-    'debt-settlement-rejected' |
     'expense-claim-request' |
     'expense-claim-accepted' |
     'expense-claim-rejected' |
     'settlement-request' | 
-    'settlement-confirmed' | // To Payer
-    'settlement-payment-received' | // To Creditor
+    'settlement-expense-pending' | // To Payer
+    'settlement-income-pending' | // To Creditor
     'settlement-rejected' | 
     'circle-member-joined';
 
