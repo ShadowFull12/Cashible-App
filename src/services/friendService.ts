@@ -96,12 +96,12 @@ export async function acceptFriendRequest(requestId: string, currentUser: User, 
             [currentUser.uid]: {
                 displayName: currentUser.displayName,
                 email: currentUser.email,
-                photoURL: currentUser.photoURL,
+                photoURL: currentUser.photoURL || '',
             },
             [fromUser.uid]: {
                 displayName: fromUser.displayName,
                 email: fromUser.email,
-                photoURL: fromUser.photoURL
+                photoURL: fromUser.photoURL || ''
             }
         },
         createdAt: Timestamp.now()
