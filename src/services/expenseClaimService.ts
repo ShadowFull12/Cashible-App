@@ -2,7 +2,6 @@
 import { db } from "@/lib/firebase";
 import { collection, addDoc, doc, getDoc, Timestamp, writeBatch, updateDoc } from "firebase/firestore";
 import type { ExpenseClaim, SplitDetails, UserProfile } from "@/lib/data";
-import { addDebtCreationToBatch } from "./debtService";
 import { createNotification, deleteNotificationByRelatedId } from "./notificationService";
 
 const claimsRef = collection(db, "expense-claims");
@@ -69,7 +68,7 @@ export async function acceptExpenseClaim(claimId: string) {
     
     const batch = writeBatch(db);
 
-    // 1. Create the transaction for the payer
+    // 1. Create the transaction for the payer, with full split details
     const transactionRef = doc(collection(db, "transactions"));
     batch.set(transactionRef, {
         userId: claim.payerId,
@@ -80,23 +79,15 @@ export async function acceptExpenseClaim(claimId: string) {
         isSplit: true,
         circleId: claim.expenseDetails.circleId,
         recurringExpenseId: null,
+        splitDetails: claim.expenseDetails.splitDetails,
     });
-
-    // 2. Create the debts
-    addDebtCreationToBatch(
-        batch, 
-        transactionRef.id, 
-        claim.expenseDetails.splitDetails, 
-        claim.expenseDetails.circleId, 
-        claim.expenseDetails.description
-    );
     
-    // 3. Update the claim status to accepted
+    // 2. Update the claim status to accepted
     batch.update(claimDocRef, { status: 'accepted' });
 
     await batch.commit();
 
-    // 4. Clean up original notification and notify claimer
+    // 3. Clean up original notification and notify claimer
     await deleteNotificationByRelatedId(claimId);
     
     const payer = claim.expenseDetails.splitDetails.members.find(m => m.uid === claim.payerId);

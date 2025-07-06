@@ -2,7 +2,8 @@
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, writeBatch, onSnapshot, Unsubscribe, deleteDoc, arrayRemove, deleteField, arrayUnion } from "firebase/firestore";
 import type { UserProfile, Circle } from "@/lib/data";
-import { deleteDebtsForCircle } from "./debtService";
+import { addCircleTransactionsDeletionsToBatch } from "./transactionService";
+import { addCircleSettlementsDeletionsToBatch } from "./debtService";
 
 const circlesRef = collection(db, "circles");
 
@@ -120,12 +121,15 @@ export async function getCircleById(circleId: string): Promise<Circle | null> {
     }
 }
 
-async function deleteCircleAndDebts(circleId: string) {
+async function deleteCircleAndRelatedData(circleId: string) {
     if (!db) throw new Error("Firebase is not configured.");
     const batch = writeBatch(db);
     
-    // Delete associated debts
-    await deleteDebtsForCircle(circleId, batch);
+    // Delete associated transactions
+    await addCircleTransactionsDeletionsToBatch(circleId, batch);
+    
+    // Delete associated settlements
+    await addCircleSettlementsDeletionsToBatch(circleId, batch);
 
     // Delete the circle itself
     const circleRef = doc(db, "circles", circleId);
@@ -152,8 +156,8 @@ export async function leaveCircle(circleId: string, userId: string) {
     }
 
     if (circleData.memberIds.length === 1 && circleData.memberIds[0] === userId) {
-        // This is the last member, delete the circle
-        await deleteCircleAndDebts(circleId);
+        // This is the last member, delete the circle and its related data
+        await deleteCircleAndRelatedData(circleId);
     } else {
         const updates: {[key: string]: any} = {
             memberIds: arrayRemove(userId),

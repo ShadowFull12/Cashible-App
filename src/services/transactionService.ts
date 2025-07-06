@@ -2,7 +2,6 @@
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, writeBatch, updateDoc, WriteBatch, getDoc, onSnapshot, Unsubscribe } from "firebase/firestore";
 import type { Transaction, SplitDetails, Settlement } from "@/lib/data";
-import { addDebtCreationToBatch } from "./debtService";
 
 const transactionsRef = collection(db, "transactions");
 
@@ -27,17 +26,14 @@ export async function addSplitTransaction(
     if (!db) throw new Error("Firebase is not configured.");
     
     try {
-        const batch = writeBatch(db);
-        const transactionRef = doc(collection(db, "transactions"));
-        batch.set(transactionRef, {
+        // A split transaction is a single document that contains all the details needed for balance calculation.
+        // The on-the-fly balance calculation in the UI will handle the debt creation.
+        await addDoc(transactionsRef, {
             ...transaction,
             date: transaction.date instanceof Date ? Timestamp.fromDate(transaction.date) : transaction.date,
             isSplit: true,
             splitDetails,
         });
-        addDebtCreationToBatch(batch, transactionRef.id, splitDetails, transaction.circleId || null, transaction.description);
-        await batch.commit();
-
     } catch (error: any) {
         console.error('Error adding split transaction:', error);
         throw new Error(error.message || "Failed to add split transaction.");
@@ -220,6 +216,15 @@ export async function deleteTransactionsByRecurringId(userId: string, recurringE
 export async function addTransactionsDeletionsToBatch(userId: string, batch: WriteBatch) {
     if (!db) return;
     const q = query(collection(db, "transactions"), where("userId", "==", userId));
+    const querySnapshot = await getDocs(q);
+    querySnapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+    });
+}
+
+export async function addCircleTransactionsDeletionsToBatch(circleId: string, batch: WriteBatch) {
+    if (!db) return;
+    const q = query(collection(db, "transactions"), where("circleId", "==", circleId));
     const querySnapshot = await getDocs(q);
     querySnapshot.forEach((doc) => {
         batch.delete(doc.ref);
