@@ -1,7 +1,7 @@
 
 import { db } from "@/lib/firebase";
 import { 
-    collection, addDoc, getDocs, query, where, doc, updateDoc, Timestamp, writeBatch, deleteDoc, getDoc, or
+    collection, addDoc, getDocs, query, where, doc, updateDoc, Timestamp, writeBatch, deleteDoc, getDoc, or, onSnapshot, Unsubscribe
 } from "firebase/firestore";
 import type { UserProfile, FriendRequest } from "@/lib/data";
 import type { User } from 'firebase/auth';
@@ -16,18 +16,17 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
 
     // Check if a PENDING request already exists between these users
     const q = query(friendRequestsRef, 
+        where("status", "==", "pending"),
         or(
-            where("fromUser.uid", "==", fromUser.uid),
-            where("toUserId", "==", fromUser.uid)
+            where("fromUser.uid", "==", toUserId),
+            where("toUserId", "==", toUserId)
         )
     );
 
     const querySnapshot = await getDocs(q);
     const existingRequest = querySnapshot.docs.find(d => {
         const data = d.data();
-        const isTheRightPair = (data.fromUser.uid === toUserId && data.toUserId === fromUser.uid) || (data.fromUser.uid === fromUser.uid && data.toUserId === toUserId);
-        // Only block if there's a PENDING request.
-        return isTheRightPair && data.status === 'pending';
+        return (data.fromUser.uid === fromUser.uid || data.toUserId === fromUser.uid);
     });
 
     if (existingRequest) {
@@ -43,7 +42,7 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
         throw new Error("You are already friends with this user.");
     }
 
-    await addDoc(friendRequestsRef, {
+    const newRequestRef = await addDoc(friendRequestsRef, {
         fromUser,
         toUserId,
         status: 'pending',
@@ -55,28 +54,23 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
         fromUser: fromUser,
         type: 'friend-request',
         message: `${fromUser.displayName} sent you a friend request.`,
-        link: '/spend-circle', // Links to the page with the 'Requests' tab
+        link: '/notifications',
     });
 }
 
-// 2. Get friend requests for the current user
-export async function getFriendRequests(userId: string): Promise<FriendRequest[]> {
-    if (!db) return [];
+// 2. Get friend requests for the current user (real-time listener)
+export function getFriendRequestsListener(userId: string, callback: (requests: FriendRequest[]) => void): Unsubscribe {
+    if (!db) return () => {};
     
-    // Incoming requests
-    const incomingQuery = query(friendRequestsRef, where("toUserId", "==", userId), where("status", "==", "pending"));
-    // Outgoing requests
-    const outgoingQuery = query(friendRequestsRef, where("fromUser.uid", "==", userId), where("status", "==", "pending"));
-
-    const [incomingSnapshot, outgoingSnapshot] = await Promise.all([
-        getDocs(incomingQuery),
-        getDocs(outgoingQuery)
-    ]);
+    // We listen for any request where the status is pending and the current user is involved.
+    const q = query(friendRequestsRef, 
+        where("status", "==", "pending"),
+        where("toUserId", "==", userId)
+    );
     
-    const requests: FriendRequest[] = [];
-
-    const processSnapshot = (snapshot: any) => {
-        snapshot.forEach((doc: any) => {
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const requests: FriendRequest[] = [];
+        querySnapshot.forEach((doc) => {
             const data = doc.data();
             requests.push({
                 id: doc.id,
@@ -84,12 +78,12 @@ export async function getFriendRequests(userId: string): Promise<FriendRequest[]
                 createdAt: (data.createdAt as Timestamp).toDate(),
             } as FriendRequest);
         });
-    }
-
-    processSnapshot(incomingSnapshot);
-    processSnapshot(outgoingSnapshot);
-
-    return requests.sort((a,b) => b.createdAt.getTime() - a.createdAt.getTime());
+        callback(requests.sort((a,b) => b.createdAt.getTime() - a.createdAt.getTime()));
+    }, (error) => {
+        console.error("Error listening to friend requests:", error);
+    });
+    
+    return unsubscribe;
 }
 
 // 3. Accept a friend request

@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
@@ -5,7 +6,7 @@ import { useAuth } from './use-auth';
 import { getTransactions, addTransaction } from '@/services/transactionService';
 import { getCategories } from '@/services/categoryService';
 import { getRecurringExpenses, updateRecurringExpense } from '@/services/recurringExpenseService';
-import { getFriends, getFriendRequests } from '@/services/friendService';
+import { getFriends, getFriendRequestsListener } from '@/services/friendService';
 import { getCirclesForUser } from '@/services/circleService';
 import { getNotificationsForUser, markNotificationAsRead, markAllNotificationsAsRead } from '@/services/notificationService';
 import { toast } from 'sonner';
@@ -101,7 +102,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 getTransactions(user.uid).then(setTransactions),
                 getCategories(user.uid).then(setCategories),
                 getFriends(user.uid).then(setFriends),
-                getFriendRequests(user.uid).then(setFriendRequests),
                 getCirclesForUser(user.uid).then(setCircles),
                 refreshUserData()
             ];
@@ -154,6 +154,19 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setNotifications([]);
         }
     }, [user]);
+
+    // Listener for friend requests
+    useEffect(() => {
+        if (user) {
+            const unsubscribe = getFriendRequestsListener(user.uid, (requests) => {
+                setFriendRequests(requests);
+            });
+            return () => unsubscribe();
+        } else {
+            setFriendRequests([]);
+        }
+    }, [user]);
+
 
     const markAsRead = async (notificationId: string) => {
         try {

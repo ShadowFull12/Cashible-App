@@ -1,5 +1,6 @@
+
 import { db } from "@/lib/firebase";
-import { collection, addDoc, query, where, onSnapshot, Unsubscribe, Timestamp, updateDoc, doc, getDocs, writeBatch } from "firebase/firestore";
+import { collection, addDoc, query, where, onSnapshot, Unsubscribe, Timestamp, updateDoc, doc, getDocs, writeBatch, deleteDoc } from "firebase/firestore";
 import type { Notification, NotificationType, UserProfile } from "@/lib/data";
 
 const notificationsRef = collection(db, "notifications");
@@ -25,8 +26,6 @@ export async function createNotification(data: CreateNotificationInput) {
 export function getNotificationsForUser(userId: string, callback: (notifications: Notification[]) => void): Unsubscribe {
     if (!db) return () => {};
     
-    // The combination of `where` and `orderBy` on different fields requires a composite index in Firestore.
-    // To avoid this configuration requirement, we fetch the documents and sort them on the client.
     const q = query(
         notificationsRef, 
         where("userId", "==", userId)
@@ -75,4 +74,10 @@ export async function markAllNotificationsAsRead(userId: string) {
         batch.update(doc.ref, { read: true });
     });
     await batch.commit();
+}
+
+export async function deleteNotification(notificationId: string) {
+    if (!db) throw new Error("Firebase is not configured.");
+    const notificationRef = doc(db, "notifications", notificationId);
+    await deleteDoc(notificationRef);
 }

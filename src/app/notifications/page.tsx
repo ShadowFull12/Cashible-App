@@ -9,12 +9,14 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { Bell, Check, UserPlus, CircleDollarSign, BellRing, Loader2, UserCheck, UserX } from 'lucide-react';
+import { Bell, Check, UserPlus, CircleDollarSign, BellRing, Loader2, UserCheck, UserX, X } from 'lucide-react';
 import type { Notification, UserProfile } from '@/lib/data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { acceptFriendRequest, rejectFriendRequest } from '@/services/friendService';
+import { deleteNotification } from '@/services/notificationService';
+
 
 const iconMap = {
     'friend-request': UserPlus,
@@ -34,7 +36,14 @@ export default function NotificationsPage() {
             await markAsRead(notification.id);
         }
         // Don't navigate for actionable requests, let the buttons handle it
-        if (notification.type === 'friend-request' && friendRequests.some(req => req.fromUser.uid === notification.fromUser.uid && req.status === 'pending')) {
+        const isPendingFriendRequest = notification.type === 'friend-request' && 
+            friendRequests.some(req => 
+                req.fromUser.uid === notification.fromUser.uid && 
+                req.toUserId === user?.uid && 
+                req.status === 'pending'
+            );
+
+        if (isPendingFriendRequest) {
             return;
         }
         router.push(notification.link);
@@ -46,7 +55,7 @@ export default function NotificationsPage() {
         try {
             await acceptFriendRequest(requestId, user, fromUser);
             toast.success(`You are now friends with ${fromUser.displayName}!`);
-            await refreshData();
+            await refreshData(); // Refresh friends list
         } catch (error) {
             toast.error("Failed to accept request.");
             console.error(error);
@@ -60,11 +69,20 @@ export default function NotificationsPage() {
         try {
             await rejectFriendRequest(requestId);
             toast.info("Friend request declined.");
-            await refreshData();
+            // No need to refresh, listeners will handle it
         } catch (error) {
             toast.error("Failed to decline request.");
         } finally {
             setProcessingId(null);
+        }
+    };
+
+    const handleDeleteNotification = async (notificationId: string) => {
+        try {
+            await deleteNotification(notificationId);
+            toast.success("Notification dismissed.");
+        } catch(e) {
+            toast.error("Failed to dismiss notification.");
         }
     };
 
@@ -107,52 +125,65 @@ export default function NotificationsPage() {
                     return (
                         <div
                             key={notification.id}
-                            onClick={() => handleNotificationClick(notification)}
                             className={cn(
-                                "flex items-start gap-4 p-3 rounded-lg border transition-colors",
+                                "group relative flex items-start gap-3 p-3 rounded-lg border transition-colors",
                                 !notification.read && "bg-muted/30 border-primary/20",
-                                matchingFriendRequest ? "cursor-default" : "cursor-pointer hover:bg-muted/50"
+                                !matchingFriendRequest && "hover:bg-muted/50"
                             )}
                         >
-                            {!notification.read && (
-                                <div className="h-2 w-2 rounded-full bg-primary mt-2.5" />
-                            )}
-                            <div className={cn("flex-shrink-0 pt-1", notification.read && "ml-4")}>
-                               <Icon className="size-6 text-muted-foreground" />
-                            </div>
-                            <div className="flex-grow">
-                                <div className="flex items-center gap-2">
-                                     <Avatar className="h-6 w-6">
-                                        <AvatarImage src={notification.fromUser.photoURL || undefined} />
-                                        <AvatarFallback>{notification.fromUser.displayName.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                    <p className="text-sm">{notification.message}</p>
-                                </div>
-                                <p className="text-xs text-muted-foreground mt-1">
-                                    {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
-                                </p>
-                                {matchingFriendRequest && (
-                                    <div className="flex gap-2 mt-2">
-                                        <Button 
-                                            size="sm" 
-                                            onClick={(e) => { e.stopPropagation(); handleAccept(matchingFriendRequest.id, notification.fromUser); }} 
-                                            disabled={isProcessing}
-                                        >
-                                            {isProcessing ? <Loader2 className="mr-2 animate-spin"/> : <UserCheck className="mr-2"/>}
-                                            Accept
-                                        </Button>
-                                        <Button 
-                                            size="sm" 
-                                            variant="outline" 
-                                            onClick={(e) => { e.stopPropagation(); handleDecline(matchingFriendRequest.id); }} 
-                                            disabled={isProcessing}
-                                        >
-                                             {isProcessing ? <Loader2 className="mr-2 animate-spin"/> : <UserX className="mr-2"/>}
-                                            Decline
-                                        </Button>
-                                    </div>
+                            <div className="flex-grow flex items-start gap-3" onClick={() => handleNotificationClick(notification)}>
+                                {!notification.read && (
+                                    <div className="h-2 w-2 rounded-full bg-primary mt-2.5 flex-shrink-0" />
                                 )}
+                                <div className={cn("flex-shrink-0 pt-1", notification.read && "ml-4")}>
+                                <Icon className="size-6 text-muted-foreground" />
+                                </div>
+                                <div className="flex-grow cursor-pointer">
+                                    <div className="flex items-center gap-2">
+                                        <Avatar className="h-6 w-6">
+                                            <AvatarImage src={notification.fromUser.photoURL || undefined} />
+                                            <AvatarFallback>{notification.fromUser.displayName.charAt(0)}</AvatarFallback>
+                                        </Avatar>
+                                        <p className="text-sm">{notification.message}</p>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
+                                    </p>
+                                    {matchingFriendRequest && (
+                                        <div className="flex gap-2 mt-2">
+                                            <Button 
+                                                size="sm" 
+                                                onClick={(e) => { e.stopPropagation(); handleAccept(matchingFriendRequest.id, notification.fromUser); }} 
+                                                disabled={isProcessing}
+                                            >
+                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <UserCheck className="mr-2 size-4"/>}
+                                                Accept
+                                            </Button>
+                                            <Button 
+                                                size="sm" 
+                                                variant="outline" 
+                                                onClick={(e) => { e.stopPropagation(); handleDecline(matchingFriendRequest.id); }} 
+                                                disabled={isProcessing}
+                                            >
+                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <UserX className="mr-2 size-4"/>}
+                                                Decline
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteNotification(notification.id);
+                                }}
+                                className="absolute top-1 right-1 h-7 w-7 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
+                                aria-label="Dismiss notification"
+                            >
+                                <X className="size-4" />
+                            </Button>
                         </div>
                     );
                 })}
