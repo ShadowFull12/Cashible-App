@@ -6,13 +6,16 @@ import { useAuth } from './use-auth';
 import { getTransactions, addTransaction } from '@/services/transactionService';
 import { getCategories } from '@/services/categoryService';
 import { getRecurringExpenses, updateRecurringExpense } from '@/services/recurringExpenseService';
+import { getFriends, getFriendRequests } from '@/services/friendService';
 import { toast } from 'sonner';
-import type { Transaction, RecurringExpense } from '@/lib/data';
+import type { Transaction, RecurringExpense, UserProfile, FriendRequest } from '@/lib/data';
 
 interface DataContextType {
     transactions: Transaction[];
     categories: any[];
     recurringExpenses: RecurringExpense[];
+    friends: UserProfile[];
+    friendRequests: FriendRequest[];
     isLoading: boolean;
     refreshData: () => Promise<void>;
     newExpenseDefaultDate: Date | null;
@@ -26,6 +29,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [categories, setCategories] = useState<any[]>([]);
     const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>([]);
+    const [friends, setFriends] = useState<UserProfile[]>([]);
+    const [friendRequests, setFriendRequests] = useState<FriendRequest[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [newExpenseDefaultDate, setNewExpenseDefaultDate] = useState<Date | null>(null);
     
@@ -76,15 +81,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
             const newTransactionsAdded = await processRecurringExpenses(user.uid, fetchedRecurring);
 
-            // If new recurring transactions were added, we need to re-fetch all transactions
             if (newTransactionsAdded) {
                 toast.info("Recurring expenses have been automatically added.");
             }
 
-            // Fetch all data
             await Promise.all([
                 getTransactions(user.uid).then(setTransactions),
                 getCategories(user.uid).then(setCategories),
+                getFriends(user.uid).then(setFriends),
+                getFriendRequests(user.uid).then(setFriendRequests),
                 refreshUserData()
             ]);
         } catch (error: any) {
@@ -108,6 +113,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setTransactions([]);
             setCategories([]);
             setRecurringExpenses([]);
+            setFriends([]);
+            setFriendRequests([]);
             setIsLoading(false);
         }
     }, [user, refreshData]);
@@ -122,6 +129,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         transactions,
         categories,
         recurringExpenses,
+        friends,
+        friendRequests,
         isLoading,
         refreshData: refreshData as () => Promise<void>,
         newExpenseDefaultDate,

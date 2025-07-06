@@ -1,14 +1,34 @@
+
 import { db } from "@/lib/firebase";
-import { doc, updateDoc, writeBatch } from "firebase/firestore";
+import { doc, updateDoc, writeBatch, collection, query, where, getDocs, limit } from "firebase/firestore";
 import { defaultCategories } from "@/lib/data";
 import { addTransactionsDeletionsToBatch } from "./transactionService";
 import { addRecurringExpensesDeletionsToBatch } from "./recurringExpenseService";
+import type { UserProfile } from "@/lib/data";
 
 
 export async function updateUser(userId: string, data: object) {
     if (!db) throw new Error("Firestore is not initialized.");
     const userDocRef = doc(db, "users", userId);
     await updateDoc(userDocRef, data);
+}
+
+export async function searchUsersByEmail(email: string): Promise<UserProfile[]> {
+    if (!db) throw new Error("Firestore is not initialized.");
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("email", "==", email), limit(10));
+    const querySnapshot = await getDocs(q);
+    const users: UserProfile[] = [];
+    querySnapshot.forEach((doc) => {
+        const data = doc.data();
+        users.push({
+            uid: data.uid,
+            displayName: data.displayName,
+            email: data.email,
+            photoURL: data.photoURL,
+        });
+    });
+    return users;
 }
 
 export async function uploadProfileImage(file: File): Promise<string> {
@@ -27,7 +47,7 @@ export async function uploadProfileImage(file: File): Promise<string> {
         });
 
         const result = await response.json();
-
+        
         if (!response.ok) {
             console.error("ImgBB API Error - Non-OK response:", { 
                 status: response.status, 
@@ -46,7 +66,7 @@ export async function uploadProfileImage(file: File): Promise<string> {
     } catch (error) {
         console.error("Error during image upload fetch/parse:", error);
         if (error instanceof Error) {
-           throw error; // Re-throw the more specific error
+           throw error;
         }
         throw new Error("An unknown network error occurred during image upload.");
     }
@@ -73,6 +93,5 @@ export async function deleteAllUserData(userId: string) {
         primaryColor: '181 95% 45%',
     });
 
-    // 4. Commit all batched writes
     await batch.commit();
 }

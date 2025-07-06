@@ -1,15 +1,16 @@
+
 "use client";
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, History, Lightbulb, CalendarDays, Plus } from "lucide-react";
+import { LayoutDashboard, History, Lightbulb, Users, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/history", icon: History, label: "History" },
-  { href: "/calendar", icon: CalendarDays, label: "Calendar" },
+  { href: "/spend-circle", icon: Users, label: "Circle" },
   { href: "/insights", icon: Lightbulb, label: "Insights" },
 ];
 

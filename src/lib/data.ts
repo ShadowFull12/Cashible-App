@@ -31,3 +31,18 @@ export interface RecurringExpense {
     isActive: boolean;
     lastProcessed: Date | null;
 }
+
+export interface UserProfile {
+    uid: string;
+    displayName: string;
+    email: string;
+    photoURL?: string;
+}
+
+export interface FriendRequest {
+    id: string;
+    fromUser: UserProfile;
+    toUserId: string;
+    status: 'pending' | 'accepted' | 'rejected' | 'cancelled';
+    createdAt: Date;
+}
