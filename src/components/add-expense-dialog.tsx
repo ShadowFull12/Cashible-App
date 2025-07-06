@@ -208,7 +208,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Expense" : "Add New Expense"}</DialogTitle>
           <DialogDescription>

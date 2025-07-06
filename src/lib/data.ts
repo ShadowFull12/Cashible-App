@@ -68,6 +68,7 @@ export interface Debt {
     amount: number;
     isSettled: boolean;
     createdAt: Date;
+    involvedUids: string[];
 }
 
 export type SplitType = 'equally'; // More can be added later

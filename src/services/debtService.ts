@@ -29,15 +29,21 @@ export function addDebtCreationToBatch(
                 amount: debtAmount,
                 isSettled: false,
                 createdAt: Timestamp.now(),
+                involvedUids: [member.uid, payer.uid],
             });
         }
     });
 }
 
-export async function getDebtsForCircle(circleId: string): Promise<Debt[]> {
+export async function getDebtsForCircle(circleId: string, userId: string): Promise<Debt[]> {
     if (!db) return [];
     
-    const q = query(debtsRef, where("circleId", "==", circleId), where("isSettled", "==", false));
+    const q = query(
+        debtsRef, 
+        where("circleId", "==", circleId), 
+        where("involvedUids", "array-contains", userId),
+        where("isSettled", "==", false)
+    );
     const querySnapshot = await getDocs(q);
 
     const debts: Debt[] = [];

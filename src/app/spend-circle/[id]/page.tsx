@@ -37,18 +37,18 @@ export default function CircleDetailPage() {
         const fetchData = async () => {
             setIsLoading(true);
             try {
-                const [circleData, debtsData] = await Promise.all([
-                    getCircleById(circleId),
-                    getDebtsForCircle(circleId)
-                ]);
-
-                if (circleData && circleData.memberIds.includes(user.uid)) {
-                    setCircle(circleData);
-                    setDebts(debtsData);
-                } else {
-                    // Not a member or circle doesn't exist
+                const circleData = await getCircleById(circleId);
+                
+                if (!circleData || !circleData.memberIds.includes(user.uid)) {
                     router.push('/spend-circle');
+                    return;
                 }
+
+                const debtsData = await getDebtsForCircle(circleId, user.uid);
+                
+                setCircle(circleData);
+                setDebts(debtsData);
+
             } catch (error) {
                 console.error("Failed to fetch circle details:", error);
                 router.push('/spend-circle');
@@ -71,27 +71,30 @@ export default function CircleDetailPage() {
             balances.set(debt.creditorId, (balances.get(debt.creditorId) || 0) + debt.amount);
         });
 
-        const debtors = Array.from(balances.entries()).filter(([, balance]) => balance < 0).map(([uid, balance]) => ({ uid, balance }));
+        const debtors = Array.from(balances.entries()).filter(([, balance]) => balance < 0).map(([uid, balance]) => ({ uid, balance: -balance }));
         const creditors = Array.from(balances.entries()).filter(([, balance]) => balance > 0).map(([uid, balance]) => ({ uid, balance }));
         
         const settlements: SimplifiedDebt[] = [];
+        
+        let i = 0, j = 0;
+        while (i < debtors.length && j < creditors.length) {
+            const debtor = debtors[i];
+            const creditor = creditors[j];
+            const amount = Math.min(debtor.balance, creditor.balance);
 
-        while (debtors.length > 0 && creditors.length > 0) {
-            const debtor = debtors[0];
-            const creditor = creditors[0];
-            const amount = Math.min(-debtor.balance, creditor.balance);
+            if (amount > 0.01) { // Avoid creating zero or tiny settlements
+                 settlements.push({
+                    from: circle.members[debtor.uid],
+                    to: circle.members[creditor.uid],
+                    amount: amount
+                });
+            }
 
-            settlements.push({
-                from: circle.members[debtor.uid],
-                to: circle.members[creditor.uid],
-                amount: amount
-            });
-
-            debtor.balance += amount;
+            debtor.balance -= amount;
             creditor.balance -= amount;
 
-            if (Math.abs(debtor.balance) < 0.01) debtors.shift();
-            if (Math.abs(creditor.balance) < 0.01) creditors.shift();
+            if (debtor.balance < 0.01) i++;
+            if (creditor.balance < 0.01) j++;
         }
 
         return settlements;
@@ -221,4 +224,3 @@ function CircleDetailSkeleton() {
         </div>
     );
 }
-
