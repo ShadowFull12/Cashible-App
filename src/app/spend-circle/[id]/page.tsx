@@ -19,6 +19,7 @@ import { ManageTab } from '@/components/circle/manage-tab';
 import { ChatTab } from '@/components/circle/chat-tab';
 import { getCircleTransactions, getCircleSettlements } from '@/services/transactionService';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
 export default function CircleDetailPage() {
     const { user } = useAuth();
