@@ -34,8 +34,9 @@ export function OverviewTab({ circle, transactions, settlements }: OverviewTabPr
         
         settlements.forEach(s => {
             if (s.status === 'confirmed') {
-                balances.set(s.fromUserId, (balances.get(s.fromUserId) || 0) - s.amount);
-                balances.set(s.toUserId, (balances.get(s.toUserId) || 0) + s.amount);
+                // fromUser paid toUser. fromUser's balance should increase (less debt). toUser's balance should decrease (less credit).
+                balances.set(s.fromUserId, (balances.get(s.fromUserId) || 0) + s.amount);
+                balances.set(s.toUserId, (balances.get(s.toUserId) || 0) - s.amount);
             }
         });
         
@@ -87,8 +88,8 @@ export function OverviewTab({ circle, transactions, settlements }: OverviewTabPr
                     {netBalances.map(({ user, amount }) => (
                          <div key={user.uid} className="flex items-center justify-between p-2 border-b">
                             <p className="font-medium">{user.displayName}</p>
-                            <p className={`font-bold ${amount >= 0 ? 'text-green-500' : 'text-destructive'}`}>
-                                {amount >= 0 ? '+' : ''}₹{amount.toFixed(2)}
+                            <p className={`font-bold ${Math.abs(amount) < 0.01 ? 'text-muted-foreground' : amount > 0 ? 'text-green-500' : 'text-destructive'}`}>
+                                {amount >= 0.01 ? '+' : ''}₹{amount.toFixed(2)}
                             </p>
                          </div>
                     ))}

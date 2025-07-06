@@ -3,7 +3,7 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
 import { useAuth } from './use-auth';
-import { getTransactions, addTransaction } from '@/services/transactionService';
+import { getTransactionsListener, addTransaction } from '@/services/transactionService';
 import { getCategories } from '@/services/categoryService';
 import { getRecurringExpenses, updateRecurringExpense } from '@/services/recurringExpenseService';
 import { getFriendsListener, getFriendRequestsListener } from '@/services/friendService';
@@ -63,16 +63,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             const paymentIsDue = today.getDate() >= expense.dayOfMonth;
             
             if (paymentIsDue && !isSameMonth) {
-                const transactionDate = new Date(today.getFullYear(), today.getMonth(), expense.dayOfMonth);
-                
                 processingPromises.push(
                     addTransaction({
                         userId: userId,
                         description: expense.description,
                         amount: expense.amount,
                         category: expense.category,
-                        date: transactionDate,
+                        date: new Date(today.getFullYear(), today.getMonth(), expense.dayOfMonth),
                         recurringExpenseId: expense.id,
+                        isSplit: false,
+                        splitDetails: null,
+                        circleId: null,
                     }).then(() => {
                         return updateRecurringExpense(expense.id!, { lastProcessed: today });
                     })
@@ -98,12 +99,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 toast.info("Recurring expenses have been automatically added.");
             }
 
-            const dataPromises = [
-                getTransactions(user.uid).then(setTransactions),
-                refreshUserData()
-            ];
-
-            await Promise.all(dataPromises);
+            // Refresh user data (for categories, etc.)
+            await refreshUserData();
 
         } catch (error: any) {
             if (error.code === 'permission-denied') {
@@ -120,9 +117,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [user, refreshUserData, processRecurringExpenses]);
 
     useEffect(() => {
-        if(user) {
-            refreshData();
-        } else {
+        if(!user) {
+            // Clear all data when user logs out
             setTransactions([]);
             setCategories([]);
             setRecurringExpenses([]);
@@ -131,8 +127,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setCircles([]);
             setNotifications([]);
             setIsLoading(false);
+        } else {
+             // Initial load and recurring expense check
+             refreshData();
         }
-    }, [user, refreshData]);
+    }, [user]);
     
     useEffect(() => {
         if (userData?.categories) {
@@ -140,12 +139,20 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [userData]);
     
+    // Listener for personal transactions
+    useEffect(() => {
+        if (user) {
+            const unsubscribe = getTransactionsListener(user.uid, setTransactions);
+            return () => unsubscribe();
+        } else {
+            setTransactions([]);
+        }
+    }, [user]);
+    
     // Listener for notifications
     useEffect(() => {
         if (user) {
-            const unsubscribe = getNotificationsForUser(user.uid, (newNotifications) => {
-                setNotifications(newNotifications);
-            });
+            const unsubscribe = getNotificationsForUser(user.uid, setNotifications);
             return () => unsubscribe();
         } else {
             setNotifications([]);
@@ -155,9 +162,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     // Listener for friend requests
     useEffect(() => {
         if (user) {
-            const unsubscribe = getFriendRequestsListener(user.uid, (requests) => {
-                setFriendRequests(requests);
-            });
+            const unsubscribe = getFriendRequestsListener(user.uid, setFriendRequests);
             return () => unsubscribe();
         } else {
             setFriendRequests([]);
@@ -214,7 +219,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         notifications,
         unreadNotificationCount,
         isLoading,
-        refreshData: refreshData as () => Promise<void>,
+        refreshData,
         newExpenseDefaultDate,
         setNewExpenseDefaultDate,
         markAsRead,

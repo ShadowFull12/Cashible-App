@@ -1,4 +1,5 @@
 
+
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, writeBatch, updateDoc, WriteBatch, getDoc, onSnapshot, Unsubscribe } from "firebase/firestore";
 import type { Transaction, SplitDetails, Settlement } from "@/lib/data";
@@ -85,6 +86,29 @@ export async function getTransactions(userId: string): Promise<Transaction[]> {
         return transactions.sort((a, b) => b.date.getTime() - a.date.getTime());
     } catch (error) {
         console.error(`Error getting transactions for user ${userId}:`, error);
+        throw error;
+    }
+}
+
+export function getTransactionsListener(userId: string, callback: (transactions: Transaction[]) => void): Unsubscribe {
+    if (!db) return () => {};
+    try {
+        const q = query(transactionsRef, where("userId", "==", userId));
+        const unsubscribe = onSnapshot(q, (querySnapshot) => {
+            const transactions: Transaction[] = [];
+            querySnapshot.forEach((doc) => {
+                const data = doc.data();
+                transactions.push({
+                    id: doc.id,
+                    ...data,
+                    date: (data.date as Timestamp).toDate(),
+                } as Transaction);
+            });
+            callback(transactions.sort((a, b) => b.date.getTime() - a.date.getTime()));
+        });
+        return unsubscribe;
+    } catch (error) {
+        console.error(`Error listening to transactions for user ${userId}:`, error);
         throw error;
     }
 }
