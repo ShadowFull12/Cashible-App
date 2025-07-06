@@ -16,7 +16,7 @@ interface UserData {
   uid: string;
   displayName: string;
   email: string;
-  username: string;
+  username?: string;
   categories: any[];
   budget: number;
   budgetIsSet: boolean;

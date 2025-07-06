@@ -333,7 +333,7 @@ export default function SettingsPage() {
     }
 
     const onUsernameChange = async (values: z.infer<typeof usernameSchema>) => {
-        if (values.newUsername.toLowerCase() === userData?.username.toLowerCase()) {
+        if (userData?.username && values.newUsername.toLowerCase() === userData.username.toLowerCase()) {
             toast.info("This is already your username.");
             return;
         }

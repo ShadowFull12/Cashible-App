@@ -88,13 +88,14 @@ export async function updateUserProfileAndPropagate(userId: string, data: { disp
     await batch.commit();
 }
 
-export async function updateUsernameAndPropagate(userId: string, oldUsername: string, newUsername: string) {
+export async function updateUsernameAndPropagate(userId: string, oldUsername: string | undefined, newUsername: string) {
     if (!db) throw new Error("Firestore is not initialized.");
 
     const newUsernameLower = newUsername.toLowerCase();
-    const oldUsernameLower = oldUsername.toLowerCase();
-
-    if (newUsernameLower === oldUsernameLower) return;
+    
+    if (oldUsername && newUsername.toLowerCase() === oldUsername.toLowerCase()) {
+        return;
+    }
 
     if (!/^[a-zA-Z0-9_]{3,15}$/.test(newUsername)) {
         throw new Error("Username must be 3-15 characters long (letters, numbers, _).");
@@ -107,8 +108,10 @@ export async function updateUsernameAndPropagate(userId: string, oldUsername: st
 
     const batch = writeBatch(db);
 
-    const oldUsernameRef = doc(db, "usernames", oldUsernameLower);
-    batch.delete(oldUsernameRef);
+    if (oldUsername) {
+        const oldUsernameRef = doc(db, "usernames", oldUsername.toLowerCase());
+        batch.delete(oldUsernameRef);
+    }
 
     const newUsernameRef = doc(db, "usernames", newUsernameLower);
     batch.set(newUsernameRef, { uid: userId });
