@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, History, Lightbulb, Users, Plus } from "lucide-react";
+import { LayoutDashboard, History, Lightbulb, Users, Plus, Calendar, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
 
@@ -11,7 +11,9 @@ const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/history", icon: History, label: "History" },
   { href: "/spend-circle", icon: Users, label: "Circle" },
+  { href: "/calendar", icon: Calendar, label: "Calendar" },
   { href: "/insights", icon: Lightbulb, label: "Insights" },
+  { href: "/settings", icon: Settings, label: "Settings" },
 ];
 
 interface BottomNavProps {
@@ -23,13 +25,13 @@ export function BottomNav({ onAddExpenseClick }: BottomNavProps) {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-20 border-t bg-background/95 backdrop-blur-sm md:hidden">
-      <div className="relative mx-auto flex h-16 max-w-md items-center justify-around">
-        {navItems.slice(0, 2).map((item) => (
+      <div className="relative mx-auto grid h-16 grid-cols-7 max-w-md items-center justify-around">
+        {navItems.slice(0, 3).map((item) => (
           <Link href={item.href} key={item.href} className="flex-1">
             <div
               className={cn(
                 "flex h-full flex-col items-center justify-center gap-1 text-sm font-medium transition-colors",
-                pathname === item.href
+                pathname.startsWith(item.href)
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}
@@ -40,7 +42,7 @@ export function BottomNav({ onAddExpenseClick }: BottomNavProps) {
           </Link>
         ))}
         
-        <div className="relative -top-6">
+        <div className="relative flex justify-center -top-4">
             <Button
                 size="icon"
                 className="h-14 w-14 rounded-full shadow-lg"
@@ -50,12 +52,12 @@ export function BottomNav({ onAddExpenseClick }: BottomNavProps) {
             </Button>
         </div>
 
-        {navItems.slice(2).map((item) => (
+        {navItems.slice(3).map((item) => (
           <Link href={item.href} key={item.href} className="flex-1">
             <div
               className={cn(
                 "flex h-full flex-col items-center justify-center gap-1 text-sm font-medium transition-colors",
-                pathname === item.href
+                pathname.startsWith(item.href)
                   ? "text-primary"
                   : "text-muted-foreground hover:text-foreground"
               )}

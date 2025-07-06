@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
@@ -134,7 +135,7 @@ export default function HistoryPage() {
                 </SelectContent>
             </Select>
         </div>
-        <div className="relative w-full overflow-x-auto">
+        <div className="relative w-full">
           <Table>
             <TableHeader>
               <TableRow>
