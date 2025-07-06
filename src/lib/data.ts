@@ -81,7 +81,7 @@ export interface Debt {
     transactionDescription: string;
 }
 
-export type SplitType = 'equally'; // More can be added later
+export type SplitType = 'equally' | 'unequally';
 
 export interface SplitMember extends UserProfile {
     share: number;

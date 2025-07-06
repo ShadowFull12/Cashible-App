@@ -25,8 +25,15 @@ interface DataContextType {
     unreadNotificationCount: number;
     isLoading: boolean;
     refreshData: () => Promise<void>;
+    
+    // State for AddExpenseDialog
+    isAddExpenseOpen: boolean;
+    setIsAddExpenseOpen: React.Dispatch<React.SetStateAction<boolean>>;
     newExpenseDefaultDate: Date | null;
     setNewExpenseDefaultDate: React.Dispatch<React.SetStateAction<Date | null>>;
+    newExpenseDefaultCircleId: string | null;
+    setNewExpenseDefaultCircleId: React.Dispatch<React.SetStateAction<string | null>>;
+
     markAsRead: (notificationId: string) => Promise<void>;
     markAllAsRead: () => Promise<void>;
 }
@@ -44,7 +51,11 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [settlements, setSettlements] = useState<Settlement[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+
+    // State for the global "Add Expense" dialog
+    const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
     const [newExpenseDefaultDate, setNewExpenseDefaultDate] = useState<Date | null>(null);
+    const [newExpenseDefaultCircleId, setNewExpenseDefaultCircleId] = useState<string | null>(null);
 
     const unreadNotificationCount = useMemo(() => {
         return notifications.filter(n => !n.read).length;
@@ -102,7 +113,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 toast.info("Recurring expenses have been automatically added.");
             }
 
-            // Refresh user data (for categories, etc.)
             await refreshUserData();
 
         } catch (error: any) {
@@ -121,7 +131,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         if(!user) {
-            // Clear all data when user logs out
             setTransactions([]);
             setCategories([]);
             setRecurringExpenses([]);
@@ -132,10 +141,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setNotifications([]);
             setIsLoading(false);
         } else {
-             // Initial load and recurring expense check
              refreshData();
         }
-    }, [user]);
+    }, [user, refreshData]);
     
     useEffect(() => {
         if (userData?.categories) {
@@ -143,7 +151,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [userData]);
     
-    // Listener for personal transactions
     useEffect(() => {
         if (user) {
             const unsubscribe = getTransactionsListener(user.uid, setTransactions);
@@ -153,7 +160,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user]);
     
-    // Listener for notifications
     useEffect(() => {
         if (user) {
             const unsubscribe = getNotificationsForUser(user.uid, setNotifications);
@@ -163,7 +169,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user]);
 
-    // Listener for friend requests
     useEffect(() => {
         if (user) {
             const unsubscribe = getFriendRequestsListener(user.uid, setFriendRequests);
@@ -173,7 +178,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user]);
 
-    // Listener for friends
     useEffect(() => {
         if (user) {
             const unsubscribe = getFriendsListener(user.uid, setFriends);
@@ -183,7 +187,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user]);
 
-    // Listener for circles
     useEffect(() => {
         if (user) {
             const unsubscribe = getCirclesForUserListener(user.uid, setCircles);
@@ -193,7 +196,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user]);
 
-    // Listener for settlements
     useEffect(() => {
         if (user) {
             const unsubscribe = getSettlementsForUserListener(user.uid, setSettlements);
@@ -235,8 +237,12 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         unreadNotificationCount,
         isLoading,
         refreshData,
+        isAddExpenseOpen,
+        setIsAddExpenseOpen,
         newExpenseDefaultDate,
         setNewExpenseDefaultDate,
+        newExpenseDefaultCircleId,
+        setNewExpenseDefaultCircleId,
         markAsRead,
         markAllAsRead,
     };

@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -36,10 +37,16 @@ import { InitialBudgetModal } from "../initial-budget-modal";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
-  const [isAddExpenseOpen, setIsAddExpenseOpen] = React.useState(false);
   const [isBudgetModalOpen, setIsBudgetModalOpen] = React.useState(false);
-  const { refreshData, newExpenseDefaultDate, setNewExpenseDefaultDate } =
-    useData();
+  const { 
+    refreshData, 
+    newExpenseDefaultDate, 
+    setNewExpenseDefaultDate,
+    isAddExpenseOpen,
+    setIsAddExpenseOpen,
+    newExpenseDefaultCircleId,
+    setNewExpenseDefaultCircleId,
+   } = useData();
   const { user, userData, loading: authLoading, logout } = useAuth();
   const isMobile = useIsMobile();
   const router = useRouter();
@@ -67,7 +74,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const handleOpenChange = (isOpen: boolean) => {
     setIsAddExpenseOpen(isOpen);
     if (!isOpen) {
+      // Clear any context-specific defaults when closing the dialog
       setNewExpenseDefaultDate(null);
+      setNewExpenseDefaultCircleId(null);
     }
   };
 
@@ -166,6 +175,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         onExpenseAdded={handleExpenseAdded}
         transactionToEdit={null}
         defaultDate={newExpenseDefaultDate}
+        defaultCircleId={newExpenseDefaultCircleId}
       />
       <InitialBudgetModal
         open={isBudgetModalOpen}

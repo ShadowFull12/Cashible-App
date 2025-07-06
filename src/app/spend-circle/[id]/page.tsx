@@ -7,7 +7,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { getCircleListener } from '@/services/circleService';
 import type { Circle, UserProfile, Transaction, Settlement } from '@/lib/data';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, Users, AlertCircle, VenetianMask, History, SlidersHorizontal, MessageSquare } from 'lucide-react';
+import { ArrowLeft, Users, AlertCircle, VenetianMask, History, SlidersHorizontal, MessageSquare, PlusCircle } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -20,12 +20,15 @@ import { ChatTab } from '@/components/circle/chat-tab';
 import { getCircleTransactionsListener, getCircleSettlementsListener } from '@/services/transactionService';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { useData } from '@/hooks/use-data';
 
 export default function CircleDetailPage() {
     const { user } = useAuth();
     const router = useRouter();
     const params = useParams();
     const circleId = params.id as string;
+    const { setIsAddExpenseOpen, setNewExpenseDefaultCircleId } = useData();
 
     const [circle, setCircle] = useState<Circle | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -34,6 +37,11 @@ export default function CircleDetailPage() {
     const [fetchError, setFetchError] = useState<string | null>(null);
 
     const isOwner = useMemo(() => circle?.ownerId === user?.uid, [circle, user]);
+
+    const handleAddExpenseClick = () => {
+        setNewExpenseDefaultCircleId(circleId);
+        setIsAddExpenseOpen(true);
+    };
 
     useEffect(() => {
         if (!circleId || !user) {
@@ -46,35 +54,28 @@ export default function CircleDetailPage() {
 
         const unsubscribes: (() => void)[] = [];
 
-        // Listener for the circle document itself
         const circleUnsubscribe = getCircleListener(circleId, (circleData) => {
             if (circleData) {
-                // Initial check to ensure user is still a member
                 if (!circleData.memberIds.includes(user.uid)) {
                     toast.error("You are no longer a member of this circle or it does not exist.");
                     router.push('/spend-circle');
-                    return; // Stop further processing
+                    return; 
                 }
                 setCircle(circleData);
             } else {
-                // Circle was deleted or doesn't exist
                 toast.error("This circle could not be found.");
                 router.push('/spend-circle');
             }
-             // Set loading to false after first circle data load, whether successful or not
             setIsLoading(false);
         });
         unsubscribes.push(circleUnsubscribe);
 
-        // Listener for transactions
         const txUnsubscribe = getCircleTransactionsListener(circleId, setTransactions);
         unsubscribes.push(txUnsubscribe);
 
-        // Listener for settlements
         const settlementUnsubscribe = getCircleSettlementsListener(circleId, setSettlements);
         unsubscribes.push(settlementUnsubscribe);
 
-        // Cleanup function to unsubscribe from all listeners when the component unmounts
         return () => {
             unsubscribes.forEach(unsub => unsub());
         };
@@ -104,7 +105,7 @@ export default function CircleDetailPage() {
                 <ArrowLeft className="size-4" /> Back to Circles
             </Link>
             
-            <div className="flex items-start justify-between gap-4">
+            <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
                 <div className="flex items-center gap-4">
                      <Avatar className="h-16 w-16 border-2 border-primary/20">
                         <AvatarImage src={circle.photoURL || undefined} alt={circle.name} />
@@ -120,18 +121,21 @@ export default function CircleDetailPage() {
                         </div>
                     </div>
                 </div>
-                 <div className="flex -space-x-2 overflow-hidden">
-                    {Object.values(circle.members).slice(0, 5).map(member => (
-                        <Avatar key={member.uid} className="inline-block h-8 w-8 rounded-full ring-2 ring-background">
-                            <AvatarImage src={member.photoURL || undefined} />
-                            <AvatarFallback>{member.displayName.charAt(0)}</AvatarFallback>
-                        </Avatar>
-                    ))}
-                    {Object.keys(circle.members).length > 5 && (
-                        <Avatar className="inline-block h-8 w-8 rounded-full ring-2 ring-background">
-                           <AvatarFallback>+{Object.keys(circle.members).length - 5}</AvatarFallback>
-                        </Avatar>
-                    )}
+                 <div className="flex items-center gap-4">
+                    <div className="flex -space-x-2 overflow-hidden">
+                        {Object.values(circle.members).slice(0, 5).map(member => (
+                            <Avatar key={member.uid} className="inline-block h-8 w-8 rounded-full ring-2 ring-background">
+                                <AvatarImage src={member.photoURL || undefined} />
+                                <AvatarFallback>{member.displayName.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                        ))}
+                        {Object.keys(circle.members).length > 5 && (
+                            <Avatar className="inline-block h-8 w-8 rounded-full ring-2 ring-background">
+                            <AvatarFallback>+{Object.keys(circle.members).length - 5}</AvatarFallback>
+                            </Avatar>
+                        )}
+                    </div>
+                    <Button onClick={handleAddExpenseClick}><PlusCircle className="mr-2"/> Add Expense</Button>
                 </div>
             </div>
 

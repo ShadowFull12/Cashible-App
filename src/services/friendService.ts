@@ -14,7 +14,6 @@ const friendshipsRef = collection(db, "friendships");
 export async function sendFriendRequest(fromUser: UserProfile, toUserId: string) {
     if (!db) throw new Error("Firebase is not configured.");
 
-    // Correctly structured query to check for pending requests in either direction
     const q = query(friendRequestsRef, 
         and(
             where("status", "==", "pending"),
@@ -37,7 +36,6 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
          throw new Error("A friend request is already pending between you two.");
     }
     
-    // Check if they are already friends
     const friendsQuery = query(friendshipsRef, where('userIds', 'array-contains', fromUser.uid));
     const friendsSnapshot = await getDocs(friendsQuery);
     const isAlreadyFriend = friendsSnapshot.docs.some(doc => doc.data().userIds.includes(toUserId));
@@ -129,6 +127,13 @@ export async function acceptFriendRequest(requestId: string, currentUser: User, 
     // Delete the original friend request document now that it's been accepted.
     batch.delete(requestDocRef);
 
+    // Find and delete the associated notification
+    const notificationQuery = query(collection(db, "notifications"), where("relatedId", "==", requestId));
+    const notificationSnapshot = await getDocs(notificationQuery);
+    notificationSnapshot.forEach(notificationDoc => {
+        batch.delete(notificationDoc.ref);
+    });
+
     await batch.commit();
 }
 
@@ -136,7 +141,6 @@ export async function acceptFriendRequest(requestId: string, currentUser: User, 
 export async function rejectFriendRequest(requestId: string) {
     if (!db) throw new Error("Firebase is not configured.");
     const requestDocRef = doc(db, "friend-requests", requestId);
-    // Instead of just updating status, we delete the rejected request to keep the collection clean.
     await deleteDoc(requestDocRef);
 }
 

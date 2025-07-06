@@ -4,7 +4,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { CalendarIcon, Loader2, Lightbulb, ChevronDown, Info } from "lucide-react";
+import { CalendarIcon, Loader2, Lightbulb, ChevronDown, Info, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useState, useEffect, useMemo } from "react";
@@ -47,11 +47,14 @@ import { addRecurringExpense } from "@/services/recurringExpenseService";
 import { createExpenseClaim } from "@/services/expenseClaimService";
 import { suggestCategory } from "@/ai/flows/suggest-category";
 import { Switch } from "./ui/switch";
-import type { Transaction, UserProfile, SplitDetails } from "@/lib/data";
+import type { Transaction, UserProfile, SplitDetails, SplitType } from "@/lib/data";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Checkbox } from "./ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
+import { Label } from "./ui/label";
+
 
 const formSchema = z.object({
   description: z.string().min(3, { message: "Description must be at least 3 characters." }),
@@ -70,14 +73,17 @@ interface AddExpenseDialogProps {
   onOpenChange: (open: boolean) => void;
   onExpenseAdded: () => void;
   defaultDate?: Date | null;
+  defaultCircleId?: string | null;
   transactionToEdit?: Transaction | null;
 }
 
-export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDate, transactionToEdit }: AddExpenseDialogProps) {
+export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDate, defaultCircleId, transactionToEdit }: AddExpenseDialogProps) {
   const { user } = useAuth();
   const { categories, friends, circles } = useData();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
+  const [splitMethod, setSplitMethod] = useState<SplitType>('equally');
+  const [customShares, setCustomShares] = useState<Record<string, string>>({});
   const isEditing = !!transactionToEdit;
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -98,14 +104,8 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
       const circle = circles.find(c => c.id === splitTarget.replace('circle-', ''));
       return circle ? Object.values(circle.members) : [];
     }
-    if (splitTarget?.startsWith('friend-')) {
-      const friend = friends.find(f => f.uid === splitTarget.replace('friend-', ''));
-      if (friend && user?.displayName && user.email) {
-          return [ { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL || null }, friend ];
-      }
-    }
     return [];
-  }, [splitTarget, circles, friends, user]);
+  }, [splitTarget, circles]);
 
   const selectedCircle = useMemo(() => {
     if (splitTarget?.startsWith('circle-')) {
@@ -129,15 +129,34 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
         form.reset({
           description: transactionToEdit.description, amount: transactionToEdit.amount, category: transactionToEdit.category, date: transactionToEdit.date, isRecurring: !!transactionToEdit.recurringExpenseId, isSplit: transactionToEdit.isSplit,
         });
+      } else if (defaultCircleId) {
+        form.reset({
+            description: "", amount: 0, category: "", date: defaultDate || new Date(),
+            isRecurring: false, isSplit: true, splitTarget: `circle-${defaultCircleId}`,
+            splitMembers: [], payerId: user?.uid
+        });
       } else {
         form.reset({
           description: "", amount: 0, category: "", date: defaultDate || new Date(), isRecurring: false, isSplit: false, splitMembers: [], splitTarget: undefined, payerId: user?.uid
         });
       }
+      setSplitMethod('equally');
+      setCustomShares({});
     }
-  }, [open, isEditing, transactionToEdit, defaultDate, form, user]);
+  }, [open, isEditing, transactionToEdit, defaultDate, form, user, defaultCircleId]);
 
   const handleSuggestCategory = async () => { /* ... */ };
+  
+  const handleShareChange = (uid: string, value: string) => {
+    setCustomShares(prev => ({...prev, [uid]: value}));
+  };
+
+  const totalCustomShare = useMemo(() => {
+      return Object.values(customShares).reduce((sum, val) => sum + (Number(val) || 0), 0);
+  }, [customShares]);
+
+  const isCustomSplitInvalid = splitMethod === 'unequally' && Math.abs(totalCustomShare - amount) > 0.01 && potentialSplitMembers.length > 0;
+
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user || !user.displayName || !user.email) return;
@@ -152,34 +171,51 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
         const membersToSplitWith = potentialSplitMembers.filter(m => values.splitMembers?.includes(m.uid));
         
         if (membersToSplitWith.length === 0 || !values.splitMembers) {
-            toast.error("You must select at least one person to split with.");
-            setIsSubmitting(false); return;
+            toast.error("You must select at least one person to split with."); setIsSubmitting(false); return;
         }
         if (!values.payerId) {
-            toast.error("You must select who paid for this expense.");
-            setIsSubmitting(false); return;
+            toast.error("You must select who paid for this expense."); setIsSubmitting(false); return;
         }
         if (!values.splitMembers.includes(values.payerId)) {
-            toast.error("The payer must be included in the split participants.");
-            setIsSubmitting(false); return;
+            toast.error("The payer must be included in the split participants."); setIsSubmitting(false); return;
         }
         
         const payerProfile = potentialSplitMembers.find(m => m.uid === values.payerId);
         if (!payerProfile) {
-            toast.error("Payer could not be found.");
-            setIsSubmitting(false); return;
+            toast.error("Payer could not be found."); setIsSubmitting(false); return;
         }
 
-        const share = values.amount / membersToSplitWith.length;
-        const splitDetails: SplitDetails = {
-            type: 'equally',
-            total: values.amount,
-            payerId: values.payerId,
-            members: membersToSplitWith.map(member => ({
-                ...member,
-                share: share,
-            }))
-        };
+        let splitDetails: SplitDetails;
+
+        if (splitMethod === 'unequally') {
+            const finalCustomShares = potentialSplitMembers.reduce((acc, member) => {
+                if (values.splitMembers?.includes(member.uid)) {
+                   acc[member.uid] = Number(customShares[member.uid]) || 0;
+                }
+                return acc;
+            }, {} as Record<string, number>);
+
+            const totalSum = Object.values(finalCustomShares).reduce((sum, val) => sum + val, 0);
+
+            if (Math.abs(totalSum - values.amount) > 0.01) {
+                toast.error("The sum of custom shares must equal the total amount."); setIsSubmitting(false); return;
+            }
+
+            splitDetails = {
+                type: 'unequally',
+                total: values.amount,
+                payerId: values.payerId,
+                members: membersToSplitWith.map(member => ({...member, share: finalCustomShares[member.uid] || 0}))
+            };
+        } else {
+             const share = values.amount / membersToSplitWith.length;
+             splitDetails = {
+                type: 'equally',
+                total: values.amount,
+                payerId: values.payerId,
+                members: membersToSplitWith.map(member => ({...member, share}))
+            };
+        }
         
         const transactionPayload = {
              userId: user.uid, description: values.description, amount: values.amount, category: values.category, date: values.date, circleId: selectedCircle?.id || null, recurringExpenseId: null
@@ -225,7 +261,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
         <DialogHeader>
           <DialogTitle>{isEditing ? "Edit Expense" : "Add New Expense"}</DialogTitle>
           <DialogDescription>
-            {isEditing ? "Update the details of your expense below." : "Enter details for your expense. You can also split bills with friends or circles."}
+            {isEditing ? "Update the details of your expense below." : "Enter details for your expense. You can also split bills with circles."}
           </DialogDescription>
         </DialogHeader>
         {isEditing && transactionToEdit?.isSplit && (
@@ -263,13 +299,10 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                         )}
                         <FormField control={form.control} name="splitTarget" render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Split with</FormLabel>
+                                <FormLabel>Split with Circle</FormLabel>
                                 <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl><SelectTrigger><SelectValue placeholder="Select a friend or circle..." /></SelectTrigger></FormControl>
+                                    <FormControl><SelectTrigger><SelectValue placeholder="Select a circle..." /></SelectTrigger></FormControl>
                                     <SelectContent>
-                                        <SelectItem value="friend" disabled>Friends</SelectItem>
-                                        {friends.map(f => <SelectItem key={f.uid} value={`friend-${f.uid}`}>{f.displayName}</SelectItem>)}
-                                        <SelectItem value="circle" disabled>Circles</SelectItem>
                                         {circles.map(c => <SelectItem key={c.id} value={`circle-${c.id}`}>{c.name}</SelectItem>)}
                                     </SelectContent>
                                 </Select>
@@ -295,44 +328,58 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                                     <FormMessage />
                                 </FormItem>
                             )}/>
+                            
+                            <FormItem>
+                                <FormLabel>Split Method</FormLabel>
+                                <RadioGroup value={splitMethod} onValueChange={(v: "equally" | "unequally") => setSplitMethod(v)} className="flex items-center gap-4">
+                                    <div className="flex items-center space-x-2"><RadioGroupItem value="equally" id="equally" /><Label htmlFor="equally">Equally</Label></div>
+                                    <div className="flex items-center space-x-2"><RadioGroupItem value="unequally" id="unequally" /><Label htmlFor="unequally">Unequally</Label></div>
+                                </RadioGroup>
+                            </FormItem>
 
-                            <div className="space-y-2">
-                                <FormLabel>Participants ({selectedSplitMembersCount})</FormLabel>
-                                <div className="max-h-40 overflow-y-auto space-y-2 rounded-md border p-2">
-                                    {potentialSplitMembers.map(item => (
-                                        <FormField key={item.uid} control={form.control} name="splitMembers" render={({ field }) => (
-                                            <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                                                <FormControl>
-                                                    <Checkbox 
-                                                        checked={field.value?.includes(item.uid)}
-                                                        onCheckedChange={(checked) => {
-                                                            return checked
-                                                                ? field.onChange([...(field.value || []), item.uid])
-                                                                : field.onChange(field.value?.filter(value => value !== item.uid))
-                                                        }}
-                                                    />
-                                                </FormControl>
-                                                <FormLabel className="font-normal flex items-center gap-2">
-                                                    <Avatar className="h-6 w-6"><AvatarImage src={item.photoURL || undefined} /><AvatarFallback>{item.displayName.charAt(0)}</AvatarFallback></Avatar>
-                                                    {item.displayName} {item.uid === user?.uid && '(You)'}
-                                                </FormLabel>
-                                            </FormItem>
-                                        )} />
-                                    ))}
+                            {splitMethod === 'equally' ? (
+                                <div className="space-y-2">
+                                    <FormLabel>Participants ({selectedSplitMembersCount})</FormLabel>
+                                    <div className="max-h-40 overflow-y-auto space-y-2 rounded-md border p-2">
+                                        {potentialSplitMembers.map(item => (
+                                            <FormField key={item.uid} control={form.control} name="splitMembers" render={({ field }) => (
+                                                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
+                                                    <FormControl><Checkbox checked={field.value?.includes(item.uid)} onCheckedChange={(checked) => {return checked ? field.onChange([...(field.value || []), item.uid]) : field.onChange(field.value?.filter(value => value !== item.uid))}}/></FormControl>
+                                                    <FormLabel className="font-normal flex items-center gap-2"><Avatar className="h-6 w-6"><AvatarImage src={item.photoURL || undefined} /><AvatarFallback>{item.displayName.charAt(0)}</AvatarFallback></Avatar>{item.displayName} {item.uid === user?.uid && '(You)'}</FormLabel>
+                                                </FormItem>
+                                            )} />
+                                        ))}
+                                    </div>
+                                    {amount > 0 && ( <p className="text-sm text-muted-foreground">Each person owes: <span className="font-bold text-foreground">₹{individualShare}</span></p>)}
                                 </div>
-                                {amount > 0 && (
-                                     <p className="text-sm text-muted-foreground">Each person owes: <span className="font-bold text-foreground">₹{individualShare}</span></p>
-                                )}
-                            </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <FormLabel>Enter Shares</FormLabel>
+                                    <div className="max-h-48 overflow-y-auto space-y-3 rounded-md border p-2">
+                                        {potentialSplitMembers.map(member => (
+                                            <div key={member.uid} className="flex items-center gap-3">
+                                                <Label htmlFor={`share-${member.uid}`} className="flex-1 flex items-center gap-2"><Avatar className="h-6 w-6"><AvatarImage src={member.photoURL || undefined} /><AvatarFallback>{member.displayName.charAt(0)}</AvatarFallback></Avatar>{member.displayName}</Label>
+                                                <Input id={`share-${member.uid}`} type="number" placeholder="0.00" className="w-28" value={customShares[member.uid] || ''} onChange={(e) => handleShareChange(member.uid, e.target.value)} />
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className={cn("text-sm p-2 rounded-md", isCustomSplitInvalid ? "bg-destructive/10 text-destructive" : "bg-muted/70 text-muted-foreground")}>
+                                        <div className="flex justify-between font-medium">
+                                            <span>Total of shares:</span><span>₹{totalCustomShare.toFixed(2)}</span>
+                                        </div>
+                                        {isCustomSplitInvalid && <div className="flex justify-between text-xs mt-1"><span>Remaining:</span><span>₹{(amount - totalCustomShare).toFixed(2)}</span></div>}
+                                    </div>
+                                </div>
+                            )}
                            </>
                         )}
                     </CollapsibleContent>
                 </Collapsible>
             )}
 
-            <Button type="submit" className="w-full" disabled={isSubmitting || (isEditing && !!transactionToEdit?.isSplit)}>
+            <Button type="submit" className="w-full" disabled={isSubmitting || (isEditing && !!transactionToEdit?.isSplit) || isCustomSplitInvalid}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isEditing ? 'Save Changes' : 'Add Expense'}
+              {isCustomSplitInvalid ? 'Shares must equal total' : isEditing ? 'Save Changes' : 'Add Expense'}
             </Button>
           </form>
         </Form>
