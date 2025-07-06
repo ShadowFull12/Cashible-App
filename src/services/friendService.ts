@@ -14,12 +14,20 @@ const friendshipsRef = collection(db, "friendships");
 export async function sendFriendRequest(fromUser: UserProfile, toUserId: string) {
     if (!db) throw new Error("Firebase is not configured.");
 
-    // Check for any pending request involving both users
+    // Correctly structured query to check for pending requests in either direction
     const q = query(friendRequestsRef, 
-        where("status", "==", "pending"),
         and(
-            or(where('fromUser.uid', '==', fromUser.uid), where('fromUser.uid', '==', toUserId)),
-            or(where('toUserId', '==', toUserId), where('toUserId', '==', fromUser.uid))
+            where("status", "==", "pending"),
+            or(
+                and(
+                    where('fromUser.uid', '==', fromUser.uid), 
+                    where('toUserId', '==', toUserId)
+                ),
+                and(
+                    where('fromUser.uid', '==', toUserId), 
+                    where('toUserId', '==', fromUser.uid)
+                )
+            )
         )
     );
 
@@ -39,7 +47,10 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
     }
 
     await addDoc(friendRequestsRef, {
-        fromUser,
+        fromUser: {
+            ...fromUser,
+            photoURL: fromUser.photoURL || null,
+        },
         toUserId,
         status: 'pending',
         createdAt: Timestamp.now()
@@ -47,7 +58,10 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
 
     await createNotification({
         userId: toUserId,
-        fromUser: fromUser,
+        fromUser: {
+            ...fromUser,
+            photoURL: fromUser.photoURL || null,
+        },
         type: 'friend-request',
         message: `${fromUser.displayName} sent you a friend request.`,
         link: '/notifications',
@@ -70,6 +84,10 @@ export function getFriendRequestsListener(userId: string, callback: (requests: F
             requests.push({
                 id: doc.id,
                 ...data,
+                fromUser: {
+                    ...data.fromUser,
+                    photoURL: data.fromUser.photoURL || null
+                },
                 createdAt: (data.createdAt as Timestamp).toDate(),
             } as FriendRequest);
         });
@@ -96,12 +114,12 @@ export async function acceptFriendRequest(requestId: string, currentUser: User, 
             [currentUser.uid]: {
                 displayName: currentUser.displayName,
                 email: currentUser.email,
-                photoURL: currentUser.photoURL,
+                photoURL: currentUser.photoURL || null,
             },
             [fromUser.uid]: {
                 displayName: fromUser.displayName,
                 email: fromUser.email,
-                photoURL: fromUser.photoURL
+                photoURL: fromUser.photoURL || null,
             }
         },
         createdAt: Timestamp.now()
