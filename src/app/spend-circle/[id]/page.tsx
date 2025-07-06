@@ -5,7 +5,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { getCircleById, leaveCircle } from '@/services/circleService';
-import { getDebtsForCircle, deleteDebtById, initiateSettlement, cancelSettlement, rejectSettlement, confirmSettlement, logSettledDebtAsExpense } from '@/services/debtService';
+import { getDebtsForCircle, deleteDebtById, initiateSettlement, cancelSettlement, rejectSettlement, confirmSettlement } from '@/services/debtService';
 import type { Circle, Debt, UserProfile, DebtSettlementStatus } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -51,9 +51,15 @@ export default function CircleDetailPage() {
         try {
             const circleData = await getCircleById(circleId);
             
-            if (!circleData || !circleData.memberIds.includes(user.uid)) {
+            if (!circleData) {
                 router.push('/spend-circle');
-                toast.error("You are not a member of this circle or it no longer exists.");
+                toast.error("This circle no longer exists.");
+                return;
+            }
+
+            if (!circleData.memberIds.includes(user.uid)) {
+                 router.push('/spend-circle');
+                toast.error("You are not a member of this circle.");
                 return;
             }
 
@@ -212,10 +218,6 @@ export default function CircleDetailPage() {
                     return <Button size="sm" variant="ghost" disabled={isProcessing} onClick={() => handleAction(() => cancelSettlement(debt.id), debt.id, 'cancel', "Settlement cancelled.", "Failed to cancel")}>
                         {isProcessing && processingState.action === 'cancel' ? <Loader2 className="animate-spin" /> : <XCircle className="text-muted-foreground"/>} Cancel
                         </Button>;
-                case 'confirmed':
-                     return <Button size="sm" variant="secondary" disabled={isProcessing} onClick={() => handleAction(() => logSettledDebtAsExpense(debt), debt.id, 'log', "Expense logged!", "Failed to log expense")}>
-                        {isProcessing && processingState.action === 'log' ? <Loader2 className="animate-spin" /> : <List />} Log as Expense
-                        </Button>;
                 default: return null;
             }
         }
@@ -227,7 +229,7 @@ export default function CircleDetailPage() {
                         <Button size="sm" variant="outline" disabled={isProcessing} onClick={() => handleAction(() => rejectSettlement(debt), debt.id, 'reject', "Payment rejected.", "Failed to reject")}>
                             {isProcessing && processingState.action === 'reject' ? <Loader2 className="animate-spin" /> : <XCircle />} Reject
                         </Button>
-                        <Button size="sm" disabled={isProcessing} onClick={() => handleAction(() => confirmSettlement(debt), debt.id, 'confirm', "Payment confirmed!", "Failed to confirm payment")}>
+                        <Button size="sm" disabled={isProcessing} onClick={() => handleAction(() => confirmSettlement(debt), debt.id, 'confirm', "Payment confirmed and logged!", "Failed to confirm payment")}>
                              {isProcessing && processingState.action === 'confirm' ? <Loader2 className="animate-spin" /> : <CheckCircle2 />} Accept
                         </Button>
                     </div>
@@ -242,8 +244,10 @@ export default function CircleDetailPage() {
         switch(status) {
             case 'pending_confirmation':
                 return <Badge variant="outline" className="text-yellow-500 border-yellow-500/50"><Clock className="mr-1"/>Pending</Badge>
-            case 'confirmed':
+            case 'confirmed': // For backwards compatibility
                 return <Badge variant="outline" className="text-green-500 border-green-500/50"><Check className="mr-1"/>Confirmed</Badge>
+            case 'logged':
+                return <Badge variant="outline" className="text-green-700 bg-green-500/20 border-green-500/30"><CheckCircle2 className="mr-1"/>Settled & Logged</Badge>
             default:
                 return <Badge variant="secondary">Unsettled</Badge>
         }

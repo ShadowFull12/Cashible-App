@@ -145,11 +145,7 @@ export async function confirmSettlement(debt: Debt) {
     if (!db) throw new Error("Firebase is not configured.");
     const batch = writeBatch(db);
 
-    // 1. Mark debt as confirmed
-    const debtRef = doc(db, "debts", debt.id);
-    batch.update(debtRef, { settlementStatus: 'confirmed' });
-
-    // 2. Reduce the amount of the original transaction for the creditor
+    // 1. Reduce the amount of the original transaction for the creditor
     const originalTx = await getTransactionById(debt.transactionId);
     if (originalTx) {
         const transactionRef = doc(db, "transactions", debt.transactionId);
@@ -157,41 +153,44 @@ export async function confirmSettlement(debt: Debt) {
         batch.update(transactionRef, { amount: newAmount < 0 ? 0 : newAmount });
     }
 
+    // 2. Create a new "settlement" transaction for the debtor
+    const debtorTransactionRef = doc(collection(db, "transactions"));
+    batch.set(debtorTransactionRef, {
+       userId: debt.debtorId,
+       description: `Paid ${debt.creditor.displayName} for "${debt.transactionDescription}"`,
+       amount: debt.amount,
+       category: 'Settlement',
+       date: Timestamp.now(),
+       isSplit: false,
+       circleId: debt.circleId,
+       recurringExpenseId: null
+    });
+
+    // 3. Mark the debt as fully logged and settled
+    const debtRef = doc(db, "debts", debt.id);
+    batch.update(debtRef, { settlementStatus: 'logged' });
+
+    // Commit the main financial batch
     await batch.commit();
 
-    // 3. Notify debtor that payment was confirmed
+    // 4. Clean up original settlement request notification.
+    const settlementRequestNotificationQuery = query(collection(db, "notifications"), where("relatedId", "==", debt.id), where("type", "==", "debt-settlement-request"));
+    const notificationSnapshot = await getDocs(settlementRequestNotificationQuery);
+    if (!notificationSnapshot.empty) {
+        const cleanupBatch = writeBatch(db);
+        notificationSnapshot.forEach(doc => cleanupBatch.delete(doc.ref));
+        await cleanupBatch.commit();
+    }
+    
+    // 5. Notify debtor that payment was confirmed and logged
     await createNotification({
         userId: debt.debtorId,
         fromUser: debt.creditor,
         type: 'debt-settlement-confirmed',
-        message: `${debt.creditor.displayName} confirmed your payment of ₹${debt.amount.toFixed(2)}. You can now log it as an expense.`,
-        link: debt.circleId ? `/spend-circle/${debt.circleId}` : `/spend-circle`,
+        message: `${debt.creditor.displayName} confirmed your payment of ₹${debt.amount.toFixed(2)}. It has been logged as an expense.`,
+        link: '/history', // Link to history as the expense is now logged
         relatedId: debt.id,
     });
-}
-
-export async function logSettledDebtAsExpense(debt: Debt) {
-     if (!db) throw new Error("Firebase is not configured.");
-     const batch = writeBatch(db);
-
-     // 1. Create a new "settlement" transaction for the debtor
-     const transactionRef = doc(collection(db, "transactions"));
-     batch.set(transactionRef, {
-        userId: debt.debtorId,
-        description: `Paid ${debt.creditor.displayName} for "${debt.transactionDescription}"`,
-        amount: debt.amount,
-        category: 'Settlement',
-        date: Timestamp.now(),
-        isSplit: false,
-        circleId: debt.circleId,
-        recurringExpenseId: null
-     });
-     
-     // 2. Mark the debt as fully logged and settled
-     const debtRef = doc(db, "debts", debt.id);
-     batch.update(debtRef, { settlementStatus: 'logged' });
-
-     await batch.commit();
 }
 
 export async function deleteDebtById(debtId: string, circleId: string, userId: string) {
