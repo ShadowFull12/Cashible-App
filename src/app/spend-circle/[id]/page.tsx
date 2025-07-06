@@ -46,10 +46,11 @@ export default function CircleDetailPage() {
             
             if (!circleData || !circleData.memberIds.includes(user.uid)) {
                 router.push('/spend-circle');
+                toast.error("You are not a member of this circle.");
                 return;
             }
 
-            const debtsData = await getDebtsForCircle(circleId);
+            const debtsData = await getDebtsForCircle(circleId, user.uid);
             
             setCircle(circleData);
             setDebts(debtsData);
@@ -62,6 +63,12 @@ export default function CircleDetailPage() {
                     duration: 10000
                  });
                  setFetchError("A database index is required to view this data. The link to create it can be found in your browser's developer console (press F12).");
+            } else if ((error as any).code === 'permission-denied') {
+                toast.error("Permission Denied.", {
+                    description: "You do not have permission to view this data. Please check Firestore security rules.",
+                    duration: 10000
+                });
+                setFetchError("You do not have permission to view this circle's debt information.");
             } else {
                 toast.error("Could not load circle details.");
                 setFetchError("An unexpected error occurred while loading circle data.");
@@ -100,8 +107,8 @@ export default function CircleDetailPage() {
         unsettledDebts.forEach(debt => {
             if (!balances.has(debt.debtorId)) balances.set(debt.debtorId, 0);
             if (!balances.has(debt.creditorId)) balances.set(debt.creditorId, 0);
-            if (!profiles.has(debt.debtorId)) profiles.set(debt.debtorId, debt.debtor);
-            if (!profiles.has(debt.creditorId)) profiles.set(debt.creditorId, debt.creditor);
+            if (!profiles.has(debt.debtorId) && debt.debtor) profiles.set(debt.debtorId, debt.debtor);
+            if (!profiles.has(debt.creditorId) && debt.creditor) profiles.set(debt.creditorId, debt.creditor);
 
             balances.set(debt.debtorId, (balances.get(debt.debtorId)!) - debt.amount);
             balances.set(debt.creditorId, (balances.get(debt.creditorId)!) + debt.amount);

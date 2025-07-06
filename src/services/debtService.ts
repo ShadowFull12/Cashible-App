@@ -40,12 +40,15 @@ export function addDebtCreationToBatch(
     });
 }
 
-export async function getDebtsForCircle(circleId: string): Promise<Debt[]> {
+export async function getDebtsForCircle(circleId: string, userId: string): Promise<Debt[]> {
     if (!db) return [];
     
+    // This query is now secure and efficient. It only fetches debts where the current user is directly involved.
+    // This aligns with the Firestore security rule: `allow read: if request.auth.uid in resource.data.involvedUids;`
     const q = query(
         debtsRef, 
-        where("circleId", "==", circleId)
+        where("circleId", "==", circleId),
+        where("involvedUids", "array-contains", userId)
     );
     const querySnapshot = await getDocs(q);
 
