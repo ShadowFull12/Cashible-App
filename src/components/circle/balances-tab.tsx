@@ -14,7 +14,6 @@ interface BalancesTabProps {
     circle: Circle;
     transactions: Transaction[];
     settlements: Settlement[];
-    onInitiateSettlement: () => void;
 }
 
 interface Balance {
@@ -22,7 +21,7 @@ interface Balance {
     amount: number;
 }
 
-export function BalancesTab({ circle, transactions, settlements, onInitiateSettlement }: BalancesTabProps) {
+export function BalancesTab({ circle, transactions, settlements }: BalancesTabProps) {
     const { user: currentUser } = useAuth();
     const [settlementInfo, setSettlementInfo] = useState<{ user: UserProfile, amount: number } | null>(null);
 
@@ -67,26 +66,10 @@ export function BalancesTab({ circle, transactions, settlements, onInitiateSettl
     const { youOwe, owesYou } = useMemo(() => {
         if (!currentUser) return { youOwe: [], owesYou: [] };
 
-        const debts: Balance[] = [];
-        const credits: Balance[] = [];
-        
-        netBalances.forEach((amount, uid) => {
-            if (uid === currentUser.uid) return;
-
-            const memberProfile = circle.members[uid];
-            if (!memberProfile) return;
-
-            if (amount > 0.01) {
-                // This person is owed money overall. Check if currentUser owes them.
-                // This simplified model requires a more complex debt simplification algorithm (like Splitwise uses)
-                // For now, we'll create a simplified "who owes whom" based on final balances.
-            }
-        });
-        
-        // Simplified debt calculation
+        // Simplified debt calculation using a greedy algorithm
         const debtors = Array.from(netBalances.entries())
             .filter(([, balance]) => balance < -0.01)
-            .map(([uid, balance]) => ({ uid, balance: -balance }));
+            .map(([uid, balance]) => ({ uid, balance: -balance })); // balance is positive amount owed
             
         const creditors = Array.from(netBalances.entries())
             .filter(([, balance]) => balance > 0.01)
@@ -127,8 +110,6 @@ export function BalancesTab({ circle, transactions, settlements, onInitiateSettl
 
     if (!currentUser) return null;
     
-    const hasDebts = youOwe.length > 0 || owesYou.length > 0;
-
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
@@ -156,7 +137,7 @@ export function BalancesTab({ circle, transactions, settlements, onInitiateSettl
                             </div>
                         ))
                     ) : (
-                        <p className="text-sm text-muted-foreground text-center py-4">You don't owe anyone in this circle.</p>
+                        <p className="text-sm text-muted-foreground text-center py-4">You're all settled up in this circle.</p>
                     )}
                 </CardContent>
             </Card>
@@ -198,7 +179,7 @@ export function BalancesTab({ circle, transactions, settlements, onInitiateSettl
                     circle={circle}
                     onSettlementRequested={() => {
                         setSettlementInfo(null);
-                        onInitiateSettlement();
+                        // No need to manually refetch; the listener will handle it.
                     }}
                 />
             )}

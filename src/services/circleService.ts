@@ -62,6 +62,37 @@ export function getCirclesForUserListener(userId: string, callback: (circles: Ci
     return unsubscribe;
 }
 
+export function getCircleListener(circleId: string, callback: (circle: Circle | null) => void): Unsubscribe {
+    if (!db) return () => {};
+    const circleDocRef = doc(db, "circles", circleId);
+
+    const unsubscribe = onSnapshot(circleDocRef, (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const membersMap = data.members || {};
+            for (const uid in membersMap) {
+                if (Object.prototype.hasOwnProperty.call(membersMap, uid)) {
+                    membersMap[uid].photoURL = membersMap[uid].photoURL || null;
+                }
+            }
+            callback({
+                id: docSnap.id,
+                ...data,
+                members: membersMap,
+                createdAt: (data.createdAt as Timestamp).toDate(),
+            } as Circle);
+        } else {
+            callback(null);
+        }
+    }, (error) => {
+        console.error(`Error listening to circle ${circleId}:`, error);
+        callback(null);
+    });
+    
+    return unsubscribe;
+}
+
+
 export async function getCircleById(circleId: string): Promise<Circle | null> {
     if (!db) return null;
     const circleDocRef = doc(db, "circles", circleId);
@@ -120,7 +151,7 @@ export async function leaveCircle(circleId: string, userId: string) {
         throw new Error("You are not a member of this circle.");
     }
 
-    if (circleData.memberIds.length === 1) {
+    if (circleData.memberIds.length === 1 && circleData.memberIds[0] === userId) {
         // This is the last member, delete the circle
         await deleteCircleAndDebts(circleId);
     } else {

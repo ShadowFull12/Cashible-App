@@ -1,6 +1,6 @@
 
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, writeBatch, updateDoc, WriteBatch, getDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, writeBatch, updateDoc, WriteBatch, getDoc, onSnapshot, Unsubscribe } from "firebase/firestore";
 import type { Transaction, SplitDetails, Settlement } from "@/lib/data";
 import { addDebtCreationToBatch } from "./debtService";
 
@@ -109,6 +109,29 @@ export async function getCircleTransactions(circleId: string): Promise<Transacti
     return transactions.sort((a,b) => b.date.getTime() - a.date.getTime());
 }
 
+export function getCircleTransactionsListener(circleId: string, callback: (transactions: Transaction[]) => void): Unsubscribe {
+    if (!db) return () => {};
+    const q = query(transactionsRef, where("circleId", "==", circleId));
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const transactions: Transaction[] = [];
+        querySnapshot.forEach(doc => {
+            const data = doc.data();
+            transactions.push({
+                id: doc.id,
+                ...data,
+                date: (data.date as Timestamp).toDate(),
+            } as Transaction);
+        });
+        callback(transactions.sort((a,b) => b.date.getTime() - a.date.getTime()));
+    }, (error) => {
+        console.error(`Error listening to circle transactions for ${circleId}:`, error);
+    });
+
+    return unsubscribe;
+}
+
+
 export async function getCircleSettlements(circleId: string): Promise<Settlement[]> {
     if (!db) return [];
     const q = query(collection(db, "settlements"), where("circleId", "==", circleId));
@@ -124,6 +147,30 @@ export async function getCircleSettlements(circleId: string): Promise<Settlement
         } as Settlement);
     });
     return settlements.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
+export function getCircleSettlementsListener(circleId: string, callback: (settlements: Settlement[]) => void): Unsubscribe {
+    if (!db) return () => {};
+    const settlementsRef = collection(db, "settlements");
+    const q = query(settlementsRef, where("circleId", "==", circleId));
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const settlements: Settlement[] = [];
+        querySnapshot.forEach(doc => {
+            const data = doc.data();
+            settlements.push({
+                id: doc.id,
+                ...data,
+                createdAt: (data.createdAt as Timestamp).toDate(),
+                processedAt: data.processedAt ? (data.processedAt as Timestamp).toDate() : null,
+            } as Settlement);
+        });
+        callback(settlements.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+    }, (error) => {
+        console.error(`Error listening to circle settlements for ${circleId}:`, error);
+    });
+
+    return unsubscribe;
 }
 
 

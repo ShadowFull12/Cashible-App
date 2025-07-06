@@ -1,10 +1,10 @@
 
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { getCircleById } from '@/services/circleService';
+import { getCircleListener } from '@/services/circleService';
 import type { Circle, UserProfile, Transaction, Settlement } from '@/lib/data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ArrowLeft, Users, AlertCircle, VenetianMask, History, SlidersHorizontal, MessageSquare } from 'lucide-react';
@@ -17,7 +17,7 @@ import { BalancesTab } from '@/components/circle/balances-tab';
 import { HistoryTab } from '@/components/circle/history-tab';
 import { ManageTab } from '@/components/circle/manage-tab';
 import { ChatTab } from '@/components/circle/chat-tab';
-import { getCircleTransactions, getCircleSettlements } from '@/services/transactionService';
+import { getCircleTransactionsListener, getCircleSettlementsListener } from '@/services/transactionService';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 
@@ -35,41 +35,55 @@ export default function CircleDetailPage() {
 
     const isOwner = useMemo(() => circle?.ownerId === user?.uid, [circle, user]);
 
-    const fetchData = useCallback(async () => {
-        if (!circleId || !user) return;
-        setFetchError(null);
-        try {
-            const circleData = await getCircleById(circleId);
-             if (!circleData || !circleData.memberIds.includes(user.uid)) {
-                toast.error("You are not a member of this circle or it does not exist.");
-                router.push('/spend-circle');
-                return;
-            }
-            setCircle(circleData);
-            
-            const [transactionsData, settlementsData] = await Promise.all([
-                getCircleTransactions(circleId),
-                getCircleSettlements(circleId)
-            ]);
-            setTransactions(transactionsData);
-            setSettlements(settlementsData);
-
-        } catch (error: any) {
-            console.error("Failed to fetch circle details:", error);
-            setFetchError("An unexpected error occurred while loading circle data.");
-            toast.error("Could not load circle details.");
-        } finally {
+    useEffect(() => {
+        if (!circleId || !user) {
             setIsLoading(false);
+            return;
         }
+
+        setIsLoading(true);
+        setFetchError(null);
+
+        const unsubscribes: (() => void)[] = [];
+
+        // Listener for the circle document itself
+        const circleUnsubscribe = getCircleListener(circleId, (circleData) => {
+            if (circleData) {
+                // Initial check to ensure user is still a member
+                if (!circleData.memberIds.includes(user.uid)) {
+                    toast.error("You are no longer a member of this circle or it does not exist.");
+                    router.push('/spend-circle');
+                    return; // Stop further processing
+                }
+                setCircle(circleData);
+            } else {
+                // Circle was deleted or doesn't exist
+                toast.error("This circle could not be found.");
+                router.push('/spend-circle');
+            }
+             // Set loading to false after first circle data load, whether successful or not
+            setIsLoading(false);
+        });
+        unsubscribes.push(circleUnsubscribe);
+
+        // Listener for transactions
+        const txUnsubscribe = getCircleTransactionsListener(circleId, setTransactions);
+        unsubscribes.push(txUnsubscribe);
+
+        // Listener for settlements
+        const settlementUnsubscribe = getCircleSettlementsListener(circleId, setSettlements);
+        unsubscribes.push(settlementUnsubscribe);
+
+        // Cleanup function to unsubscribe from all listeners when the component unmounts
+        return () => {
+            unsubscribes.forEach(unsub => unsub());
+        };
     }, [circleId, user, router]);
 
-    useEffect(() => {
-        fetchData();
-    }, [fetchData]);
 
     if (isLoading) return <CircleDetailSkeleton />;
     
-    if (fetchError) {
+    if (fetchError || !circle) {
         return (
             <div className="space-y-6">
                  <Link href="/spend-circle" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
@@ -78,13 +92,11 @@ export default function CircleDetailPage() {
                 <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertTitle>Error Loading Circle</AlertTitle>
-                    <AlertDescription>{fetchError}</AlertDescription>
+                    <AlertDescription>{fetchError || "The circle could not be found or you are not a member."}</AlertDescription>
                 </Alert>
             </div>
         )
     }
-
-    if (!circle) return null;
 
     return (
         <div className="space-y-6">
@@ -135,13 +147,13 @@ export default function CircleDetailPage() {
                     <OverviewTab circle={circle} transactions={transactions} settlements={settlements} />
                 </TabsContent>
                 <TabsContent value="balances" className="mt-6">
-                    <BalancesTab circle={circle} transactions={transactions} settlements={settlements} onInitiateSettlement={fetchData} />
+                    <BalancesTab circle={circle} transactions={transactions} settlements={settlements} />
                 </TabsContent>
                 <TabsContent value="history" className="mt-6">
                     <HistoryTab circle={circle} transactions={transactions} settlements={settlements} />
                 </TabsContent>
                 <TabsContent value="manage" className="mt-6">
-                    <ManageTab circle={circle} isOwner={isOwner} onCircleUpdate={fetchData} />
+                    <ManageTab circle={circle} isOwner={isOwner} />
                 </TabsContent>
                 <TabsContent value="chat" className="mt-6">
                     <ChatTab />

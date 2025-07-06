@@ -25,10 +25,9 @@ interface AddMemberDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   circle: Circle;
-  onMembersAdded: () => void;
 }
 
-export function AddMemberDialog({ open, onOpenChange, circle, onMembersAdded }: AddMemberDialogProps) {
+export function AddMemberDialog({ open, onOpenChange, circle }: AddMemberDialogProps) {
     const { friends } = useData();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -43,14 +42,13 @@ export function AddMemberDialog({ open, onOpenChange, circle, onMembersAdded }: 
         }
     });
 
-    const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    const onSubmit = async (values: z.infer<typeof formSchema>>) => {
         setIsSubmitting(true);
         try {
             const selectedFriends = friends.filter(f => values.members.includes(f.uid));
             await addMembersToCircle(circle.id, selectedFriends);
 
             toast.success(`Added ${selectedFriends.length} member(s) to "${circle.name}"!`);
-            onMembersAdded();
             onOpenChange(false);
             form.reset();
         } catch (error: any) {

@@ -23,10 +23,9 @@ interface EditCircleDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   circle: Circle;
-  onCircleUpdate: () => void;
 }
 
-export function EditCircleDialog({ open, onOpenChange, circle, onCircleUpdate }: EditCircleDialogProps) {
+export function EditCircleDialog({ open, onOpenChange, circle }: EditCircleDialogProps) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [avatarFile, setAvatarFile] = useState<File | null>(null);
     const [avatarPreview, setAvatarPreview] = useState<string | null>(circle.photoURL || null);
@@ -56,7 +55,7 @@ export function EditCircleDialog({ open, onOpenChange, circle, onCircleUpdate }:
         }
     };
 
-    const onSubmit = async (values: z.infer<typeof formSchema>) => {
+    const onSubmit = async (values: z.infer<typeof formSchema>>) => {
         setIsSubmitting(true);
         try {
             let photoURL = circle.photoURL;
@@ -66,7 +65,6 @@ export function EditCircleDialog({ open, onOpenChange, circle, onCircleUpdate }:
             
             await updateCircle(circle.id, { name: values.name, photoURL: photoURL || undefined });
             toast.success("Circle updated successfully!");
-            onCircleUpdate();
             onOpenChange(false);
         } catch (error: any) {
             toast.error("Failed to update circle", { description: error.message });

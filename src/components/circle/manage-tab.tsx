@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui
 import { Button } from '../ui/button';
 import { UserPlus, LogOut, Edit, ShieldAlert } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-import { addMembersToCircle, leaveCircle } from '@/services/circleService';
+import { leaveCircle } from '@/services/circleService';
 import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import { Badge } from '../ui/badge';
@@ -19,10 +19,9 @@ import { EditCircleDialog } from './edit-circle-dialog';
 interface ManageTabProps {
     circle: Circle;
     isOwner: boolean;
-    onCircleUpdate: () => void;
 }
 
-export function ManageTab({ circle, isOwner, onCircleUpdate }: ManageTabProps) {
+export function ManageTab({ circle, isOwner }: ManageTabProps) {
     const { user } = useAuth();
     const router = useRouter();
     const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
@@ -104,7 +103,6 @@ export function ManageTab({ circle, isOwner, onCircleUpdate }: ManageTabProps) {
                     open={isAddMemberOpen}
                     onOpenChange={setIsAddMemberOpen}
                     circle={circle}
-                    onMembersAdded={onCircleUpdate}
                 />
             )}
             {isEditCircleOpen && (
@@ -112,7 +110,6 @@ export function ManageTab({ circle, isOwner, onCircleUpdate }: ManageTabProps) {
                     open={isEditCircleOpen}
                     onOpenChange={setIsEditCircleOpen}
                     circle={circle}
-                    onCircleUpdate={onCircleUpdate}
                 />
             )}
         </div>
