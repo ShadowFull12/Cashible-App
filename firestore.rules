@@ -1,7 +1,11 @@
-
 rules_version = '2';
 
 service cloud.firestore {
+  // Helper function to check if the requesting user is the owner of a given circle.
+  function isCircleOwner(circleId) {
+    return get(/databases/$(database)/documents/circles/$(circleId)).data.ownerId == request.auth.uid;
+  }
+
   match /databases/{database}/documents {
   
     match /users/{userId} {
@@ -21,34 +25,35 @@ service cloud.firestore {
     match /friend-requests/{requestId} {
       allow create: if request.auth.uid == request.resource.data.fromUser.uid;
       allow read: if request.auth.uid == resource.data.fromUser.uid || request.auth.uid == resource.data.toUserId;
-      allow update, delete: if request.auth.uid == resource.data.toUserId;
+      // Allow either user to cancel/reject/delete the request.
+      allow update, delete: if request.auth.uid == resource.data.toUserId || request.auth.uid == resource.data.fromUser.uid;
     }
     
     match /friendships/{friendshipId} {
-        allow read, update, delete: if request.auth.uid in resource.data.userIds;
+        allow read, delete: if request.auth.uid in resource.data.userIds;
         allow create: if request.auth.uid in request.resource.data.userIds;
     }
     
     match /circles/{circleId} {
         allow read: if request.auth.uid in resource.data.memberIds;
         allow create: if request.auth.uid == request.resource.data.ownerId;
-        allow update, delete: if request.auth.uid == resource.data.ownerId;
-    }
-
-    match /circle-invitations/{invitationId} {
-      // The person who was invited can reject/delete the invitation.
-      // The owner of the circle can also delete invitations when they delete the circle.
-      allow delete: if request.auth.uid == resource.data.toUserId || get(/databases/$(database)/documents/circles/$(resource.data.circleId)).data.ownerId == request.auth.uid;
-      allow create: if request.auth.uid == request.resource.data.fromUser.uid;
-      allow read: if request.auth.uid == resource.data.toUserId || request.auth.uid == resource.data.fromUser.uid;
+        allow update: if request.auth.uid in resource.data.memberIds;
+        allow delete: if request.auth.uid == resource.data.ownerId;
     }
 
     match /debts/{debtId} {
       allow create: if request.auth.uid in request.resource.data.involvedUids;
       allow read: if request.auth.uid in resource.data.involvedUids;
       allow update: if request.auth.uid in resource.data.involvedUids;
-      // Debts can only be deleted by the owner of the circle they belong to.
-      allow delete: if resource.data.circleId != null && get(/databases/$(database)/documents/circles/$(resource.data.circleId)).data.ownerId == request.auth.uid;
+      // FIX: Allow the owner of the circle to delete a debt record.
+      allow delete: if isCircleOwner(resource.data.circleId);
+    }
+    
+    match /circle-invitations/{invitationId} {
+      allow read: if request.auth.uid == resource.data.toUserId || request.auth.uid == resource.data.fromUser.uid;
+      // FIX: Allow the recipient to delete (accept/reject) OR the circle owner to delete (cleanup).
+      allow delete: if request.auth.uid == resource.data.toUserId || isCircleOwner(resource.data.circleId);
+      allow create: if request.auth.uid == request.resource.data.fromUser.uid;
     }
 
     match /notifications/{notificationId} {
