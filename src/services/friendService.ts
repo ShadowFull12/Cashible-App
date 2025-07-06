@@ -14,7 +14,7 @@ const friendshipsRef = collection(db, "friendships");
 export async function sendFriendRequest(fromUser: UserProfile, toUserId: string) {
     if (!db) throw new Error("Firebase is not configured.");
 
-    // Check if a request already exists between these users
+    // Check if a PENDING request already exists between these users
     const q = query(friendRequestsRef, 
         or(
             where("fromUser.uid", "==", fromUser.uid),
@@ -25,11 +25,13 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
     const querySnapshot = await getDocs(q);
     const existingRequest = querySnapshot.docs.find(d => {
         const data = d.data();
-        return (data.fromUser.uid === toUserId && data.toUserId === fromUser.uid) || (data.fromUser.uid === fromUser.uid && data.toUserId === toUserId)
+        const isTheRightPair = (data.fromUser.uid === toUserId && data.toUserId === fromUser.uid) || (data.fromUser.uid === fromUser.uid && data.toUserId === toUserId);
+        // Only block if there's a PENDING request.
+        return isTheRightPair && data.status === 'pending';
     });
 
     if (existingRequest) {
-        throw new Error("A friend request already exists between you and this user.");
+        throw new Error("A friend request is already pending with this user.");
     }
 
     // Check if they are already friends
@@ -116,8 +118,8 @@ export async function acceptFriendRequest(requestId: string, currentUser: User, 
         createdAt: Timestamp.now()
     });
 
-    // Update request status
-    batch.update(requestDocRef, { status: 'accepted' });
+    // Delete the original friend request document now that it's been accepted.
+    batch.delete(requestDocRef);
 
     await batch.commit();
 }
@@ -126,7 +128,8 @@ export async function acceptFriendRequest(requestId: string, currentUser: User, 
 export async function rejectFriendRequest(requestId: string) {
     if (!db) throw new Error("Firebase is not configured.");
     const requestDocRef = doc(db, "friend-requests", requestId);
-    await updateDoc(requestDocRef, { status: 'rejected' });
+    // Instead of just updating status, we delete the rejected request to keep the collection clean.
+    await deleteDoc(requestDocRef);
 }
 
 // 5. Get a user's friends
