@@ -15,7 +15,8 @@ export function addDebtCreationToBatch(
 
     const payer = split.members.find(m => m.uid === split.payerId);
     if (!payer) throw new Error("No payer defined in split.");
-
+    
+    // The members array now only contains those who need a debt record created.
     split.members.forEach(member => {
         if (member.uid === split.payerId) return; // Payer doesn't owe themselves
 
@@ -39,13 +40,12 @@ export function addDebtCreationToBatch(
     });
 }
 
-export async function getDebtsForCircle(circleId: string, userId: string): Promise<Debt[]> {
+export async function getDebtsForCircle(circleId: string): Promise<Debt[]> {
     if (!db) return [];
     
     const q = query(
         debtsRef, 
-        where("circleId", "==", circleId),
-        where("involvedUids", "array-contains", userId)
+        where("circleId", "==", circleId)
     );
     const querySnapshot = await getDocs(q);
 

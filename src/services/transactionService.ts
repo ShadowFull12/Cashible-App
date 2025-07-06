@@ -3,6 +3,7 @@ import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, w
 import type { Transaction, SplitDetails } from "@/lib/data";
 import { addDebtCreationToBatch } from "./debtService";
 
+
 export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date'> & { date: Date | Timestamp }) {
     if (!db) throw new Error("Firebase is not configured.");
     try {
@@ -35,38 +36,54 @@ export async function addSplitTransaction(
     try {
         const batch = writeBatch(db);
 
-        // This ID will represent the entire financial event.
-        const eventId = doc(collection(db, "debts")).id;
-        let transactionRefId: string;
-
-        // The creator of the entry (transaction.userId) must be the payer
-        // to have permission to create the transaction document.
-        if (transaction.userId === splitDetails.payerId) {
-             const transactionRef = doc(db, "transactions", eventId);
-             batch.set(transactionRef, {
-                ...transaction,
-                date: transaction.date instanceof Date ? Timestamp.fromDate(transaction.date) : transaction.date,
-                recurringExpenseId: null,
-             });
-             transactionRefId = transactionRef.id;
-        } else {
-            // If someone else paid, we don't create a transaction document for the creator.
-            // We just use the generated ID to link the debts together.
-            transactionRefId = eventId;
-        }
-
-        // Create all the debt documents, linking them with the event ID
-        addDebtCreationToBatch(batch, transactionRefId, splitDetails, transaction.circleId || null, transaction.description);
+        const loggerId = transaction.userId;
+        const { payerId, members } = splitDetails;
         
-        // Commit the batch
-        await batch.commit();
+        const payerProfile = members.find(m => m.uid === payerId);
+        if (!payerProfile) throw new Error("Payer could not be found in the split members.");
 
-        return transactionRefId;
+        // Case 1: The person logging the expense is the person who paid.
+        // They have authority to create the main transaction and assign debts to others.
+        if (loggerId === payerId) {
+            const transactionRef = doc(collection(db, "transactions"));
+            batch.set(transactionRef, {
+                userId: loggerId,
+                description: transaction.description,
+                amount: transaction.amount,
+                category: transaction.category,
+                date: transaction.date instanceof Date ? Timestamp.fromDate(transaction.date) : transaction.date,
+                isSplit: true,
+                circleId: transaction.circleId || null,
+                recurringExpenseId: null,
+            });
+
+            addDebtCreationToBatch(batch, transactionRef.id, splitDetails, transaction.circleId || null, transaction.description);
+
+        } else {
+            // Case 2: The person logging the expense is NOT who paid.
+            // They can only declare their own debt. They cannot create a transaction
+            // for the payer or create debts for other people.
+            
+            const loggerProfile = members.find(m => m.uid === loggerId);
+            if (!loggerProfile) throw new Error("Logger could not be found in the split members.");
+            
+            // Create a single debt record for the logger.
+            const debtDocRef = doc(collection(db, "debts"));
+            const singleDebtDetails: SplitDetails = {
+                ...splitDetails,
+                members: [loggerProfile] // Only create a debt for the logger
+            };
+
+            // Use the debt's own ID as a placeholder, since no central transaction exists for this logger.
+            addDebtCreationToBatch(batch, debtDocRef.id, singleDebtDetails, transaction.circleId || null, transaction.description);
+        }
+        
+        await batch.commit();
 
     } catch (error: any) {
         console.error('Error adding split transaction:', error);
          if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission-denied'))) {
-            throw new Error("Permission Denied: Could not add split transaction. This is likely a Firestore Security Rules issue.");
+            throw new Error("Permission Denied: Could not add split transaction. Check Firestore Security Rules.");
         }
         throw error;
     }

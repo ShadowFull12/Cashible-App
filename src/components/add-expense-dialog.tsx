@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { CalendarIcon, Loader2, Lightbulb, ChevronDown } from "lucide-react";
+import { CalendarIcon, Loader2, Lightbulb, ChevronDown, Info } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useState, useEffect, useMemo } from "react";
@@ -89,6 +89,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
   const isSplit = watch('isSplit');
   const amount = watch('amount');
   const splitTarget = watch('splitTarget');
+  const payerId = watch('payerId');
   
   const potentialSplitMembers: UserProfile[] = useMemo(() => {
     if (splitTarget?.startsWith('circle-')) {
@@ -105,13 +106,11 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
   }, [splitTarget, circles, friends, user]);
 
   useEffect(() => {
-    // Reset and auto-select all members when a target is chosen
     if (potentialSplitMembers.length > 0) {
       setValue('splitMembers', potentialSplitMembers.map(m => m.uid));
     } else {
        setValue('splitMembers', []);
     }
-     // Reset payer to current user when split members change
     if(user) setValue('payerId', user.uid);
   }, [potentialSplitMembers, setValue, user]);
 
@@ -136,7 +135,6 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
     setIsSubmitting(true);
     try {
       if (isEditing) {
-        // Editing split expenses is complex and deferred for a future update.
         await updateTransaction(transactionToEdit.id!, {
           description: values.description, amount: values.amount, category: values.category, date: values.date,
         });
@@ -149,13 +147,11 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
             setIsSubmitting(false);
             return;
         }
-
         if (!values.payerId) {
             toast.error("You must select who paid for this expense.");
             setIsSubmitting(false);
             return;
         }
-        
         if (!values.splitMembers?.includes(values.payerId)) {
             toast.error("The payer must be included in the split participants.");
             setIsSubmitting(false);
@@ -174,12 +170,12 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
         };
         
         await addSplitTransaction({
-          userId: user.uid, // The person creating the transaction record
+          userId: user.uid, 
           description: values.description, amount: values.amount, category: values.category, date: values.date, circleId: selectedCircle?.id || null, isSplit: true
         }, splitDetails);
         toast.success("Split expense recorded successfully!");
 
-      } else { // Regular or recurring expense
+      } else { 
         let recurringId: string | undefined = undefined;
         if (values.isRecurring) { /* ... */ }
         await addTransaction({
@@ -240,6 +236,15 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                 <Collapsible open={isSplit} className="space-y-4 rounded-lg border p-4">
                     <CollapsibleTrigger className="flex w-full justify-between items-center font-semibold"><span>Split Options</span> <ChevronDown className="transition-transform"/> </CollapsibleTrigger>
                     <CollapsibleContent className="space-y-4 pt-4">
+                        {payerId !== user?.uid && (
+                            <Alert>
+                                <Info className="h-4 w-4" />
+                                <AlertTitle>Heads Up!</AlertTitle>
+                                <AlertDescription>
+                                    You're logging an expense paid by someone else. This will only create a debt record for you. The payer should log this transaction themselves to have it appear in their history.
+                                </AlertDescription>
+                            </Alert>
+                        )}
                         <FormField control={form.control} name="splitTarget" render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Split with</FormLabel>

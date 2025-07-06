@@ -10,11 +10,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, ArrowRight, Users, VenetianMask, Check, Loader2, List, UserPlus } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Users, VenetianMask, Check, Loader2, List, UserPlus, AlertCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { InviteToCircleDialog } from '@/components/invite-to-circle-dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 type SimplifiedDebt = {
     from: UserProfile;
@@ -33,10 +34,12 @@ export default function CircleDetailPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [settlingDebtId, setSettlingDebtId] = useState<string | null>(null);
     const [isInviteOpen, setIsInviteOpen] = useState(false);
+    const [fetchError, setFetchError] = useState<string | null>(null);
 
     const fetchCircleData = useCallback(async () => {
         if (!circleId || !user) return;
         setIsLoading(true);
+        setFetchError(null);
         try {
             const circleData = await getCircleById(circleId);
             
@@ -45,20 +48,23 @@ export default function CircleDetailPage() {
                 return;
             }
 
-            const debtsData = await getDebtsForCircle(circleId, user.uid);
+            const debtsData = await getDebtsForCircle(circleId);
             
             setCircle(circleData);
             setDebts(debtsData);
 
-        } catch (error) {
+        } catch (error: any) {
             console.error("Failed to fetch circle details:", error);
-            // Inform the user they may need to add a Firestore index
             if ((error as any).code === 'failed-precondition') {
-                 toast.error("Query failed", { description: "A database index is required. Please check the developer console for a link to create it in Firebase."})
+                 toast.error("Query failed: A database index is required.", {
+                    description: "Please check the browser's developer console (F12) for a link to create the required Firestore index, then refresh the page.",
+                    duration: 10000
+                 });
+                 setFetchError("A database index is required to view this data. The link to create it can be found in your browser's developer console (press F12).");
             } else {
                 toast.error("Could not load circle details.");
+                setFetchError("An unexpected error occurred while loading circle data.");
             }
-            router.push('/spend-circle');
         } finally {
             setIsLoading(false);
         }
@@ -126,6 +132,20 @@ export default function CircleDetailPage() {
     const individualDebts = useMemo(() => debts.filter(d => !d.isSettled), [debts]);
 
     if (isLoading) return <CircleDetailSkeleton />;
+    if (fetchError) {
+        return (
+            <div className="space-y-6">
+                 <Link href="/spend-circle" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+                    <ArrowLeft className="size-4" /> Back to Circles
+                </Link>
+                <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertTitle>Error Loading Circle</AlertTitle>
+                    <AlertDescription>{fetchError}</AlertDescription>
+                </Alert>
+            </div>
+        )
+    }
     if (!circle) return null;
 
     return (
@@ -155,22 +175,25 @@ export default function CircleDetailPage() {
                     </CardHeader>
                     <CardContent className="space-y-3">
                         {simplifiedDebts.length > 0 ? (
-                            simplifiedDebts.map((debt, index) => (
-                                <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                                    <div className="flex items-center gap-3">
-                                        <Avatar className="h-8 w-8"><AvatarImage src={debt.from.photoURL || undefined}/><AvatarFallback>{debt.from.displayName.charAt(0)}</AvatarFallback></Avatar>
-                                        <p className="font-medium text-sm">{debt.from.displayName}</p>
+                            simplifiedDebts.map((debt, index) => {
+                                if (!debt.from || !debt.to) return null;
+                                return (
+                                    <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                                        <div className="flex items-center gap-3">
+                                            <Avatar className="h-8 w-8"><AvatarImage src={debt.from.photoURL || undefined}/><AvatarFallback>{debt.from.displayName.charAt(0)}</AvatarFallback></Avatar>
+                                            <p className="font-medium text-sm">{debt.from.displayName}</p>
+                                        </div>
+                                        <div className="flex flex-col items-center">
+                                            <ArrowRight className="size-5 text-primary"/>
+                                            <span className="text-xs font-bold text-primary">₹{debt.amount.toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <p className="font-medium text-sm">{debt.to.displayName}</p>
+                                            <Avatar className="h-8 w-8"><AvatarImage src={debt.to.photoURL || undefined}/><AvatarFallback>{debt.to.displayName.charAt(0)}</AvatarFallback></Avatar>
+                                        </div>
                                     </div>
-                                    <div className="flex flex-col items-center">
-                                        <ArrowRight className="size-5 text-primary"/>
-                                        <span className="text-xs font-bold text-primary">₹{debt.amount.toFixed(2)}</span>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <p className="font-medium text-sm">{debt.to.displayName}</p>
-                                        <Avatar className="h-8 w-8"><AvatarImage src={debt.to.photoURL || undefined}/><AvatarFallback>{debt.to.displayName.charAt(0)}</AvatarFallback></Avatar>
-                                    </div>
-                                </div>
-                            ))
+                                )
+                            })
                         ) : (
                              <div className="text-center text-sm text-muted-foreground py-6">
                                 <p className="font-semibold">All Settled Up!</p>
@@ -217,7 +240,7 @@ export default function CircleDetailPage() {
                 <CardContent className="space-y-3">
                     {individualDebts.length > 0 ? (
                         individualDebts.map(debt => {
-                            if (!debt.debtor || !debt.creditor) return null; // Defensively skip rendering malformed debt data
+                            if (!debt.debtor || !debt.creditor) return null;
                             
                             return (
                                 <div key={debt.id} className="flex items-center justify-between p-3 rounded-lg border">
