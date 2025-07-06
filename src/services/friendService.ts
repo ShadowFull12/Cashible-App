@@ -46,7 +46,7 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
         throw new Error("You are already friends with this user.");
     }
 
-    await addDoc(friendRequestsRef, {
+    const newRequestRef = await addDoc(friendRequestsRef, {
         fromUser: {
             ...fromUser,
             photoURL: fromUser.photoURL || null,
@@ -65,6 +65,7 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
         type: 'friend-request',
         message: `${fromUser.displayName} sent you a friend request.`,
         link: '/notifications',
+        relatedId: newRequestRef.id,
     });
 }
 
@@ -186,6 +187,18 @@ export async function removeFriend(currentUserId: string, friendId: string) {
     
     const batch = writeBatch(db);
     querySnapshot.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+
+    // Also remove any pending friend requests between them
+    const requestQuery = query(friendRequestsRef, 
+        or(
+            and(where('fromUser.uid', '==', currentUserId), where('toUserId', '==', friendId)),
+            and(where('fromUser.uid', '==', friendId), where('toUserId', '==', currentUserId))
+        )
+    );
+    const requestSnapshot = await getDocs(requestQuery);
+    requestSnapshot.forEach(doc => {
         batch.delete(doc.ref);
     });
 

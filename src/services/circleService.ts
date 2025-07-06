@@ -1,6 +1,6 @@
 
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, writeBatch, onSnapshot, Unsubscribe, deleteDoc, arrayRemove, FieldValue } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, writeBatch, onSnapshot, Unsubscribe, deleteDoc, arrayRemove, deleteField } from "firebase/firestore";
 import type { UserProfile, Circle } from "@/lib/data";
 import { deleteDebtsForCircle } from "./debtService";
 
@@ -112,7 +112,7 @@ export async function leaveCircle(circleId: string, userId: string) {
     const remainingMemberIds = circleData.memberIds.filter(id => id !== userId);
     const updates: {[key: string]: any} = {
         memberIds: arrayRemove(userId),
-        [`members.${userId}`]: FieldValue.delete(),
+        [`members.${userId}`]: deleteField(),
     };
     
     // If the leaving user was the owner, reassign ownership
