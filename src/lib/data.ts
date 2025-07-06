@@ -92,7 +92,15 @@ export interface SplitDetails {
     total: number;
 }
 
-export type NotificationType = 'friend-request' | 'debt-settlement-request' | 'debt-settlement-confirmed';
+export type NotificationType = 
+    'friend-request' | 
+    'debt-settlement-request' | 
+    'debt-settlement-confirmed' | 
+    'debt-settlement-rejected' |
+    'expense-claim-request' |
+    'expense-claim-accepted' |
+    'expense-claim-rejected';
+
 
 export interface Notification {
     id: string;
@@ -102,6 +110,23 @@ export interface Notification {
     message: string;
     link: string;
     read: boolean;
-    relatedId?: string; // e.g., friend request ID
+    relatedId?: string; // e.g., friend request ID, expense claim ID
+    createdAt: Date;
+}
+
+export interface ExpenseClaim {
+    id: string;
+    claimerId: string;
+    claimerProfile: UserProfile;
+    payerId: string;
+    expenseDetails: {
+        description: string;
+        amount: number;
+        category: string;
+        date: Date;
+        circleId: string | null;
+        splitDetails: SplitDetails;
+    };
+    status: 'pending' | 'accepted' | 'rejected';
     createdAt: Date;
 }

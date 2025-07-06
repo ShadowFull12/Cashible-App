@@ -87,3 +87,17 @@ export async function deleteNotification(notificationId: string) {
     const notificationRef = doc(db, "notifications", notificationId);
     await deleteDoc(notificationRef);
 }
+
+export async function deleteNotificationByRelatedId(relatedId: string) {
+    if (!db) throw new Error("Firebase is not configured.");
+    const q = query(notificationsRef, where("relatedId", "==", relatedId));
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) return;
+
+    const batch = writeBatch(db);
+    snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+    await batch.commit();
+}

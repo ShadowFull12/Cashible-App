@@ -11,6 +11,7 @@ interface CreateNotificationInput {
     type: NotificationType;
     message: string;
     link: string;
+    relatedId?: string;
 }
 
 export async function createNotification(data: CreateNotificationInput) {
@@ -38,7 +39,7 @@ export function getNotificationsForUser(userId: string, callback: (notifications
             const fromUser = data.fromUser as UserProfile;
             // Sanitize photoURL to prevent 'undefined' values
             fromUser.photoURL = fromUser.photoURL || null;
-            
+
             notifications.push({
                 id: doc.id,
                 ...data,
@@ -85,4 +86,18 @@ export async function deleteNotification(notificationId: string) {
     if (!db) throw new Error("Firebase is not configured.");
     const notificationRef = doc(db, "notifications", notificationId);
     await deleteDoc(notificationRef);
+}
+
+export async function deleteNotificationByRelatedId(relatedId: string) {
+    if (!db) throw new Error("Firebase is not configured.");
+    const q = query(notificationsRef, where("relatedId", "==", relatedId));
+    const snapshot = await getDocs(q);
+    
+    if (snapshot.empty) return;
+
+    const batch = writeBatch(db);
+    snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+    await batch.commit();
 }

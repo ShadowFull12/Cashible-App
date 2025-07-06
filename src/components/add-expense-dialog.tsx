@@ -1,3 +1,4 @@
+
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -43,6 +44,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 import { addTransaction, updateTransaction, addSplitTransaction } from "@/services/transactionService";
 import { addRecurringExpense } from "@/services/recurringExpenseService";
+import { createExpenseClaim } from "@/services/expenseClaimService";
 import { suggestCategory } from "@/ai/flows/suggest-category";
 import { Switch } from "./ui/switch";
 import type { Transaction, UserProfile, SplitDetails } from "@/lib/data";
@@ -99,7 +101,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
     if (splitTarget?.startsWith('friend-')) {
       const friend = friends.find(f => f.uid === splitTarget.replace('friend-', ''));
       if (friend && user?.displayName && user.email) {
-          return [ { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL || undefined }, friend ];
+          return [ { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL || null }, friend ];
       }
     }
     return [];
@@ -131,7 +133,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
   const handleSuggestCategory = async () => { /* ... */ };
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    if (!user || !user.displayName) return;
+    if (!user || !user.displayName || !user.email) return;
     setIsSubmitting(true);
     try {
       if (isEditing) {
@@ -157,6 +159,13 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
             setIsSubmitting(false);
             return;
         }
+        
+        const payerProfile = potentialSplitMembers.find(m => m.uid === values.payerId);
+        if (!payerProfile) {
+            toast.error("Payer could not be found.");
+            setIsSubmitting(false);
+            return;
+        }
 
         const share = values.amount / membersToSplitWith.length;
         const splitDetails: SplitDetails = {
@@ -168,12 +177,29 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                 share: share,
             }))
         };
-        
-        await addSplitTransaction({
-          userId: user.uid, 
-          description: values.description, amount: values.amount, category: values.category, date: values.date, circleId: selectedCircle?.id || null, isSplit: true
-        }, splitDetails);
-        toast.success("Split expense recorded successfully!");
+
+        if (values.payerId !== user.uid) {
+            const currentUserProfile: UserProfile = { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL || null };
+            await createExpenseClaim({
+                claimerProfile: currentUserProfile,
+                payerId: values.payerId,
+                expenseDetails: {
+                    description: values.description,
+                    amount: values.amount,
+                    category: values.category,
+                    date: values.date,
+                    circleId: selectedCircle?.id || null,
+                    splitDetails,
+                }
+            });
+            toast.success(`Expense claim sent to ${payerProfile.displayName} for approval.`);
+        } else {
+             await addSplitTransaction({
+                userId: user.uid, 
+                description: values.description, amount: values.amount, category: values.category, date: values.date, circleId: selectedCircle?.id || null, isSplit: true
+             }, splitDetails);
+             toast.success("Split expense recorded successfully!");
+        }
 
       } else { 
         let recurringId: string | undefined = undefined;
@@ -239,9 +265,9 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                         {payerId !== user?.uid && (
                             <Alert>
                                 <Info className="h-4 w-4" />
-                                <AlertTitle>Heads Up!</AlertTitle>
+                                <AlertTitle>Request for Approval</AlertTitle>
                                 <AlertDescription>
-                                    You're logging an expense paid by someone else. This will only create a debt record for you. The payer should log this transaction themselves to have it appear in their history.
+                                    Since you didn't pay, a request will be sent to the payer to approve and log this expense. Debts will be created after their approval.
                                 </AlertDescription>
                             </Alert>
                         )}

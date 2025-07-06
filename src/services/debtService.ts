@@ -1,6 +1,7 @@
+
 import { db } from "@/lib/firebase";
 import { collection, doc, getDocs, query, where, Timestamp, writeBatch, WriteBatch, updateDoc, getDoc, deleteDoc } from "firebase/firestore";
-import type { Debt, SplitDetails, Transaction } from "@/lib/data";
+import type { Debt, SplitDetails, Transaction, UserProfile } from "@/lib/data";
 import { getTransactionById, addTransaction, updateTransaction } from "./transactionService";
 import { createNotification } from "./notificationService";
 
@@ -113,6 +114,7 @@ export async function initiateSettlement(debt: Debt) {
         type: 'debt-settlement-request',
         message: `${debt.debtor.displayName} marked their payment of ₹${debt.amount.toFixed(2)} as complete.`,
         link: debt.circleId ? `/spend-circle/${debt.circleId}` : `/spend-circle`,
+        relatedId: debt.id,
     });
 }
 
@@ -122,10 +124,20 @@ export async function cancelSettlement(debtId: string) {
     await updateDoc(debtDocRef, { settlementStatus: 'unsettled' });
 }
 
-export async function rejectSettlement(debtId: string) {
+export async function rejectSettlement(debt: Debt) {
     if (!db) throw new Error("Firebase is not configured.");
-    const debtDocRef = doc(db, "debts", debtId);
+    const debtDocRef = doc(db, "debts", debt.id);
     await updateDoc(debtDocRef, { settlementStatus: 'unsettled' });
+
+    // Notify debtor that payment was rejected
+    await createNotification({
+        userId: debt.debtorId,
+        fromUser: debt.creditor,
+        type: 'debt-settlement-rejected',
+        message: `${debt.creditor.displayName} has declined the settlement for "${debt.transactionDescription}".`,
+        link: debt.circleId ? `/spend-circle/${debt.circleId}` : `/spend-circle`,
+        relatedId: debt.id,
+    });
 }
 
 
@@ -154,6 +166,7 @@ export async function confirmSettlement(debt: Debt) {
         type: 'debt-settlement-confirmed',
         message: `${debt.creditor.displayName} confirmed your payment of ₹${debt.amount.toFixed(2)}. You can now log it as an expense.`,
         link: debt.circleId ? `/spend-circle/${debt.circleId}` : `/spend-circle`,
+        relatedId: debt.id,
     });
 }
 

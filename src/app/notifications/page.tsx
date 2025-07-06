@@ -9,19 +9,24 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { Bell, Check, UserPlus, CircleDollarSign, BellRing, Loader2, UserCheck, UserX, X } from 'lucide-react';
+import { Bell, Check, UserPlus, CircleDollarSign, BellRing, Loader2, UserCheck, UserX, X, FilePlus, CheckCircle2, XCircle, ClipboardCheck, ClipboardX } from 'lucide-react';
 import type { Notification, UserProfile } from '@/lib/data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { acceptFriendRequest, rejectFriendRequest } from '@/services/friendService';
 import { deleteNotification } from '@/services/notificationService';
+import { acceptExpenseClaim, rejectExpenseClaim } from '@/services/expenseClaimService';
 
 
 const iconMap: {[key: string]: React.ElementType} = {
     'friend-request': UserPlus,
     'debt-settlement-request': CircleDollarSign,
     'debt-settlement-confirmed': Check,
+    'debt-settlement-rejected': XCircle,
+    'expense-claim-request': FilePlus,
+    'expense-claim-accepted': CheckCircle2,
+    'expense-claim-rejected': XCircle,
 };
 
 export default function NotificationsPage() {
@@ -42,7 +47,7 @@ export default function NotificationsPage() {
                 req.status === 'pending'
             );
         
-        if (isPendingFriendRequest) {
+        if (isPendingFriendRequest || notification.type === 'expense-claim-request') {
             return;
         }
         
@@ -101,6 +106,34 @@ export default function NotificationsPage() {
         }
     };
 
+    const handleAcceptClaim = async (notification: Notification) => {
+        if (!notification.relatedId) return;
+        setProcessingId(notification.id);
+        try {
+            await acceptExpenseClaim(notification.relatedId);
+            toast.success("Expense claim accepted and logged.");
+            await refreshData();
+        } catch (error: any) {
+            toast.error("Failed to accept claim.", { description: error.message });
+        } finally {
+            setProcessingId(null);
+        }
+    }
+
+    const handleDeclineClaim = async (notification: Notification) => {
+        if (!notification.relatedId) return;
+        setProcessingId(notification.id);
+        try {
+            await rejectExpenseClaim(notification.relatedId);
+            toast.info("Expense claim declined.");
+        } catch (error: any) {
+            toast.error("Failed to decline claim.", { description: error.message });
+        } finally {
+            setProcessingId(null);
+        }
+    }
+
+
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -127,8 +160,11 @@ export default function NotificationsPage() {
                         ? friendRequests.find(req => req.fromUser.uid === notification.fromUser.uid && req.toUserId === user?.uid && req.status === 'pending')
                         : undefined;
                     
-                    const isActionable = !!matchingFriendRequest;
-                    const isProcessing = processingId === matchingFriendRequest?.id || processingId === notification.id;
+                    const isClaimRequest = notification.type === 'expense-claim-request';
+                    const isActionableFriendRequest = !!matchingFriendRequest;
+                    const isActionable = isActionableFriendRequest || isClaimRequest;
+                    
+                    const isProcessing = (isActionableFriendRequest && processingId === matchingFriendRequest?.id) || processingId === notification.id;
 
                     return (
                         <div
@@ -156,13 +192,24 @@ export default function NotificationsPage() {
                                         {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
                                     </p>
                                     
-                                    {matchingFriendRequest && (
+                                    {isActionableFriendRequest && (
                                         <div className="flex gap-2 mt-2">
-                                            <Button size="sm" onClick={(e) => { e.stopPropagation(); handleAcceptFriend(matchingFriendRequest.id, notification.fromUser); }} disabled={isProcessing}>
+                                            <Button size="sm" onClick={(e) => { e.stopPropagation(); handleAcceptFriend(matchingFriendRequest!.id, notification.fromUser); }} disabled={isProcessing}>
                                                 {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <UserCheck className="mr-2 size-4"/>} Accept
                                             </Button>
-                                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleDeclineFriend(matchingFriendRequest.id); }} disabled={isProcessing}>
+                                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleDeclineFriend(matchingFriendRequest!.id); }} disabled={isProcessing}>
                                                 {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <UserX className="mr-2 size-4"/>} Decline
+                                            </Button>
+                                        </div>
+                                    )}
+
+                                    {isClaimRequest && (
+                                        <div className="flex gap-2 mt-2">
+                                            <Button size="sm" onClick={(e) => { e.stopPropagation(); handleAcceptClaim(notification); }} disabled={isProcessing}>
+                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <ClipboardCheck className="mr-2 size-4"/>} Accept & Log
+                                            </Button>
+                                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleDeclineClaim(notification); }} disabled={isProcessing}>
+                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <ClipboardX className="mr-2 size-4"/>} Decline
                                             </Button>
                                         </div>
                                     )}
