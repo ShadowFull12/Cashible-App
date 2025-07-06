@@ -1,7 +1,7 @@
 
 import { db } from "@/lib/firebase";
 import { 
-    collection, addDoc, getDocs, query, where, doc, updateDoc, Timestamp, writeBatch, deleteDoc, getDoc, or, onSnapshot, Unsubscribe
+    collection, addDoc, getDocs, query, where, doc, updateDoc, Timestamp, writeBatch, deleteDoc, getDoc, or, onSnapshot, Unsubscribe, and
 } from "firebase/firestore";
 import type { UserProfile, FriendRequest } from "@/lib/data";
 import type { User } from 'firebase/auth';
@@ -16,20 +16,18 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
 
     // Check for any pending request involving both users
     const q = query(friendRequestsRef, 
-        where("status", "==", "pending"),
-        or(
-            where('fromUser.uid', '==', fromUser.uid),
-            where('toUserId', '==', fromUser.uid)
+        and(
+            where("status", "==", "pending"),
+            or(
+                and(where('fromUser.uid', '==', fromUser.uid), where('toUserId', '==', toUserId)),
+                and(where('fromUser.uid', '==', toUserId), where('toUserId', '==', fromUser.uid))
+            )
         )
     );
 
     const pendingSnapshot = await getDocs(q);
-    const existingPendingRequest = pendingSnapshot.docs.find(doc => {
-        const data = doc.data();
-        return (data.fromUser.uid === fromUser.uid && data.toUserId === toUserId) || (data.fromUser.uid === toUserId && data.toUserId === fromUser.uid);
-    });
 
-    if (existingPendingRequest) {
+    if (!pendingSnapshot.empty) {
          throw new Error("A friend request is already pending between you two.");
     }
     
