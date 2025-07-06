@@ -49,16 +49,22 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen w-full items-center justify-center bg-gradient-to-br from-background to-blue-100 p-4">
-      <Card className="w-full max-w-md shadow-2xl transition-all animate-in fade-in-50 zoom-in-95">
+    <div className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-background p-4">
+      {/* Background blobs */}
+      <div className="absolute -top-1/4 left-0 h-1/2 w-1/2 animate-[spin_20s_linear_infinite] rounded-full bg-primary/10 blur-3xl" />
+      <div className="absolute -bottom-1/4 right-0 h-1/2 w-1/2 animate-[spin_20s_linear_infinite_reverse] rounded-full bg-accent/10 blur-3xl" />
+
+      <Card className="relative w-full max-w-md border-border/20 bg-background/60 shadow-2xl backdrop-blur-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-24 duration-1000 ease-out">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 animate-in fade-in-0 slide-in-from-top-12 duration-1000">
+          <div className="mx-auto mb-4 animate-in fade-in-0 slide-in-from-top-12 delay-300 duration-700">
              <Logo />
           </div>
-          <CardTitle className="text-3xl font-bold font-headline">Welcome Back</CardTitle>
-          <CardDescription>Enter your credentials to access your dashboard.</CardDescription>
+          <div className="space-y-1 animate-in fade-in-0 slide-in-from-top-16 delay-500 duration-700">
+            <CardTitle className="text-3xl font-bold font-headline">Welcome Back</CardTitle>
+            <CardDescription>Enter your credentials to access your dashboard.</CardDescription>
+          </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="animate-in fade-in-0 slide-in-from-bottom-16 delay-700 duration-700">
           {!isFirebaseConfigured && (
             <Alert variant="destructive" className="mb-4 text-left">
               <AlertTriangle className="h-4 w-4" />
