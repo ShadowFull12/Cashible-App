@@ -1,6 +1,6 @@
 
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, writeBatch, onSnapshot, Unsubscribe, deleteDoc, arrayRemove, deleteField } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, writeBatch, onSnapshot, Unsubscribe, deleteDoc, arrayRemove, deleteField, arrayUnion } from "firebase/firestore";
 import type { UserProfile, Circle } from "@/lib/data";
 import { deleteDebtsForCircle } from "./debtService";
 
@@ -64,23 +64,28 @@ export function getCirclesForUserListener(userId: string, callback: (circles: Ci
 export async function getCircleById(circleId: string): Promise<Circle | null> {
     if (!db) return null;
     const circleDocRef = doc(db, "circles", circleId);
-    const docSnap = await getDoc(circleDocRef);
-    if (docSnap.exists()) {
-        const data = docSnap.data();
-        const membersMap = data.members || {};
-        for (const uid in membersMap) {
-            if (Object.prototype.hasOwnProperty.call(membersMap, uid)) {
-                membersMap[uid].photoURL = membersMap[uid].photoURL || null;
+    try {
+        const docSnap = await getDoc(circleDocRef);
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            const membersMap = data.members || {};
+            for (const uid in membersMap) {
+                if (Object.prototype.hasOwnProperty.call(membersMap, uid)) {
+                    membersMap[uid].photoURL = membersMap[uid].photoURL || null;
+                }
             }
+            return {
+                id: docSnap.id,
+                ...data,
+                members: membersMap,
+                createdAt: (data.createdAt as Timestamp).toDate(),
+            } as Circle;
         }
-        return {
-            id: docSnap.id,
-            ...data,
-            members: membersMap,
-            createdAt: (data.createdAt as Timestamp).toDate(),
-        } as Circle;
+        return null;
+    } catch (error) {
+        console.error("Error getting circle by ID:", error);
+        throw error;
     }
-    return null;
 }
 
 export async function leaveCircle(circleId: string, userId: string) {
@@ -121,4 +126,29 @@ export async function leaveCircle(circleId: string, userId: string) {
     }
 
     await updateDoc(circleRef, updates);
+}
+
+export async function addMembersToCircle(circleId: string, membersToAdd: UserProfile[]) {
+    if (!db) throw new Error("Firebase is not configured.");
+    if (membersToAdd.length === 0) return;
+
+    const circleRef = doc(db, "circles", circleId);
+
+    const memberIds = membersToAdd.map(m => m.uid);
+    const membersMapUpdates = membersToAdd.reduce((acc, member) => {
+        acc[`members.${member.uid}`] = {
+            uid: member.uid,
+            displayName: member.displayName,
+            email: member.email,
+            photoURL: member.photoURL || null,
+        };
+        return acc;
+    }, {} as { [key: string]: any });
+
+    const updatePayload = {
+        memberIds: arrayUnion(...memberIds),
+        ...membersMapUpdates
+    };
+
+    await updateDoc(circleRef, updatePayload);
 }

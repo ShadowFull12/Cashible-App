@@ -5,18 +5,19 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { getCircleById, leaveCircle } from '@/services/circleService';
-import { getDebtsForCircle, initiateSettlement, cancelSettlement, rejectSettlement, confirmSettlement, logSettledDebtAsExpense, deleteDebtById } from '@/services/debtService';
+import { getDebtsForCircle, deleteDebtById } from '@/services/debtService';
 import type { Circle, Debt, UserProfile, DebtSettlementStatus } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, ArrowRight, Users, VenetianMask, Check, Loader2, List, AlertCircle, Clock, CheckCircle2, XCircle, Trash2, LogOut } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Users, VenetianMask, Check, Loader2, List, AlertCircle, Clock, CheckCircle2, XCircle, Trash2, LogOut, UserPlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { AddMemberDialog } from '@/components/add-member-dialog';
 
 
 type SimplifiedDebt = {
@@ -41,6 +42,7 @@ export default function CircleDetailPage() {
     const [isLoading, setIsLoading] = useState(true);
     const [processingState, setProcessingState] = useState<ProcessingState>(null);
     const [fetchError, setFetchError] = useState<string | null>(null);
+    const [isAddMemberOpen, setIsAddMemberOpen] = useState(false);
 
     const fetchCircleData = useCallback(async () => {
         if (!circleId || !user) return;
@@ -51,7 +53,7 @@ export default function CircleDetailPage() {
             
             if (!circleData || !circleData.memberIds.includes(user.uid)) {
                 router.push('/spend-circle');
-                toast.error("You are not a member of this circle.");
+                toast.error("You are not a member of this circle or it no longer exists.");
                 return;
             }
 
@@ -325,15 +327,22 @@ export default function CircleDetailPage() {
                                 {member.uid === user?.uid && <Badge>You</Badge>}
                             </div>
                         ))}
-                         <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                                 <Button variant="destructive" className="w-full mt-4"><LogOut className="mr-2"/>Leave Circle</Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                                <AlertDialogHeader><AlertDialogTitle>Leave "{circle.name}"?</AlertDialogTitle><AlertDialogDescription>You will be removed from this circle. If you are the last member, the circle and all its debts will be permanently deleted.</AlertDialogDescription></AlertDialogHeader>
-                                <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleLeaveCircle}>Confirm & Leave</AlertDialogAction></AlertDialogFooter>
-                            </AlertDialogContent>
-                        </AlertDialog>
+                         <div className="mt-4 space-y-2">
+                            {user?.uid === circle.ownerId && (
+                                <Button className="w-full" onClick={() => setIsAddMemberOpen(true)}>
+                                    <UserPlus className="mr-2"/> Add Members
+                                </Button>
+                            )}
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" className="w-full"><LogOut className="mr-2"/>Leave Circle</Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader><AlertDialogTitle>Leave "{circle.name}"?</AlertDialogTitle><AlertDialogDescription>You will be removed from this circle. If you are the last member, the circle and all its debts will be permanently deleted.</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleLeaveCircle}>Confirm & Leave</AlertDialogAction></AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
@@ -387,6 +396,14 @@ export default function CircleDetailPage() {
                 </CardContent>
             </Card>
         </div>
+        {isAddMemberOpen && circle && (
+            <AddMemberDialog 
+                open={isAddMemberOpen}
+                onOpenChange={setIsAddMemberOpen}
+                circle={circle}
+                onMembersAdded={fetchCircleData}
+            />
+        )}
         </>
     );
 }

@@ -20,7 +20,6 @@ service cloud.firestore {
     match /friend-requests/{requestId} {
       allow create: if request.auth.uid == request.resource.data.fromUser.uid;
       allow read: if request.auth.uid == resource.data.fromUser.uid || request.auth.uid == resource.data.toUserId;
-      // Allow recipient to accept/reject (update) or delete the request
       allow update, delete: if request.auth.uid == resource.data.toUserId;
     }
     
@@ -32,20 +31,20 @@ service cloud.firestore {
     match /circles/{circleId} {
         allow read: if request.auth.uid in resource.data.memberIds;
         allow create: if request.auth.uid == request.resource.data.ownerId;
-        // Any member can update the circle (e.g., to leave it)
-        allow update: if request.auth.uid in resource.data.memberIds;
-        // Only the last member can delete the circle document
-        allow delete: if resource.data.memberIds.length == 1 && request.auth.uid in resource.data.memberIds;
+        // Only the owner can add/remove members (update).
+        allow update: if request.auth.uid == resource.data.ownerId;
+        // The owner can delete the circle, OR the last member can delete it by leaving.
+        allow delete: if request.auth.uid == resource.data.ownerId || (resource.data.memberIds.size() == 1 && request.auth.uid in resource.data.memberIds);
     }
 
     match /debts/{debtId} {
       allow create: if request.auth.uid in request.resource.data.involvedUids;
-      allow read, update: if request.auth.uid in resource.data.involvedUids;
-      
-      // Allow deletion ONLY IF it's part of a circle deletion by the last member.
-      // This is crucial for the "leave circle" and "delete data" features to work.
-      allow delete: if get(/databases/$(database)/documents/circles/$(resource.data.circleId)).data.memberIds.length == 1 
-                      && request.auth.uid in get(/databases/$(database)/documents/circles/$(resource.data.circleId)).data.memberIds;
+      allow read: if request.auth.uid in resource.data.involvedUids;
+      allow update: if request.auth.uid in resource.data.involvedUids;
+      // A debt can be deleted if the circle owner is performing the action,
+      // OR if the last member is leaving the circle (which triggers a circle delete).
+      allow delete: if get(/databases/$(database)/documents/circles/$(resource.data.circleId)).data.ownerId == request.auth.uid
+                    || get(/databases/$(database)/documents/circles/$(resource.data.circleId)).data.memberIds.size() == 1;
     }
 
     match /notifications/{notificationId} {
