@@ -14,28 +14,25 @@ const friendshipsRef = collection(db, "friendships");
 export async function sendFriendRequest(fromUser: UserProfile, toUserId: string) {
     if (!db) throw new Error("Firebase is not configured.");
 
-    // Check for a pending request from me to them
-    const q1 = query(friendRequestsRef, 
+    // Check for any pending request involving both users
+    const q = query(friendRequestsRef, 
         where("status", "==", "pending"),
-        where("fromUser.uid", "==", fromUser.uid),
-        where("toUserId", "==", toUserId)
+        or(
+            where('fromUser.uid', '==', fromUser.uid),
+            where('toUserId', '==', fromUser.uid)
+        )
     );
-    const snapshot1 = await getDocs(q1);
-    if (!snapshot1.empty) {
-        throw new Error("You have already sent a friend request to this user.");
-    }
 
-    // Check for a pending request from them to me
-    const q2 = query(friendRequestsRef, 
-        where("status", "==", "pending"),
-        where("fromUser.uid", "==", toUserId),
-        where("toUserId", "==", fromUser.uid)
-    );
-    const snapshot2 = await getDocs(q2);
-     if (!snapshot2.empty) {
-        throw new Error("This user has already sent you a friend request. Check your notifications.");
-    }
+    const pendingSnapshot = await getDocs(q);
+    const existingPendingRequest = pendingSnapshot.docs.find(doc => {
+        const data = doc.data();
+        return (data.fromUser.uid === fromUser.uid && data.toUserId === toUserId) || (data.fromUser.uid === toUserId && data.toUserId === fromUser.uid);
+    });
 
+    if (existingPendingRequest) {
+         throw new Error("A friend request is already pending between you two.");
+    }
+    
     // Check if they are already friends
     const friendsQuery = query(friendshipsRef, where('userIds', 'array-contains', fromUser.uid));
     const friendsSnapshot = await getDocs(friendsQuery);
@@ -45,7 +42,7 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
         throw new Error("You are already friends with this user.");
     }
 
-    const newRequestRef = await addDoc(friendRequestsRef, {
+    await addDoc(friendRequestsRef, {
         fromUser,
         toUserId,
         status: 'pending',
@@ -65,7 +62,6 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
 export function getFriendRequestsListener(userId: string, callback: (requests: FriendRequest[]) => void): Unsubscribe {
     if (!db) return () => {};
     
-    // We listen for any request where the status is pending and the current user is involved.
     const q = query(friendRequestsRef, 
         where("status", "==", "pending"),
         where("toUserId", "==", userId)
@@ -129,29 +125,35 @@ export async function rejectFriendRequest(requestId: string) {
     await deleteDoc(requestDocRef);
 }
 
-// 5. Get a user's friends
-export async function getFriends(userId: string): Promise<UserProfile[]> {
-    if (!db) return [];
+// 5. Get a user's friends via a real-time listener
+export function getFriendsListener(userId: string, callback: (friends: UserProfile[]) => void): Unsubscribe {
+    if (!db) return () => {};
+    
     const q = query(friendshipsRef, where('userIds', 'array-contains', userId));
-    const querySnapshot = await getDocs(q);
-
-    const friends: UserProfile[] = [];
-    querySnapshot.forEach(doc => {
-        const data = doc.data();
-        const friendId = data.userIds.find((id: string) => id !== userId);
-        if (friendId) {
-            const friendData = data.users[friendId];
-            friends.push({
-                uid: friendId,
-                displayName: friendData.displayName,
-                email: friendData.email,
-                photoURL: friendData.photoURL,
-            });
-        }
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const friends: UserProfile[] = [];
+        querySnapshot.forEach(doc => {
+            const data = doc.data();
+            const friendId = data.userIds.find((id: string) => id !== userId);
+            if (friendId && data.users[friendId]) {
+                const friendData = data.users[friendId];
+                friends.push({
+                    uid: friendId,
+                    displayName: friendData.displayName,
+                    email: friendData.email,
+                    photoURL: friendData.photoURL,
+                });
+            }
+        });
+        callback(friends);
+    }, (error) => {
+        console.error("Error listening to friends:", error);
     });
 
-    return friends;
+    return unsubscribe;
 }
+
 
 // 6. Remove a friend
 export async function removeFriend(currentUserId: string, friendId: string) {

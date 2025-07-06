@@ -1,5 +1,6 @@
+
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, arrayUnion, writeBatch } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, arrayUnion, writeBatch, onSnapshot, Unsubscribe } from "firebase/firestore";
 import type { UserProfile, Circle } from "@/lib/data";
 import { createNotification } from './notificationService';
 
@@ -29,23 +30,27 @@ export async function createCircle({ name, ownerId, friends }: CreateCircleInput
     });
 }
 
-export async function getCirclesForUser(userId: string): Promise<Circle[]> {
-    if (!db) return [];
+export function getCirclesForUserListener(userId: string, callback: (circles: Circle[]) => void): Unsubscribe {
+    if (!db) return () => {};
     
     const q = query(circlesRef, where("memberIds", "array-contains", userId));
-    const querySnapshot = await getDocs(q);
-
-    const circles: Circle[] = [];
-    querySnapshot.forEach(doc => {
-        const data = doc.data();
-        circles.push({
-            id: doc.id,
-            ...data,
-            createdAt: (data.createdAt as Timestamp).toDate(),
-        } as Circle);
+    
+    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+        const circles: Circle[] = [];
+        querySnapshot.forEach(doc => {
+            const data = doc.data();
+            circles.push({
+                id: doc.id,
+                ...data,
+                createdAt: (data.createdAt as Timestamp).toDate(),
+            } as Circle);
+        });
+        callback(circles.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
+    }, (error) => {
+        console.error("Error listening to circles:", error);
     });
 
-    return circles.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+    return unsubscribe;
 }
 
 

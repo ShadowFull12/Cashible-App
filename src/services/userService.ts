@@ -13,6 +13,57 @@ export async function updateUser(userId: string, data: object) {
     await updateDoc(userDocRef, data);
 }
 
+/**
+ * Updates a user's profile information (displayName, photoURL) and propagates
+ * those changes to denormalized data in other collections like 'friendships' and 'circles'.
+ * This is a client-side implementation of data propagation. For larger applications,
+ * a Cloud Function would be more robust.
+ */
+export async function updateUserProfileAndPropagate(userId: string, data: { displayName?: string, photoURL?: string | null }) {
+    if (!db) throw new Error("Firestore is not initialized.");
+    
+    const batch = writeBatch(db);
+
+    // 1. Update the main user document
+    const userDocRef = doc(db, "users", userId);
+    batch.update(userDocRef, data);
+
+    // 2. Find and update all friendships this user is a part of
+    const friendshipQuery = query(collection(db, "friendships"), where("userIds", "array-contains", userId));
+    const friendshipDocs = await getDocs(friendshipQuery);
+    friendshipDocs.forEach(doc => {
+        const updateData: { [key: string]: any } = {};
+        if (data.displayName !== undefined) {
+            updateData[`users.${userId}.displayName`] = data.displayName;
+        }
+        if (data.photoURL !== undefined) {
+            updateData[`users.${userId}.photoURL`] = data.photoURL;
+        }
+        if (Object.keys(updateData).length > 0) {
+            batch.update(doc.ref, updateData);
+        }
+    });
+
+    // 3. Find and update all circles this user is a member of
+    const circleQuery = query(collection(db, "circles"), where("memberIds", "array-contains", userId));
+    const circleDocs = await getDocs(circleQuery);
+    circleDocs.forEach(doc => {
+        const updateData: { [key: string]: any } = {};
+            if (data.displayName !== undefined) {
+            updateData[`members.${userId}.displayName`] = data.displayName;
+        }
+        if (data.photoURL !== undefined) {
+            updateData[`members.${userId}.photoURL`] = data.photoURL;
+        }
+        if (Object.keys(updateData).length > 0) {
+            batch.update(doc.ref, updateData);
+        }
+    });
+    
+    await batch.commit();
+}
+
+
 export async function searchUsersByEmail(email: string): Promise<UserProfile[]> {
     if (!db) throw new Error("Firestore is not initialized.");
     const usersRef = collection(db, "users");

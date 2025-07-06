@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
@@ -114,26 +115,39 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   
   const updateUserProfile_ = async (data: Partial<UserData>) => {
     if (!user) throw new Error("User not authenticated.");
-    await userService.updateUser(user.uid, data);
+
+    const { displayName, photoURL, ...otherData } = data;
+    const profileDataToPropagate: { displayName?: string, photoURL?: string | null } = {};
+    const authUpdateData: { displayName?: string, photoURL?: string | null } = {};
+
+    if (displayName !== undefined) {
+        profileDataToPropagate.displayName = displayName;
+        authUpdateData.displayName = displayName;
+    }
+    if (photoURL !== undefined) {
+        profileDataToPropagate.photoURL = photoURL;
+        authUpdateData.photoURL = photoURL;
+    }
+
+    // Propagate profile changes if there are any
+    if (Object.keys(profileDataToPropagate).length > 0) {
+        await userService.updateUserProfileAndPropagate(user.uid, profileDataToPropagate);
+        await updateProfile(user, authUpdateData);
+    }
+
+    // Update other user data that doesn't need propagation (like budget)
+    if (Object.keys(otherData).length > 0) {
+        await userService.updateUser(user.uid, otherData);
+    }
+
     await refreshUserData();
   };
 
   const uploadAndSetProfileImage_ = async (file: File) => {
     if (!user) throw new Error("User not authenticated.");
-
     const photoURL = await userService.uploadProfileImage(file);
-    
-    // updateProfile from firebase/auth updates the user object in auth state
-    await updateProfile(user, { photoURL });
-    
-    // Update the URL in our separate Firestore user document
-    await userService.updateUser(user.uid, { photoURL });
-
-    // Refresh the user data state in our app to reflect the change immediately
-    await refreshUserData();
-    
-    // The onAuthStateChanged listener will eventually pick up the change and update the `user` object,
-    // but refreshing our custom `userData` from Firestore is faster for the UI.
+    // This will now call the new propagation logic via updateUserProfile_
+    await updateUserProfile_({ photoURL });
   };
 
   const updateUserPassword_ = async (currentPassword: string, newPassword: string) => {

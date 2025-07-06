@@ -6,8 +6,8 @@ import { useAuth } from './use-auth';
 import { getTransactions, addTransaction } from '@/services/transactionService';
 import { getCategories } from '@/services/categoryService';
 import { getRecurringExpenses, updateRecurringExpense } from '@/services/recurringExpenseService';
-import { getFriends, getFriendRequestsListener } from '@/services/friendService';
-import { getCirclesForUser } from '@/services/circleService';
+import { getFriendsListener, getFriendRequestsListener } from '@/services/friendService';
+import { getCirclesForUserListener } from '@/services/circleService';
 import { getNotificationsForUser, markNotificationAsRead, markAllNotificationsAsRead } from '@/services/notificationService';
 import { toast } from 'sonner';
 import type { Transaction, RecurringExpense, UserProfile, FriendRequest, Circle, Notification } from '@/lib/data';
@@ -100,9 +100,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
             const dataPromises = [
                 getTransactions(user.uid).then(setTransactions),
-                getCategories(user.uid).then(setCategories),
-                getFriends(user.uid).then(setFriends),
-                getCirclesForUser(user.uid).then(setCircles),
                 refreshUserData()
             ];
 
@@ -164,6 +161,26 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             return () => unsubscribe();
         } else {
             setFriendRequests([]);
+        }
+    }, [user]);
+
+    // Listener for friends
+    useEffect(() => {
+        if (user) {
+            const unsubscribe = getFriendsListener(user.uid, setFriends);
+            return () => unsubscribe();
+        } else {
+            setFriends([]);
+        }
+    }, [user]);
+
+    // Listener for circles
+    useEffect(() => {
+        if (user) {
+            const unsubscribe = getCirclesForUserListener(user.uid, setCircles);
+            return () => unsubscribe();
+        } else {
+            setCircles([]);
         }
     }, [user]);
 
