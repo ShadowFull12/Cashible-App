@@ -28,29 +28,40 @@ export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date
 
 export async function addSplitTransaction(
     transaction: Omit<Transaction, 'id' | 'date'> & { date: Date | Timestamp }, 
-    splitDetails: SplitDetails,
-    transactionDescription: string
+    splitDetails: SplitDetails
 ) {
     if (!db) throw new Error("Firebase is not configured.");
     
     try {
         const batch = writeBatch(db);
 
-        // 1. Create the main transaction document
-        const transactionRef = doc(collection(db, "transactions"));
-        batch.set(transactionRef, {
-            ...transaction,
-            date: transaction.date instanceof Date ? Timestamp.fromDate(transaction.date) : transaction.date,
-            recurringExpenseId: null,
-        });
+        // This ID will represent the entire financial event.
+        const eventId = doc(collection(db, "debts")).id;
+        let transactionRefId: string;
 
-        // 2. Create all the debt documents
-        addDebtCreationToBatch(batch, transactionRef.id, splitDetails, transaction.circleId || null, transactionDescription);
+        // The creator of the entry (transaction.userId) must be the payer
+        // to have permission to create the transaction document.
+        if (transaction.userId === splitDetails.payerId) {
+             const transactionRef = doc(db, "transactions", eventId);
+             batch.set(transactionRef, {
+                ...transaction,
+                date: transaction.date instanceof Date ? Timestamp.fromDate(transaction.date) : transaction.date,
+                recurringExpenseId: null,
+             });
+             transactionRefId = transactionRef.id;
+        } else {
+            // If someone else paid, we don't create a transaction document for the creator.
+            // We just use the generated ID to link the debts together.
+            transactionRefId = eventId;
+        }
+
+        // Create all the debt documents, linking them with the event ID
+        addDebtCreationToBatch(batch, transactionRefId, splitDetails, transaction.circleId || null, transaction.description);
         
-        // 3. Commit the batch
+        // Commit the batch
         await batch.commit();
 
-        return transactionRef.id;
+        return transactionRefId;
 
     } catch (error: any) {
         console.error('Error adding split transaction:', error);

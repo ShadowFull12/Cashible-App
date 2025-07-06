@@ -176,8 +176,8 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
         await addSplitTransaction({
           userId: user.uid, // The person creating the transaction record
           description: values.description, amount: values.amount, category: values.category, date: values.date, circleId: selectedCircle?.id || null, isSplit: true
-        }, splitDetails, values.description);
-        toast.success("Split expense added successfully!");
+        }, splitDetails);
+        toast.success("Split expense recorded successfully!");
 
       } else { // Regular or recurring expense
         let recurringId: string | undefined = undefined;

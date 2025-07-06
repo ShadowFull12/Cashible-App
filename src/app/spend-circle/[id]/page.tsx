@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { getCircleById, addMembersToCircle } from '@/services/circleService';
+import { getCircleById } from '@/services/circleService';
 import { getDebtsForCircle, settleDebt } from '@/services/debtService';
 import type { Circle, Debt, UserProfile } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,13 +45,19 @@ export default function CircleDetailPage() {
                 return;
             }
 
-            const debtsData = await getDebtsForCircle(circleId);
+            const debtsData = await getDebtsForCircle(circleId, user.uid);
             
             setCircle(circleData);
             setDebts(debtsData);
 
         } catch (error) {
             console.error("Failed to fetch circle details:", error);
+            // Inform the user they may need to add a Firestore index
+            if ((error as any).code === 'failed-precondition') {
+                 toast.error("Query failed", { description: "A database index is required. Please check the developer console for a link to create it in Firebase."})
+            } else {
+                toast.error("Could not load circle details.");
+            }
             router.push('/spend-circle');
         } finally {
             setIsLoading(false);

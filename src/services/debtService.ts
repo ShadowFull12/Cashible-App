@@ -39,12 +39,13 @@ export function addDebtCreationToBatch(
     });
 }
 
-export async function getDebtsForCircle(circleId: string): Promise<Debt[]> {
+export async function getDebtsForCircle(circleId: string, userId: string): Promise<Debt[]> {
     if (!db) return [];
     
     const q = query(
         debtsRef, 
-        where("circleId", "==", circleId)
+        where("circleId", "==", circleId),
+        where("involvedUids", "array-contains", userId)
     );
     const querySnapshot = await getDocs(q);
 
