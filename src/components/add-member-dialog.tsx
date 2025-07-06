@@ -42,7 +42,7 @@ export function AddMemberDialog({ open, onOpenChange, circle }: AddMemberDialogP
         }
     });
 
-    const onSubmit = async (values: z.infer<typeof formSchema>>) => {
+    const onSubmit = async (values: z.infer<typeof formSchema>) => {
         setIsSubmitting(true);
         try {
             const selectedFriends = friends.filter(f => values.members.includes(f.uid));

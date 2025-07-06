@@ -55,7 +55,7 @@ export function EditCircleDialog({ open, onOpenChange, circle }: EditCircleDialo
         }
     };
 
-    const onSubmit = async (values: z.infer<typeof formSchema>>) => {
+    const onSubmit = async (values: z.infer<typeof formSchema>) => {
         setIsSubmitting(true);
         try {
             let photoURL = circle.photoURL;
