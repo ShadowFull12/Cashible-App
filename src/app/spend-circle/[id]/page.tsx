@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -89,19 +90,30 @@ export default function CircleDetailPage() {
 
     const simplifiedDebts = useMemo((): SimplifiedDebt[] => {
         if (!circle || debts.length === 0) return [];
-        const unsettledDebts = debts.filter(d => !d.isSettled);
+
+        const unsettledDebts = debts.filter(d => !d.isSettled && d.debtorId && d.creditorId && d.debtor && d.creditor);
         if (unsettledDebts.length === 0) return [];
 
         const balances = new Map<string, number>();
-        Object.keys(circle.members).forEach(uid => balances.set(uid, 0));
+        const profiles = new Map<string, UserProfile>();
 
         unsettledDebts.forEach(debt => {
-            balances.set(debt.debtorId, (balances.get(debt.debtorId) || 0) - debt.amount);
-            balances.set(debt.creditorId, (balances.get(debt.creditorId) || 0) + debt.amount);
+            if (!balances.has(debt.debtorId)) balances.set(debt.debtorId, 0);
+            if (!balances.has(debt.creditorId)) balances.set(debt.creditorId, 0);
+            if (!profiles.has(debt.debtorId)) profiles.set(debt.debtorId, debt.debtor);
+            if (!profiles.has(debt.creditorId)) profiles.set(debt.creditorId, debt.creditor);
+
+            balances.set(debt.debtorId, (balances.get(debt.debtorId)!) - debt.amount);
+            balances.set(debt.creditorId, (balances.get(debt.creditorId)!) + debt.amount);
         });
 
-        const debtors = Array.from(balances.entries()).filter(([, balance]) => balance < 0).map(([uid, balance]) => ({ uid, balance: -balance }));
-        const creditors = Array.from(balances.entries()).filter(([, balance]) => balance > 0).map(([uid, balance]) => ({ uid, balance }));
+        const debtors = Array.from(balances.entries())
+            .filter(([, balance]) => balance < -0.01)
+            .map(([uid, balance]) => ({ uid, balance: -balance }));
+            
+        const creditors = Array.from(balances.entries())
+            .filter(([, balance]) => balance > 0.01)
+            .map(([uid, balance]) => ({ uid, balance }));
         
         const settlements: SimplifiedDebt[] = [];
         
@@ -111,10 +123,13 @@ export default function CircleDetailPage() {
             const creditor = creditors[j];
             const amount = Math.min(debtor.balance, creditor.balance);
 
-            if (amount > 0.01) { 
+            const fromProfile = profiles.get(debtor.uid);
+            const toProfile = profiles.get(creditor.uid);
+
+            if (amount > 0.01 && fromProfile && toProfile) { 
                  settlements.push({
-                    from: circle.members[debtor.uid],
-                    to: circle.members[creditor.uid],
+                    from: fromProfile,
+                    to: toProfile,
                     amount: amount
                 });
             }
@@ -180,7 +195,7 @@ export default function CircleDetailPage() {
                                 return (
                                     <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                                         <div className="flex items-center gap-3">
-                                            <Avatar className="h-8 w-8"><AvatarImage src={debt.from.photoURL || undefined}/><AvatarFallback>{debt.from.displayName.charAt(0)}</AvatarFallback></Avatar>
+                                            <Avatar className="h-8 w-8"><AvatarImage src={debt.from.photoURL || undefined}/><AvatarFallback>{debt.from.displayName?.charAt(0) || '?'}</AvatarFallback></Avatar>
                                             <p className="font-medium text-sm">{debt.from.displayName}</p>
                                         </div>
                                         <div className="flex flex-col items-center">
@@ -189,7 +204,7 @@ export default function CircleDetailPage() {
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <p className="font-medium text-sm">{debt.to.displayName}</p>
-                                            <Avatar className="h-8 w-8"><AvatarImage src={debt.to.photoURL || undefined}/><AvatarFallback>{debt.to.displayName.charAt(0)}</AvatarFallback></Avatar>
+                                            <Avatar className="h-8 w-8"><AvatarImage src={debt.to.photoURL || undefined}/><AvatarFallback>{debt.to.displayName?.charAt(0) || '?'}</AvatarFallback></Avatar>
                                         </div>
                                     </div>
                                 )
@@ -313,5 +328,3 @@ function CircleDetailSkeleton() {
         </div>
     );
 }
-
-    
