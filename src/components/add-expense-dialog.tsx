@@ -54,6 +54,7 @@ import { Checkbox } from "./ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { RadioGroup, RadioGroupItem } from "./ui/radio-group";
 import { Label } from "./ui/label";
+import { ScrollArea } from "./ui/scroll-area";
 
 
 const formSchema = z.object({
@@ -98,6 +99,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
   const amount = watch('amount');
   const splitTarget = watch('splitTarget');
   const payerId = watch('payerId');
+  const selectedSplitMembers = watch('splitMembers') || [];
   
   const potentialSplitMembers: UserProfile[] = useMemo(() => {
     if (splitTarget?.startsWith('circle-')) {
@@ -145,6 +147,18 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
     }
   }, [open, isEditing, transactionToEdit, defaultDate, form, user, defaultCircleId]);
 
+  useEffect(() => {
+    // When selected members change, remove any custom shares for unselected members
+    const newCustomShares: Record<string, string> = {};
+    Object.entries(customShares).forEach(([uid, share]) => {
+        if (selectedSplitMembers.includes(uid)) {
+            newCustomShares[uid] = share;
+        }
+    });
+    setCustomShares(newCustomShares);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSplitMembers]);
+
   const handleSuggestCategory = async () => { /* ... */ };
   
   const handleShareChange = (uid: string, value: string) => {
@@ -155,7 +169,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
       return Object.values(customShares).reduce((sum, val) => sum + (Number(val) || 0), 0);
   }, [customShares]);
 
-  const isCustomSplitInvalid = splitMethod === 'unequally' && Math.abs(totalCustomShare - amount) > 0.01 && potentialSplitMembers.length > 0;
+  const isCustomSplitInvalid = splitMethod === 'unequally' && Math.abs(totalCustomShare - amount) > 0.01 && selectedSplitMembers.length > 0;
 
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -188,11 +202,9 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
         let splitDetails: SplitDetails;
 
         if (splitMethod === 'unequally') {
-            const finalCustomShares = potentialSplitMembers.reduce((acc, member) => {
-                if (values.splitMembers?.includes(member.uid)) {
-                   acc[member.uid] = Number(customShares[member.uid]) || 0;
-                }
-                return acc;
+            const finalCustomShares = membersToSplitWith.reduce((acc, member) => {
+               acc[member.uid] = Number(customShares[member.uid]) || 0;
+               return acc;
             }, {} as Record<string, number>);
 
             const totalSum = Object.values(finalCustomShares).reduce((sum, val) => sum + val, 0);
@@ -252,8 +264,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
     }
   }
 
-  const selectedSplitMembersCount = watch('splitMembers')?.length || 0;
-  const individualShare = amount > 0 && selectedSplitMembersCount > 0 ? (amount / selectedSplitMembersCount).toFixed(2) : 0;
+  const individualShare = amount > 0 && selectedSplitMembers.length > 0 ? (amount / selectedSplitMembers.length).toFixed(2) : 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -330,46 +341,67 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                             )}/>
                             
                             <FormItem>
-                                <FormLabel>Split Method</FormLabel>
-                                <RadioGroup value={splitMethod} onValueChange={(v: "equally" | "unequally") => setSplitMethod(v)} className="flex items-center gap-4">
-                                    <div className="flex items-center space-x-2"><RadioGroupItem value="equally" id="equally" /><Label htmlFor="equally">Equally</Label></div>
-                                    <div className="flex items-center space-x-2"><RadioGroupItem value="unequally" id="unequally" /><Label htmlFor="unequally">Unequally</Label></div>
-                                </RadioGroup>
+                                <FormLabel>Participants ({selectedSplitMembers.length})</FormLabel>
+                                <p className="text-xs text-muted-foreground">Select who was involved in this expense.</p>
+                                <ScrollArea className="max-h-40 w-full rounded-md border p-2">
+                                    {potentialSplitMembers.map(item => (
+                                        <FormField key={item.uid} control={form.control} name="splitMembers" render={({ field }) => (
+                                            <FormItem className="flex flex-row items-center space-x-3 space-y-0 p-1.5">
+                                                <FormControl>
+                                                    <Checkbox
+                                                        checked={field.value?.includes(item.uid)}
+                                                        disabled={field.value?.includes(item.uid) && selectedSplitMembers.length <= 2}
+                                                        onCheckedChange={(checked) => {
+                                                            return checked
+                                                                ? field.onChange([...(field.value || []), item.uid])
+                                                                : field.onChange(field.value?.filter(value => value !== item.uid))
+                                                        }}
+                                                    />
+                                                </FormControl>
+                                                <FormLabel className="font-normal flex items-center gap-2 cursor-pointer w-full">
+                                                    <Avatar className="h-6 w-6"><AvatarImage src={item.photoURL || undefined} /><AvatarFallback>{item.displayName.charAt(0)}</AvatarFallback></Avatar>
+                                                    {item.displayName} {item.uid === user?.uid && '(You)'}
+                                                </FormLabel>
+                                            </FormItem>
+                                        )} />
+                                    ))}
+                                </ScrollArea>
                             </FormItem>
+                            
+                            {selectedSplitMembers.length > 0 && (
+                                <>
+                                <FormItem>
+                                    <FormLabel>Split Method</FormLabel>
+                                    <RadioGroup value={splitMethod} onValueChange={(v: "equally" | "unequally") => setSplitMethod(v)} className="flex items-center gap-4">
+                                        <div className="flex items-center space-x-2"><RadioGroupItem value="equally" id="equally" /><Label htmlFor="equally">Equally</Label></div>
+                                        <div className="flex items-center space-x-2"><RadioGroupItem value="unequally" id="unequally" /><Label htmlFor="unequally">Unequally</Label></div>
+                                    </RadioGroup>
+                                </FormItem>
 
-                            {splitMethod === 'equally' ? (
-                                <div className="space-y-2">
-                                    <FormLabel>Participants ({selectedSplitMembersCount})</FormLabel>
-                                    <div className="max-h-40 overflow-y-auto space-y-2 rounded-md border p-2">
-                                        {potentialSplitMembers.map(item => (
-                                            <FormField key={item.uid} control={form.control} name="splitMembers" render={({ field }) => (
-                                                <FormItem className="flex flex-row items-center space-x-3 space-y-0">
-                                                    <FormControl><Checkbox checked={field.value?.includes(item.uid)} onCheckedChange={(checked) => {return checked ? field.onChange([...(field.value || []), item.uid]) : field.onChange(field.value?.filter(value => value !== item.uid))}}/></FormControl>
-                                                    <FormLabel className="font-normal flex items-center gap-2"><Avatar className="h-6 w-6"><AvatarImage src={item.photoURL || undefined} /><AvatarFallback>{item.displayName.charAt(0)}</AvatarFallback></Avatar>{item.displayName} {item.uid === user?.uid && '(You)'}</FormLabel>
-                                                </FormItem>
-                                            )} />
-                                        ))}
-                                    </div>
-                                    {amount > 0 && ( <p className="text-sm text-muted-foreground">Each person owes: <span className="font-bold text-foreground">₹{individualShare}</span></p>)}
-                                </div>
-                            ) : (
-                                <div className="space-y-2">
-                                    <FormLabel>Enter Shares</FormLabel>
-                                    <div className="max-h-48 overflow-y-auto space-y-3 rounded-md border p-2">
-                                        {potentialSplitMembers.map(member => (
-                                            <div key={member.uid} className="flex items-center gap-3">
-                                                <Label htmlFor={`share-${member.uid}`} className="flex-1 flex items-center gap-2"><Avatar className="h-6 w-6"><AvatarImage src={member.photoURL || undefined} /><AvatarFallback>{member.displayName.charAt(0)}</AvatarFallback></Avatar>{member.displayName}</Label>
-                                                <Input id={`share-${member.uid}`} type="number" placeholder="0.00" className="w-28" value={customShares[member.uid] || ''} onChange={(e) => handleShareChange(member.uid, e.target.value)} />
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className={cn("text-sm p-2 rounded-md", isCustomSplitInvalid ? "bg-destructive/10 text-destructive" : "bg-muted/70 text-muted-foreground")}>
-                                        <div className="flex justify-between font-medium">
-                                            <span>Total of shares:</span><span>₹{totalCustomShare.toFixed(2)}</span>
+                                {splitMethod === 'equally' ? (
+                                    amount > 0 && ( <p className="text-sm text-muted-foreground">Each person owes: <span className="font-bold text-foreground">₹{individualShare}</span></p>)
+                                ) : (
+                                    <div className="space-y-2">
+                                        <FormLabel>Enter Custom Shares</FormLabel>
+                                        <div className="max-h-48 overflow-y-auto space-y-3 rounded-md border p-2">
+                                            {potentialSplitMembers
+                                                .filter(member => selectedSplitMembers.includes(member.uid))
+                                                .map(member => (
+                                                    <div key={member.uid} className="flex items-center gap-3">
+                                                        <Label htmlFor={`share-${member.uid}`} className="flex-1 flex items-center gap-2"><Avatar className="h-6 w-6"><AvatarImage src={member.photoURL || undefined} /><AvatarFallback>{member.displayName.charAt(0)}</AvatarFallback></Avatar>{member.displayName}</Label>
+                                                        <Input id={`share-${member.uid}`} type="number" placeholder="0.00" className="w-28" value={customShares[member.uid] || ''} onChange={(e) => handleShareChange(member.uid, e.target.value)} />
+                                                    </div>
+                                            ))}
                                         </div>
-                                        {isCustomSplitInvalid && <div className="flex justify-between text-xs mt-1"><span>Remaining:</span><span>₹{(amount - totalCustomShare).toFixed(2)}</span></div>}
+                                        <div className={cn("text-sm p-2 rounded-md", isCustomSplitInvalid ? "bg-destructive/10 text-destructive" : "bg-muted/70 text-muted-foreground")}>
+                                            <div className="flex justify-between font-medium">
+                                                <span>Total of shares:</span><span>₹{totalCustomShare.toFixed(2)}</span>
+                                            </div>
+                                            {isCustomSplitInvalid && <div className="flex justify-between text-xs mt-1"><span>Remaining:</span><span>₹{(amount - totalCustomShare).toFixed(2)}</span></div>}
+                                        </div>
                                     </div>
-                                </div>
+                                )}
+                                </>
                             )}
                            </>
                         )}
