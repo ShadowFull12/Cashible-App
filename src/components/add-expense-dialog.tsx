@@ -269,11 +269,30 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
              toast.success("Split expense recorded successfully!");
         }
 
-      } else { 
-        let recurringId: string | undefined = undefined;
-        if (values.isRecurring) { /* ... */ }
+      } else {
+        let recurringId: string | null = null;
+        if (values.isRecurring) {
+          recurringId = await addRecurringExpense({
+            userId: user.uid,
+            description: values.description,
+            amount: values.amount,
+            category: values.category,
+            dayOfMonth: values.date.getDate(),
+            isActive: true,
+            lastProcessed: null,
+          });
+          toast.success("Recurring expense schedule created!");
+        }
         await addTransaction({
-          userId: user.uid, description: values.description, amount: values.amount, category: values.category, date: values.date, recurringExpenseId: recurringId, isSplit: false, splitDetails: null, circleId: null
+          userId: user.uid,
+          description: values.description,
+          amount: values.amount,
+          category: values.category,
+          date: values.date,
+          recurringExpenseId: recurringId,
+          isSplit: false,
+          splitDetails: null,
+          circleId: null
         });
         toast.success("Expense added successfully!");
       }
