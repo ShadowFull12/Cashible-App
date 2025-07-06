@@ -7,6 +7,8 @@ export const defaultCategories = [
     { name: "Transport", color: "#f97316" },
     { name: "Housing", color: "#3b82f6" },
     { name: "Shopping", color: "#ec4899" },
+    { name: "College", color: "#8b5cf6" },
+    { name: "Others", color: "#6b7280" },
 ];
 
 export interface Transaction {

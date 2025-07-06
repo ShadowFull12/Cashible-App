@@ -3,11 +3,13 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { User, onAuthStateChanged, signOut as firebaseSignOut, updateProfile, deleteUser as firebaseDeleteUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
 import { toast } from "sonner";
 import { db } from '@/lib/firebase';
 import * as userService from '@/services/userService';
 import * as authService from '@/services/authService';
+import { defaultCategories } from '@/lib/data';
+
 
 interface UserData {
   uid: string;
@@ -48,7 +50,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const userDocRef = doc(db, 'users', user.uid);
         const userDoc = await getDoc(userDocRef);
         if (userDoc.exists()) {
-            setUserData(userDoc.data() as UserData);
+            let data = userDoc.data() as UserData;
+            
+            // Soft migration for new default categories
+            const existingCategoryNames = new Set(data.categories.map((c: any) => c.name));
+            const categoriesToAdd = defaultCategories.filter(
+                (dc) => !existingCategoryNames.has(dc.name)
+            );
+
+            if (categoriesToAdd.length > 0) {
+                await updateDoc(userDocRef, {
+                    categories: arrayUnion(...categoriesToAdd)
+                });
+                // Re-fetch to get the fresh data after update
+                const updatedUserDoc = await getDoc(userDocRef);
+                if (updatedUserDoc.exists()) {
+                  data = updatedUserDoc.data() as UserData;
+                }
+            }
+            setUserData(data);
         } else {
             setUserData(null);
         }
