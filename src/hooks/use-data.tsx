@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
@@ -75,9 +74,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return newTransactionsAdded;
     }, []);
 
-    const refreshData = useCallback(async () => {
+    const refreshData = useCallback(async (showLoading = true) => {
         if (!user) return;
-        setIsLoading(true);
+        if(showLoading) setIsLoading(true);
         try {
             const fetchedRecurring = await getRecurringExpenses(user.uid);
             setRecurringExpenses(fetchedRecurring);
@@ -88,14 +87,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 toast.info("Recurring expenses have been automatically added.");
             }
 
-            await Promise.all([
+            const dataPromises = [
                 getTransactions(user.uid).then(setTransactions),
                 getCategories(user.uid).then(setCategories),
                 getFriends(user.uid).then(setFriends),
                 getFriendRequests(user.uid).then(setFriendRequests),
                 getCirclesForUser(user.uid).then(setCircles),
                 refreshUserData()
-            ]);
+            ];
+
+            await Promise.all(dataPromises);
+
         } catch (error: any) {
             if (error.code === 'permission-denied') {
                 toast.error("Permission Denied", {
@@ -106,7 +108,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             }
             console.error(error);
         } finally {
-            setIsLoading(false);
+            if(showLoading) setIsLoading(false);
         }
     }, [user, refreshUserData, processRecurringExpenses]);
 

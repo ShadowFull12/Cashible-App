@@ -26,13 +26,12 @@ export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date
     }
 }
 
-export async function addSplitTransaction(transaction: Omit<Transaction, 'id' | 'date'> & { date: Date | Timestamp }, splitDetails: SplitDetails) {
+export async function addSplitTransaction(
+    transaction: Omit<Transaction, 'id' | 'date'> & { date: Date | Timestamp }, 
+    splitDetails: SplitDetails,
+    transactionDescription: string
+) {
     if (!db) throw new Error("Firebase is not configured.");
-    
-    const payer = splitDetails.members.find(m => m.isPayer);
-    if (!payer || payer.uid !== transaction.userId) {
-        throw new Error("Payer in split details must match the transaction user.");
-    }
     
     try {
         const batch = writeBatch(db);
@@ -43,11 +42,10 @@ export async function addSplitTransaction(transaction: Omit<Transaction, 'id' | 
             ...transaction,
             date: transaction.date instanceof Date ? Timestamp.fromDate(transaction.date) : transaction.date,
             recurringExpenseId: null,
-            isSplit: true,
         });
 
         // 2. Create all the debt documents
-        addDebtCreationToBatch(batch, transactionRef.id, splitDetails, transaction.circleId || null);
+        addDebtCreationToBatch(batch, transactionRef.id, splitDetails, transaction.circleId || null, transactionDescription);
         
         // 3. Commit the batch
         await batch.commit();

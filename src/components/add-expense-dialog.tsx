@@ -1,10 +1,9 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
-import { CalendarIcon, Loader2, Lightbulb, Users, User, ChevronDown } from "lucide-react";
+import { CalendarIcon, Loader2, Lightbulb, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
 import { useState, useEffect, useMemo } from "react";
@@ -46,7 +45,7 @@ import { addTransaction, updateTransaction, addSplitTransaction } from "@/servic
 import { addRecurringExpense } from "@/services/recurringExpenseService";
 import { suggestCategory } from "@/ai/flows/suggest-category";
 import { Switch } from "./ui/switch";
-import type { Transaction, Circle, UserProfile, SplitDetails, SplitMember } from "@/lib/data";
+import type { Transaction, UserProfile, SplitDetails } from "@/lib/data";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Checkbox } from "./ui/checkbox";
@@ -61,6 +60,7 @@ const formSchema = z.object({
   isSplit: z.boolean().default(false),
   splitTarget: z.string().optional(), // 'friend-[uid]' or 'circle-[id]'
   splitMembers: z.array(z.string()).optional(), // array of uids
+  payerId: z.string().optional(),
 });
 
 interface AddExpenseDialogProps {
@@ -81,50 +81,39 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      description: "", amount: 0, category: "", date: new Date(), isRecurring: false, isSplit: false,
+      description: "", amount: 0, category: "", date: new Date(), isRecurring: false, isSplit: false, payerId: user?.uid || "",
     },
   });
 
-  const { watch, setValue } = form;
+  const { watch, setValue, control } = form;
   const isSplit = watch('isSplit');
   const amount = watch('amount');
   const splitTarget = watch('splitTarget');
-
-  const selectedCircle = useMemo(() => {
-    if (splitTarget?.startsWith('circle-')) {
-      return circles.find(c => c.id === splitTarget.replace('circle-', ''));
-    }
-    return null;
-  }, [splitTarget, circles]);
-
-  const selectedFriend = useMemo(() => {
-    if (splitTarget?.startsWith('friend-')) {
-      return friends.find(f => f.uid === splitTarget.replace('friend-', ''));
-    }
-    return null;
-  }, [splitTarget, friends]);
   
   const potentialSplitMembers: UserProfile[] = useMemo(() => {
-    if (selectedCircle) return Object.values(selectedCircle.members);
-    if (selectedFriend && user) return [
-        { uid: user.uid, displayName: user.displayName || 'You', email: user.email || '' }, 
-        selectedFriend
-    ];
-    return [];
-  }, [selectedCircle, selectedFriend, user]);
-  
-  useEffect(() => {
-    // Auto-select all members when a circle is chosen
-    if (selectedCircle) {
-      setValue('splitMembers', Object.keys(selectedCircle.members));
+    if (splitTarget?.startsWith('circle-')) {
+      const circle = circles.find(c => c.id === splitTarget.replace('circle-', ''));
+      return circle ? Object.values(circle.members) : [];
     }
-    // Auto-select both users when a friend is chosen
-    else if (selectedFriend && user) {
-       setValue('splitMembers', [user.uid, selectedFriend.uid]);
+    if (splitTarget?.startsWith('friend-')) {
+      const friend = friends.find(f => f.uid === splitTarget.replace('friend-', ''));
+      if (friend && user?.displayName && user.email) {
+          return [ { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL || undefined }, friend ];
+      }
+    }
+    return [];
+  }, [splitTarget, circles, friends, user]);
+
+  useEffect(() => {
+    // Reset and auto-select all members when a target is chosen
+    if (potentialSplitMembers.length > 0) {
+      setValue('splitMembers', potentialSplitMembers.map(m => m.uid));
     } else {
        setValue('splitMembers', []);
     }
-  }, [selectedCircle, selectedFriend, user, setValue]);
+     // Reset payer to current user when split members change
+    if(user) setValue('payerId', user.uid);
+  }, [potentialSplitMembers, setValue, user]);
 
   useEffect(() => {
     if (open) {
@@ -134,11 +123,11 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
         });
       } else {
         form.reset({
-          description: "", amount: 0, category: "", date: defaultDate || new Date(), isRecurring: false, isSplit: false, splitMembers: [], splitTarget: undefined,
+          description: "", amount: 0, category: "", date: defaultDate || new Date(), isRecurring: false, isSplit: false, splitMembers: [], splitTarget: undefined, payerId: user?.uid
         });
       }
     }
-  }, [open, isEditing, transactionToEdit, defaultDate, form]);
+  }, [open, isEditing, transactionToEdit, defaultDate, form, user]);
 
   const handleSuggestCategory = async () => { /* ... */ };
 
@@ -153,36 +142,41 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
         });
         toast.success("Expense updated successfully!");
       } else if (values.isSplit) {
-        const totalAmount = values.amount;
-        const membersToSplit = potentialSplitMembers.filter(m => values.splitMembers?.includes(m.uid));
+        const membersToSplitWith = potentialSplitMembers.filter(m => values.splitMembers?.includes(m.uid));
         
-        if (membersToSplit.length === 0) {
+        if (membersToSplitWith.length === 0) {
             toast.error("You must select at least one person to split with.");
             setIsSubmitting(false);
             return;
         }
 
-        const share = totalAmount / membersToSplit.length;
-        const splitDetails: SplitDetails = {
-            type: 'equally',
-            total: totalAmount,
-            members: membersToSplit.map(member => ({
-                ...member,
-                share: share,
-                isPayer: member.uid === user.uid
-            }))
-        };
-        
-        // Ensure the current user is a payer and in the split
-        if (!splitDetails.members.some(m => m.uid === user.uid)) {
-            toast.error("You (the payer) must be included in the split.");
+        if (!values.payerId) {
+            toast.error("You must select who paid for this expense.");
             setIsSubmitting(false);
             return;
         }
         
+        if (!values.splitMembers?.includes(values.payerId)) {
+            toast.error("The payer must be included in the split participants.");
+            setIsSubmitting(false);
+            return;
+        }
+
+        const share = values.amount / membersToSplitWith.length;
+        const splitDetails: SplitDetails = {
+            type: 'equally',
+            total: values.amount,
+            payerId: values.payerId,
+            members: membersToSplitWith.map(member => ({
+                ...member,
+                share: share,
+            }))
+        };
+        
         await addSplitTransaction({
-          userId: user.uid, description: values.description, amount: values.amount, category: values.category, date: values.date, circleId: selectedCircle?.id || null
-        }, splitDetails);
+          userId: user.uid, // The person creating the transaction record
+          description: values.description, amount: values.amount, category: values.category, date: values.date, circleId: selectedCircle?.id || null, isSplit: true
+        }, splitDetails, values.description);
         toast.success("Split expense added successfully!");
 
       } else { // Regular or recurring expense
@@ -202,6 +196,13 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
       setIsSubmitting(false);
     }
   }
+
+  const selectedCircle = useMemo(() => {
+    if (splitTarget?.startsWith('circle-')) {
+      return circles.find(c => c.id === splitTarget.replace('circle-', ''));
+    }
+    return null;
+  }, [splitTarget, circles]);
 
   const selectedSplitMembersCount = watch('splitMembers')?.length || 0;
   const individualShare = amount > 0 && selectedSplitMembersCount > 0 ? (amount / selectedSplitMembersCount).toFixed(2) : 0;
@@ -238,7 +239,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
             {isSplit && !isEditing && (
                 <Collapsible open={isSplit} className="space-y-4 rounded-lg border p-4">
                     <CollapsibleTrigger className="flex w-full justify-between items-center font-semibold"><span>Split Options</span> <ChevronDown className="transition-transform"/> </CollapsibleTrigger>
-                    <CollapsibleContent className="space-y-4">
+                    <CollapsibleContent className="space-y-4 pt-4">
                         <FormField control={form.control} name="splitTarget" render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Split with</FormLabel>
@@ -256,6 +257,24 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                         )}/>
 
                         {potentialSplitMembers.length > 0 && (
+                          <>
+                            <FormField control={control} name="payerId" render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Who paid?</FormLabel>
+                                    <Select onValueChange={field.onChange} value={field.value}>
+                                        <FormControl><SelectTrigger><SelectValue placeholder="Select who paid..." /></SelectTrigger></FormControl>
+                                        <SelectContent>
+                                            {potentialSplitMembers.map(member => (
+                                                <SelectItem key={member.uid} value={member.uid}>
+                                                    {member.displayName} {member.uid === user?.uid ? '(You)' : ''}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}/>
+
                             <div className="space-y-2">
                                 <FormLabel>Participants ({selectedSplitMembersCount})</FormLabel>
                                 <div className="max-h-40 overflow-y-auto space-y-2 rounded-md border p-2">
@@ -270,12 +289,11 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                                                                 ? field.onChange([...(field.value || []), item.uid])
                                                                 : field.onChange(field.value?.filter(value => value !== item.uid))
                                                         }}
-                                                        disabled={item.uid === user?.uid}
                                                     />
                                                 </FormControl>
                                                 <FormLabel className="font-normal flex items-center gap-2">
-                                                    <Avatar className="h-6 w-6"><AvatarImage src={item.photoURL} /><AvatarFallback>{item.displayName.charAt(0)}</AvatarFallback></Avatar>
-                                                    {item.displayName} {item.uid === user?.uid && '(You, Payer)'}
+                                                    <Avatar className="h-6 w-6"><AvatarImage src={item.photoURL || undefined} /><AvatarFallback>{item.displayName.charAt(0)}</AvatarFallback></Avatar>
+                                                    {item.displayName} {item.uid === user?.uid && '(You)'}
                                                 </FormLabel>
                                             </FormItem>
                                         )} />
@@ -285,6 +303,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                                      <p className="text-sm text-muted-foreground">Each person owes: <span className="font-bold text-foreground">₹{individualShare}</span></p>
                                 )}
                             </div>
+                           </>
                         )}
                     </CollapsibleContent>
                 </Collapsible>

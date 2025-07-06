@@ -51,7 +51,7 @@ export interface FriendRequest {
 }
 
 export interface Circle {
-    id?: string;
+    id: string;
     name: string;
     ownerId: string;
     memberIds: string[]; // For querying
@@ -60,7 +60,7 @@ export interface Circle {
 }
 
 export interface Debt {
-    id?: string;
+    id: string;
     circleId: string | null;
     transactionId: string;
     debtorId: string;
@@ -69,17 +69,21 @@ export interface Debt {
     isSettled: boolean;
     createdAt: Date;
     involvedUids: string[];
+    // Add full profiles for easier display
+    debtor: UserProfile;
+    creditor: UserProfile;
+    transactionDescription: string;
 }
 
 export type SplitType = 'equally'; // More can be added later
 
 export interface SplitMember extends UserProfile {
     share: number;
-    isPayer: boolean;
 }
 
 export interface SplitDetails {
     type: SplitType;
+    payerId: string;
     members: SplitMember[];
     total: number;
 }

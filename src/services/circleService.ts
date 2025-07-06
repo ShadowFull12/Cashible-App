@@ -1,5 +1,5 @@
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import type { UserProfile, Circle } from "@/lib/data";
 
 const circlesRef = collection(db, "circles");
@@ -61,4 +61,19 @@ export async function getCircleById(circleId: string): Promise<Circle | null> {
         } as Circle;
     }
     return null;
+}
+
+export async function addMembersToCircle(circleId: string, friendsToAdd: UserProfile[]) {
+    if (!db) throw new Error("Firebase is not configured.");
+    const circleRef = doc(db, "circles", circleId);
+
+    const updates: {[key: string]: any} = {
+        memberIds: arrayUnion(...friendsToAdd.map(f => f.uid))
+    };
+
+    friendsToAdd.forEach(friend => {
+        updates[`members.${friend.uid}`] = friend;
+    });
+
+    await updateDoc(circleRef, updates);
 }

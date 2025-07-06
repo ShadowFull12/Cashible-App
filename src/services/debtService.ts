@@ -1,6 +1,6 @@
 import { db } from "@/lib/firebase";
-import { collection, doc, getDocs, query, where, Timestamp, writeBatch, WriteBatch } from "firebase/firestore";
-import type { Debt, SplitDetails } from "@/lib/data";
+import { collection, doc, getDocs, query, where, Timestamp, writeBatch, WriteBatch, updateDoc } from "firebase/firestore";
+import type { Debt, SplitDetails, UserProfile } from "@/lib/data";
 
 const debtsRef = collection(db, "debts");
 
@@ -8,15 +8,16 @@ export function addDebtCreationToBatch(
     batch: WriteBatch,
     transactionId: string,
     split: SplitDetails,
-    circleId: string | null
+    circleId: string | null,
+    transactionDescription: string
 ) {
     if (!db) throw new Error("Firebase is not configured.");
 
-    const payer = split.members.find(m => m.isPayer);
+    const payer = split.members.find(m => m.uid === split.payerId);
     if (!payer) throw new Error("No payer defined in split.");
 
     split.members.forEach(member => {
-        if (member.uid === payer.uid) return; // Payer doesn't owe themselves
+        if (member.uid === split.payerId) return; // Payer doesn't owe themselves
 
         const debtAmount = member.share;
         if (debtAmount > 0) {
@@ -24,8 +25,11 @@ export function addDebtCreationToBatch(
             batch.set(debtDocRef, {
                 circleId: circleId || null,
                 transactionId,
+                transactionDescription,
                 debtorId: member.uid,
+                debtor: { uid: member.uid, displayName: member.displayName, email: member.email, photoURL: member.photoURL || null },
                 creditorId: payer.uid,
+                creditor: { uid: payer.uid, displayName: payer.displayName, email: payer.email, photoURL: payer.photoURL || null },
                 amount: debtAmount,
                 isSettled: false,
                 createdAt: Timestamp.now(),
@@ -35,14 +39,12 @@ export function addDebtCreationToBatch(
     });
 }
 
-export async function getDebtsForCircle(circleId: string, userId: string): Promise<Debt[]> {
+export async function getDebtsForCircle(circleId: string): Promise<Debt[]> {
     if (!db) return [];
     
     const q = query(
         debtsRef, 
-        where("circleId", "==", circleId), 
-        where("involvedUids", "array-contains", userId),
-        where("isSettled", "==", false)
+        where("circleId", "==", circleId)
     );
     const querySnapshot = await getDocs(q);
 
@@ -55,6 +57,14 @@ export async function getDebtsForCircle(circleId: string, userId: string): Promi
             createdAt: (data.createdAt as Timestamp).toDate(),
         } as Debt);
     });
-
+    
     return debts;
+}
+
+export async function settleDebt(debtId: string) {
+    if (!db) throw new Error("Firebase is not configured.");
+    const debtDocRef = doc(db, "debts", debtId);
+    await updateDoc(debtDocRef, {
+        isSettled: true,
+    });
 }

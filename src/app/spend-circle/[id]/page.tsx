@@ -1,19 +1,20 @@
-
 "use client";
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { getCircleById } from '@/services/circleService';
-import { getDebtsForCircle } from '@/services/debtService';
+import { getCircleById, addMembersToCircle } from '@/services/circleService';
+import { getDebtsForCircle, settleDebt } from '@/services/debtService';
 import type { Circle, Debt, UserProfile } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, ArrowRight, Users, VenetianMask } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Users, VenetianMask, Check, Loader2, List, UserPlus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
+import { toast } from 'sonner';
+import { InviteToCircleDialog } from '@/components/invite-to-circle-dialog';
 
 type SimplifiedDebt = {
     from: UserProfile;
@@ -30,43 +31,59 @@ export default function CircleDetailPage() {
     const [circle, setCircle] = useState<Circle | null>(null);
     const [debts, setDebts] = useState<Debt[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [settlingDebtId, setSettlingDebtId] = useState<string | null>(null);
+    const [isInviteOpen, setIsInviteOpen] = useState(false);
+
+    const fetchCircleData = useCallback(async () => {
+        if (!circleId || !user) return;
+        setIsLoading(true);
+        try {
+            const circleData = await getCircleById(circleId);
+            
+            if (!circleData || !circleData.memberIds.includes(user.uid)) {
+                router.push('/spend-circle');
+                return;
+            }
+
+            const debtsData = await getDebtsForCircle(circleId);
+            
+            setCircle(circleData);
+            setDebts(debtsData);
+
+        } catch (error) {
+            console.error("Failed to fetch circle details:", error);
+            router.push('/spend-circle');
+        } finally {
+            setIsLoading(false);
+        }
+    }, [circleId, user, router]);
 
     useEffect(() => {
-        if (!circleId || !user) return;
+        fetchCircleData();
+    }, [fetchCircleData]);
 
-        const fetchData = async () => {
-            setIsLoading(true);
-            try {
-                const circleData = await getCircleById(circleId);
-                
-                if (!circleData || !circleData.memberIds.includes(user.uid)) {
-                    router.push('/spend-circle');
-                    return;
-                }
-
-                const debtsData = await getDebtsForCircle(circleId, user.uid);
-                
-                setCircle(circleData);
-                setDebts(debtsData);
-
-            } catch (error) {
-                console.error("Failed to fetch circle details:", error);
-                router.push('/spend-circle');
-            } finally {
-                setIsLoading(false);
-            }
-        };
-
-        fetchData();
-    }, [circleId, user, router]);
+    const handleSettleDebt = async (debtId: string) => {
+        setSettlingDebtId(debtId);
+        try {
+            await settleDebt(debtId);
+            toast.success("Debt marked as settled!");
+            await fetchCircleData();
+        } catch (error) {
+            toast.error("Failed to settle debt.");
+        } finally {
+            setSettlingDebtId(null);
+        }
+    }
 
     const simplifiedDebts = useMemo((): SimplifiedDebt[] => {
         if (!circle || debts.length === 0) return [];
+        const unsettledDebts = debts.filter(d => !d.isSettled);
+        if (unsettledDebts.length === 0) return [];
 
         const balances = new Map<string, number>();
         Object.keys(circle.members).forEach(uid => balances.set(uid, 0));
 
-        debts.forEach(debt => {
+        unsettledDebts.forEach(debt => {
             balances.set(debt.debtorId, (balances.get(debt.debtorId) || 0) - debt.amount);
             balances.set(debt.creditorId, (balances.get(debt.creditorId) || 0) + debt.amount);
         });
@@ -82,7 +99,7 @@ export default function CircleDetailPage() {
             const creditor = creditors[j];
             const amount = Math.min(debtor.balance, creditor.balance);
 
-            if (amount > 0.01) { // Avoid creating zero or tiny settlements
+            if (amount > 0.01) { 
                  settlements.push({
                     from: circle.members[debtor.uid],
                     to: circle.members[creditor.uid],
@@ -99,16 +116,14 @@ export default function CircleDetailPage() {
 
         return settlements;
     }, [circle, debts]);
+    
+    const individualDebts = useMemo(() => debts.filter(d => !d.isSettled), [debts]);
 
-    if (isLoading) {
-        return <CircleDetailSkeleton />;
-    }
-
-    if (!circle) {
-        return null; // or a not found page
-    }
+    if (isLoading) return <CircleDetailSkeleton />;
+    if (!circle) return null;
 
     return (
+        <>
         <div className="space-y-6">
             <Link href="/spend-circle" className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
                 <ArrowLeft className="size-4" /> Back to Circles
@@ -126,18 +141,18 @@ export default function CircleDetailPage() {
                 </div>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2">
-                <Card>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <Card className="lg:col-span-2">
                     <CardHeader>
-                        <CardTitle className="flex items-center gap-2"><VenetianMask /> Balance Sheet</CardTitle>
-                        <CardDescription>The simplest way to settle up all debts in the group.</CardDescription>
+                        <CardTitle className="flex items-center gap-2"><VenetianMask /> Simplified Settlement</CardTitle>
+                        <CardDescription>The easiest way to settle all group debts. Settle individual debts below.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
                         {simplifiedDebts.length > 0 ? (
                             simplifiedDebts.map((debt, index) => (
                                 <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                                     <div className="flex items-center gap-3">
-                                        <Avatar className="h-8 w-8"><AvatarImage src={debt.from.photoURL}/><AvatarFallback>{debt.from.displayName.charAt(0)}</AvatarFallback></Avatar>
+                                        <Avatar className="h-8 w-8"><AvatarImage src={debt.from.photoURL || undefined}/><AvatarFallback>{debt.from.displayName.charAt(0)}</AvatarFallback></Avatar>
                                         <p className="font-medium text-sm">{debt.from.displayName}</p>
                                     </div>
                                     <div className="flex flex-col items-center">
@@ -146,7 +161,7 @@ export default function CircleDetailPage() {
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <p className="font-medium text-sm">{debt.to.displayName}</p>
-                                        <Avatar className="h-8 w-8"><AvatarImage src={debt.to.photoURL}/><AvatarFallback>{debt.to.displayName.charAt(0)}</AvatarFallback></Avatar>
+                                        <Avatar className="h-8 w-8"><AvatarImage src={debt.to.photoURL || undefined}/><AvatarFallback>{debt.to.displayName.charAt(0)}</AvatarFallback></Avatar>
                                     </div>
                                 </div>
                             ))
@@ -156,7 +171,6 @@ export default function CircleDetailPage() {
                                 <p>There are no outstanding debts in this circle.</p>
                             </div>
                         )}
-                         <Button className="w-full mt-4" disabled>Settle Up (Coming Soon)</Button>
                     </CardContent>
                 </Card>
 
@@ -182,14 +196,52 @@ export default function CircleDetailPage() {
                                 {member.uid === user?.uid && <Badge>You</Badge>}
                             </div>
                         ))}
-                         <Button variant="outline" className="w-full mt-4" disabled>Invite Friends (Coming Soon)</Button>
+                         <Button variant="outline" className="w-full mt-4" onClick={() => setIsInviteOpen(true)} disabled={user?.uid !== circle.ownerId}>
+                            <UserPlus className="mr-2" /> Invite Friends
+                         </Button>
                     </CardContent>
                 </Card>
             </div>
+            
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2"><List /> Outstanding Debts</CardTitle>
+                    <CardDescription>A list of all individual unsettled transactions.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    {individualDebts.length > 0 ? (
+                        individualDebts.map(debt => (
+                            <div key={debt.id} className="flex items-center justify-between p-3 rounded-lg border">
+                                <div className="flex items-center gap-4">
+                                     <Avatar className="h-10 w-10"><AvatarImage src={debt.debtor.photoURL || undefined}/><AvatarFallback>{debt.debtor.displayName.charAt(0)}</AvatarFallback></Avatar>
+                                     <div>
+                                        <p className="text-sm">
+                                            <span className="font-bold">{debt.debtor.displayName}</span> owes <span className="font-bold">{debt.creditor.displayName}</span>
+                                        </p>
+                                        <p className="font-bold text-lg text-primary">₹{debt.amount.toFixed(2)}</p>
+                                        <p className="text-xs text-muted-foreground">For: {debt.transactionDescription}</p>
+                                     </div>
+                                </div>
+                                {user?.uid === debt.creditorId && (
+                                     <Button size="sm" onClick={() => handleSettleDebt(debt.id)} disabled={settlingDebtId === debt.id}>
+                                        {settlingDebtId === debt.id ? <Loader2 className="animate-spin" /> : <Check />}
+                                        Mark as Settled
+                                     </Button>
+                                )}
+                            </div>
+                        ))
+                    ) : (
+                        <div className="text-center text-sm text-muted-foreground py-6">
+                            <p className="font-semibold">No individual debts to settle.</p>
+                        </div>
+                    )}
+                </CardContent>
+            </Card>
         </div>
+        {circle && <InviteToCircleDialog open={isInviteOpen} onOpenChange={setIsInviteOpen} circle={circle} onInviteSent={fetchCircleData} />}
+        </>
     );
 }
-
 
 function CircleDetailSkeleton() {
     return (
@@ -203,8 +255,8 @@ function CircleDetailSkeleton() {
                     <Skeleton className="h-8 w-8 rounded-full" />
                 </div>
             </div>
-            <div className="grid gap-6 md:grid-cols-2">
-                <Card>
+            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <Card className="lg:col-span-2">
                     <CardHeader><Skeleton className="h-6 w-3/4" /><Skeleton className="h-4 w-1/2 mt-2" /></CardHeader>
                     <CardContent className="space-y-3">
                         <Skeleton className="h-12 w-full" />
@@ -221,6 +273,10 @@ function CircleDetailSkeleton() {
                     </CardContent>
                 </Card>
             </div>
+            <Card>
+                <CardHeader><Skeleton className="h-6 w-1/2" /><Skeleton className="h-4 w-1/3 mt-2" /></CardHeader>
+                <CardContent><Skeleton className="h-20 w-full" /></CardContent>
+            </Card>
         </div>
     );
 }
