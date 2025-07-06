@@ -27,6 +27,19 @@ export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date
     }
 }
 
+/**
+ * Adds a transaction that is split between multiple users.
+ * This function handles two cases:
+ * 1. The logger is the payer: A transaction is created, and debts are created for other members.
+ * 2. The logger is NOT the payer: Only a debt record is created for the logger. No transaction is logged for them.
+ *
+ * Firestore Security Rule Requirement:
+ * To allow users to log debts for expenses paid by others, your `firestore.rules` must allow
+ * a debt to be created by either the debtor or the creditor. The creating user must be in the `involvedUids` array.
+ *
+ * Example Rule for `/debts/{debtId}`:
+ * `allow create: if request.auth.uid in request.resource.data.involvedUids;`
+ */
 export async function addSplitTransaction(
     transaction: Omit<Transaction, 'id' | 'date'> & { date: Date | Timestamp }, 
     splitDetails: SplitDetails
