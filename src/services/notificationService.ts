@@ -1,5 +1,5 @@
 import { db } from "@/lib/firebase";
-import { collection, addDoc, query, where, onSnapshot, Unsubscribe, Timestamp, orderBy, updateDoc, doc, getDocs, writeBatch } from "firebase/firestore";
+import { collection, addDoc, query, where, onSnapshot, Unsubscribe, Timestamp, updateDoc, doc, getDocs, writeBatch } from "firebase/firestore";
 import type { Notification, NotificationType, UserProfile } from "@/lib/data";
 
 const notificationsRef = collection(db, "notifications");
@@ -25,10 +25,11 @@ export async function createNotification(data: CreateNotificationInput) {
 export function getNotificationsForUser(userId: string, callback: (notifications: Notification[]) => void): Unsubscribe {
     if (!db) return () => {};
     
+    // The combination of `where` and `orderBy` on different fields requires a composite index in Firestore.
+    // To avoid this configuration requirement, we fetch the documents and sort them on the client.
     const q = query(
         notificationsRef, 
-        where("userId", "==", userId),
-        orderBy("createdAt", "desc")
+        where("userId", "==", userId)
     );
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -41,9 +42,16 @@ export function getNotificationsForUser(userId: string, callback: (notifications
                 createdAt: (data.createdAt as Timestamp).toDate(),
             } as Notification);
         });
+        
+        // Sort on the client-side to avoid needing a composite index.
+        notifications.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
         callback(notifications);
     }, (error) => {
         console.error("Error listening to notifications:", error);
+        if ((error as any).code === 'failed-precondition') {
+             console.error("Firestore query failed. This is often due to a missing composite index. The query has been modified to sort on the client to avoid this, but if performance is an issue, consider creating the index in the Firebase Console.");
+        }
     });
     
     return unsubscribe;
