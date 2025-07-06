@@ -27,16 +27,19 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
-import { useMemo } from "react";
+import React, { useMemo } from "react";
 import { deleteTransaction } from "@/services/transactionService";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
+import { AddExpenseDialog } from "@/components/add-expense-dialog";
+import type { Transaction } from "@/lib/data";
 
 
 export default function DashboardPage() {
   const { userData } = useAuth();
   const { transactions, categories, isLoading, refreshData } = useData();
+  const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
   
   const categoryColors = useMemo(() => {
     return categories.reduce((acc, cat) => {
@@ -112,6 +115,7 @@ export default function DashboardPage() {
   }
 
   return (
+    <>
     <div className="grid gap-6 md:gap-8">
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card>
@@ -220,7 +224,7 @@ export default function DashboardPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem disabled>Edit</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setEditingTransaction(t)}>Edit</DropdownMenuItem>
                             <AlertDialogTrigger asChild>
                               <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
                             </AlertDialogTrigger>
@@ -248,6 +252,15 @@ export default function DashboardPage() {
         </Card>
       </div>
     </div>
+    {editingTransaction && (
+         <AddExpenseDialog
+                open={!!editingTransaction}
+                onOpenChange={() => setEditingTransaction(null)}
+                onExpenseAdded={refreshData}
+                transactionToEdit={editingTransaction}
+            />
+    )}
+    </>
   );
 }
 

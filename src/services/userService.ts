@@ -1,5 +1,9 @@
 import { db } from "@/lib/firebase";
-import { doc, updateDoc } from "firebase/firestore";
+import { doc, updateDoc, writeBatch } from "firebase/firestore";
+import { defaultCategories } from "@/lib/data";
+import { addTransactionsDeletionsToBatch } from "./transactionService";
+import { addRecurringExpensesDeletionsToBatch } from "./recurringExpenseService";
+
 
 export async function updateUser(userId: string, data: object) {
     if (!db) throw new Error("Firestore is not initialized.");
@@ -22,18 +26,17 @@ export async function uploadProfileImage(file: File): Promise<string> {
             body: formData,
         });
 
+        const result = await response.json();
+
         if (!response.ok) {
-            const errorText = await response.text();
             console.error("ImgBB API Error - Non-OK response:", { 
                 status: response.status, 
                 statusText: response.statusText,
-                body: errorText 
+                body: result 
             });
-            throw new Error(`Failed to upload image. Server responded with ${response.status}: ${errorText || response.statusText}`);
+             throw new Error(result?.error?.message || `Failed to upload image. Server responded with ${response.status}.`);
         }
-
-        const result = await response.json();
-
+        
         if (!result.success) {
             console.error("ImgBB API Error - Success False:", result);
             throw new Error(result?.error?.message || "Upload failed due to a generic API error.");
@@ -43,8 +46,33 @@ export async function uploadProfileImage(file: File): Promise<string> {
     } catch (error) {
         console.error("Error during image upload fetch/parse:", error);
         if (error instanceof Error) {
-           throw new Error(`A network or parsing error occurred: ${error.message}`);
+           throw error; // Re-throw the more specific error
         }
-        throw new Error("An unknown error occurred during image upload.");
+        throw new Error("An unknown network error occurred during image upload.");
     }
+}
+
+export async function deleteAllUserData(userId: string) {
+    if (!db) throw new Error("Firestore is not initialized.");
+
+    const batch = writeBatch(db);
+
+    // 1. Delete all transactions
+    await addTransactionsDeletionsToBatch(userId, batch);
+    
+    // 2. Delete all recurring expenses
+    await addRecurringExpensesDeletionsToBatch(userId, batch);
+
+    // 3. Reset the user document to its default state
+    const userDocRef = doc(db, "users", userId);
+    batch.update(userDocRef, {
+        budget: 0,
+        budgetIsSet: false,
+        photoURL: null,
+        categories: defaultCategories,
+        primaryColor: '181 95% 45%',
+    });
+
+    // 4. Commit all batched writes
+    await batch.commit();
 }

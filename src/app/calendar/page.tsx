@@ -13,14 +13,17 @@ import { MoreHorizontal } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { deleteTransaction } from "@/services/transactionService"
+import { deleteTransaction, updateTransaction } from "@/services/transactionService"
 import { toast } from "sonner"
+import { AddExpenseDialog } from "@/components/add-expense-dialog"
 
 
-function TransactionDeleteButton({ transactionId, onDelete }: { transactionId: string, onDelete: () => void }) {
+function TransactionActions({ transaction, onDelete, onUpdate }: { transaction: Transaction, onDelete: () => void, onUpdate: () => void }) {
+    const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+
     const handleDelete = async () => {
         try {
-            await deleteTransaction(transactionId);
+            await deleteTransaction(transaction.id!);
             toast.success("Transaction deleted");
             onDelete();
         } catch (error) {
@@ -29,6 +32,7 @@ function TransactionDeleteButton({ transactionId, onDelete }: { transactionId: s
     };
     
     return (
+        <>
         <AlertDialog>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -37,7 +41,7 @@ function TransactionDeleteButton({ transactionId, onDelete }: { transactionId: s
                     </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                    <DropdownMenuItem disabled>Edit</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>Edit</DropdownMenuItem>
                     <AlertDialogTrigger asChild>
                         <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
                     </AlertDialogTrigger>
@@ -56,6 +60,13 @@ function TransactionDeleteButton({ transactionId, onDelete }: { transactionId: s
                 </AlertDialogFooter>
             </AlertDialogContent>
         </AlertDialog>
+         <AddExpenseDialog
+                open={isEditDialogOpen}
+                onOpenChange={setIsEditDialogOpen}
+                onExpenseAdded={onUpdate}
+                transactionToEdit={transaction}
+            />
+        </>
     );
 }
 
@@ -162,7 +173,7 @@ export default function CalendarPage() {
                                                     {t.description}
                                                 </span>
                                                 <span className="font-medium">₹{t.amount.toLocaleString()}</span>
-                                                <TransactionDeleteButton transactionId={t.id!} onDelete={refreshData} />
+                                                <TransactionActions transaction={t} onDelete={refreshData} onUpdate={refreshData} />
                                             </div>
                                         ))}
                                     </div>
@@ -206,7 +217,7 @@ export default function CalendarPage() {
                   </TableCell>
                   <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
                    <TableCell>
-                        <TransactionDeleteButton transactionId={t.id!} onDelete={refreshData} />
+                        <TransactionActions transaction={t} onDelete={refreshData} onUpdate={refreshData} />
                    </TableCell>
                 </TableRow>
               ))}

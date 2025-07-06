@@ -1,4 +1,3 @@
-
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -42,10 +41,11 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
-import { addTransaction } from "@/services/transactionService";
+import { addTransaction, updateTransaction } from "@/services/transactionService";
 import { addRecurringExpense } from "@/services/recurringExpenseService";
 import { suggestCategory } from "@/ai/flows/suggest-category";
 import { Switch } from "./ui/switch";
+import type { Transaction } from "@/lib/data";
 
 const formSchema = z.object({
   description: z.string().min(3, { message: "Description must be at least 3 characters." }),
@@ -60,13 +60,15 @@ interface AddExpenseDialogProps {
   onOpenChange: (open: boolean) => void;
   onExpenseAdded: () => void;
   defaultDate?: Date | null;
+  transactionToEdit?: Transaction | null;
 }
 
-export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDate }: AddExpenseDialogProps) {
+export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDate, transactionToEdit }: AddExpenseDialogProps) {
   const { user } = useAuth();
   const { categories } = useData();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
+  const isEditing = !!transactionToEdit;
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -74,22 +76,32 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
       description: "",
       amount: 0,
       category: "",
-      date: defaultDate || new Date(),
+      date: new Date(),
       isRecurring: false,
     },
   });
 
   useEffect(() => {
     if (open) {
-      form.reset({
-        description: "",
-        amount: 0,
-        category: "",
-        date: defaultDate || new Date(),
-        isRecurring: false,
-      });
+      if (isEditing) {
+        form.reset({
+          description: transactionToEdit.description,
+          amount: transactionToEdit.amount,
+          category: transactionToEdit.category,
+          date: transactionToEdit.date,
+          isRecurring: !!transactionToEdit.recurringExpenseId,
+        });
+      } else {
+        form.reset({
+          description: "",
+          amount: 0,
+          category: "",
+          date: defaultDate || new Date(),
+          isRecurring: false,
+        });
+      }
     }
-  }, [open, defaultDate, form]);
+  }, [open, isEditing, transactionToEdit, defaultDate, form]);
 
   const handleSuggestCategory = async () => {
     const description = form.getValues("description");
@@ -117,45 +129,54 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user) {
-      toast.error("You must be logged in to add an expense.");
+      toast.error("You must be logged in to perform this action.");
       return;
     }
     setIsSubmitting(true);
     try {
-      let recurringId: string | undefined = undefined;
-      if (values.isRecurring) {
-        recurringId = await addRecurringExpense({
+      if (isEditing) {
+        await updateTransaction(transactionToEdit.id!, {
+          description: values.description,
+          amount: values.amount,
+          category: values.category,
+          date: values.date,
+        });
+        toast.success("Expense updated successfully!");
+      } else {
+        let recurringId: string | undefined = undefined;
+        if (values.isRecurring) {
+          recurringId = await addRecurringExpense({
+            userId: user.uid,
+            description: values.description,
+            amount: values.amount,
+            category: values.category,
+            dayOfMonth: values.date.getDate(),
+            isActive: true,
+            lastProcessed: new Date(),
+          });
+          toast.info("Recurring expense created. The first transaction has been added.");
+        }
+
+        await addTransaction({
           userId: user.uid,
           description: values.description,
           amount: values.amount,
           category: values.category,
-          dayOfMonth: values.date.getDate(),
-          isActive: true,
-          lastProcessed: new Date(),
+          date: values.date,
+          recurringExpenseId: recurringId
         });
-        toast.info("Recurring expense created. The first transaction has been added.");
+        toast.success("Expense added successfully!");
       }
-
-      await addTransaction({
-        userId: user.uid,
-        description: values.description,
-        amount: values.amount,
-        category: values.category,
-        date: values.date,
-        recurringExpenseId: recurringId
-      });
-
-      toast.success("Expense added successfully!");
+      
       onExpenseAdded();
-      form.reset({ description: "", amount: 0, category: "", date: new Date(), isRecurring: false });
       onOpenChange(false);
     } catch (error: any) {
-      if (error.code === 'permission-denied') {
+      if (error.code === 'permission-denied' || error.message.includes('permission-denied')) {
           toast.error("Permission Denied", {
-              description: "Could not add expense. Please check your Firestore security rules."
+              description: "Could not perform action. Please check your Firestore security rules."
           });
       } else {
-        toast.error("Failed to add expense. Please try again.");
+        toast.error(`Failed to ${isEditing ? 'update' : 'add'} expense. Please try again.`);
       }
       console.error(error);
     } finally {
@@ -167,9 +188,9 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New Expense</DialogTitle>
+          <DialogTitle>{isEditing ? "Edit Expense" : "Add New Expense"}</DialogTitle>
           <DialogDescription>
-            Enter the details of your expense below. Use the AI helper to suggest a category!
+            {isEditing ? "Update the details of your expense below." : "Enter the details of your expense below. Use the AI helper to suggest a category!"}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
@@ -286,6 +307,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                     <Switch
                       checked={field.value}
                       onCheckedChange={field.onChange}
+                      disabled={isEditing}
                     />
                   </FormControl>
                 </FormItem>
@@ -293,7 +315,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
             />
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Add Expense
+              {isEditing ? 'Save Changes' : 'Add Expense'}
             </Button>
           </form>
         </Form>

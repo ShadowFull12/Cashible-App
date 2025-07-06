@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import React from "react";
 
 import {
   AlertDialog,
@@ -31,6 +32,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useData } from "@/hooks/use-data";
 import { deleteTransaction } from "@/services/transactionService";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { Transaction } from "@/lib/data";
+import { AddExpenseDialog } from "@/components/add-expense-dialog";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -40,6 +43,7 @@ export default function HistoryPage() {
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterMonth, setFilterMonth] = useState<string>("all");
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
+  const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
 
   const availableYears = useMemo(() => {
     const years = new Set(transactions.map(t => t.date.getFullYear()));
@@ -73,7 +77,17 @@ export default function HistoryPage() {
     }
   };
   
+  const handleEdit = (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+  }
+
+  const handleUpdate = useCallback(() => {
+      refreshData();
+      setEditingTransaction(null);
+  }, [refreshData])
+
   return (
+    <>
     <Card>
       <CardHeader>
         <CardTitle>Transaction History</CardTitle>
@@ -161,7 +175,7 @@ export default function HistoryPage() {
                             </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                            <DropdownMenuItem disabled>Edit</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEdit(t)}>Edit</DropdownMenuItem>
                             <AlertDialogTrigger asChild>
                                 <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
                             </AlertDialogTrigger>
@@ -195,5 +209,14 @@ export default function HistoryPage() {
         </div>
       </CardContent>
     </Card>
+     {editingTransaction && (
+         <AddExpenseDialog
+                open={!!editingTransaction}
+                onOpenChange={() => setEditingTransaction(null)}
+                onExpenseAdded={handleUpdate}
+                transactionToEdit={editingTransaction}
+            />
+    )}
+    </>
   );
 }

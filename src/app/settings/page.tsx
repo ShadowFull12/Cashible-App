@@ -1,12 +1,11 @@
-
 "use client";
 
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Palette, Trash2, Loader2, Sun, Moon, Laptop, Upload, CheckCircle2, Repeat, PauseCircle, PlayCircle, AlertTriangle } from "lucide-react";
+import { Palette, Trash2, Loader2, Sun, Moon, Laptop, Upload, CheckCircle2, Repeat, PauseCircle, PlayCircle, AlertTriangle, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 import React, { useState, useRef, useEffect } from "react";
@@ -25,6 +24,9 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import type { RecurringExpense } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useRouter } from "next/navigation";
+
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, { message: "Current password is required." }),
@@ -44,6 +46,98 @@ const primaryColors = [
     { name: 'Violet', value: '262 83% 58%' },
     { name: 'Lime', value: '84 81% 44%' },
 ];
+
+function DangerZone() {
+    const { user, updateUserProfile, deleteAccount, reauthenticateWithPassword, deleteAllUserData } = useAuth();
+    const router = useRouter();
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [actionType, setActionType] = useState<'deleteData' | 'deleteAccount' | null>(null);
+    const [password, setPassword] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const dialogTitle = actionType === 'deleteData' ? 'Delete All Your Data?' : 'Delete Your Account?';
+    const dialogDescription = actionType === 'deleteData' 
+        ? "This will permanently delete all your transactions and recurring payments. Your account will not be deleted."
+        : "This will permanently delete your account and all associated data, including transactions. This action is irreversible.";
+
+    const handleConfirm = async () => {
+        if (!actionType) return;
+        setIsLoading(true);
+        try {
+            await reauthenticateWithPassword(password);
+            
+            if (actionType === 'deleteData') {
+                await deleteAllUserData();
+                toast.success("All your data has been deleted.", { description: "Your account has been reset."});
+                setDialogOpen(false);
+            } else if (actionType === 'deleteAccount') {
+                await deleteAccount();
+                toast.success("Your account has been permanently deleted.", { description: "We're sad to see you go."});
+                router.push('/');
+            }
+        } catch (error: any) {
+            toast.error("Action failed", { description: error.message || "Please check your password and try again." });
+        } finally {
+            setIsLoading(false);
+            setPassword('');
+        }
+    };
+
+    const openConfirmation = (type: 'deleteData' | 'deleteAccount') => {
+        setActionType(type);
+        setDialogOpen(true);
+    };
+
+    return (
+        <Card className="border-destructive">
+            <CardHeader>
+                <CardTitle className="text-destructive flex items-center gap-2"><ShieldAlert /> Danger Zone</CardTitle>
+                <CardDescription>These are irreversible actions. Please proceed with caution.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                 <div className="flex items-center justify-between rounded-lg border border-destructive/20 p-4">
+                    <div>
+                        <h4 className="font-semibold">Delete All Data</h4>
+                        <p className="text-sm text-muted-foreground">Reset your account to its initial state.</p>
+                    </div>
+                    <Button variant="destructive" onClick={() => openConfirmation('deleteData')}>Delete Data</Button>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-destructive/20 p-4">
+                    <div>
+                        <h4 className="font-semibold">Delete Account</h4>
+                        <p className="text-sm text-muted-foreground">Permanently remove your account and all data.</p>
+                    </div>
+                     <Button variant="destructive" onClick={() => openConfirmation('deleteAccount')}>Delete Account</Button>
+                </div>
+            </CardContent>
+             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{dialogTitle}</DialogTitle>
+                        <DialogDescription>{dialogDescription}</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-2 py-4">
+                        <Label htmlFor="password-confirm">To confirm, please enter your password:</Label>
+                        <Input 
+                            id="password-confirm" 
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="••••••••"
+                        />
+                    </div>
+                    <DialogFooter>
+                        <DialogClose asChild><Button variant="ghost">Cancel</Button></DialogClose>
+                        <Button variant="destructive" onClick={handleConfirm} disabled={isLoading || password.length < 6}>
+                            {isLoading && <Loader2 className="mr-2 animate-spin" />}
+                            Confirm & Proceed
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </Card>
+    );
+}
 
 
 export default function SettingsPage() {
@@ -435,6 +529,9 @@ export default function SettingsPage() {
                                 </div>
                             </CardContent>
                         </Card>
+                        <div className="mt-6">
+                            <DangerZone />
+                        </div>
                     </TabsContent>
                 </Tabs>
             </div>

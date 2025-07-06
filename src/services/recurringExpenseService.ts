@@ -1,6 +1,5 @@
-
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, Timestamp } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, Timestamp, writeBatch, WriteBatch } from "firebase/firestore";
 import type { RecurringExpense } from "@/lib/data";
 import { deleteTransactionsByRecurringId } from "./transactionService";
 
@@ -62,10 +61,30 @@ export async function deleteRecurringExpense(id: string) {
 export async function deleteRecurringExpenseAndHistory(userId: string, id: string) {
     if (!db) throw new Error("Firebase is not configured.");
     try {
-        await deleteTransactionsByRecurringId(userId, id);
-        await deleteRecurringExpense(id);
+        // This transaction pattern ensures that both operations succeed or fail together.
+        const batch = writeBatch(db);
+        
+        // First, delete all historical transactions linked to this recurring expense
+        await deleteTransactionsByRecurringId(userId, id, batch);
+        
+        // Then, delete the recurring expense document itself
+        const recurringExpenseRef = doc(db, "recurring-expenses", id);
+        batch.delete(recurringExpenseRef);
+        
+        await batch.commit();
+
     } catch (error) {
         console.error(`Error permanently deleting recurring expense ${id} and its history:`, error);
         throw error;
     }
+}
+
+// Used for batch deleting all of a user's data
+export async function addRecurringExpensesDeletionsToBatch(userId: string, batch: WriteBatch) {
+    if (!db) return;
+    const q = query(collection(db, "recurring-expenses"), where("userId", "==", userId));
+    const querySnapshot = await getDocs(q);
+    querySnapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+    });
 }

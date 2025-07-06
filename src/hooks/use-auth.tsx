@@ -1,8 +1,7 @@
-
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { User, onAuthStateChanged, signOut as firebaseSignOut, updateProfile } from 'firebase/auth';
+import { User, onAuthStateChanged, signOut as firebaseSignOut, updateProfile, deleteUser as firebaseDeleteUser } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { toast } from "sonner";
@@ -31,6 +30,9 @@ interface AuthContextType {
   uploadAndSetProfileImage: (file: File) => Promise<void>;
   updateUserPassword: (currentPassword: string, newPassword: string) => Promise<void>;
   updateUserEmail: (currentPassword: string, newEmail: string) => Promise<void>;
+  reauthenticateWithPassword: (password: string) => Promise<void>;
+  deleteAllUserData: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -99,26 +101,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const uploadAndSetProfileImage_ = async (file: File) => {
     if (!user) throw new Error("User not authenticated.");
 
-    // 1. Upload image and get URL
     const photoURL = await userService.uploadProfileImage(file);
     
-    // 2. Update profile in Firebase Auth
+    // updateProfile from firebase/auth updates the user object in auth state
     await updateProfile(user, { photoURL });
     
-    // 3. Update photoURL in Firestore user document
+    // Update the URL in our separate Firestore user document
     await userService.updateUser(user.uid, { photoURL });
 
-    // 4. Force a refresh of the user object in our app's state to update the UI
-    if (auth.currentUser) {
-        // Create a new object to force React to recognize the change and re-render.
-        const updatedUser = { ...auth.currentUser, photoURL }; // Ensure photoURL is updated here
-        setUser(updatedUser as User);
-    }
-    
-    // 5. Refresh our custom user data from Firestore to ensure everything is in sync
+    // Refresh the user data state in our app to reflect the change immediately
     await refreshUserData();
+    
+    // The onAuthStateChanged listener will eventually pick up the change and update the `user` object,
+    // but refreshing our custom `userData` from Firestore is faster for the UI.
   };
-
 
   const updateUserPassword_ = async (currentPassword: string, newPassword: string) => {
     if (!user) throw new Error("User not authenticated.");
@@ -128,9 +124,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const updateUserEmail_ = async (currentPassword: string, newEmail: string) => {
     if (!user) throw new Error("User not authenticated.");
     await authService.changeEmail(currentPassword, newEmail);
-    // User object will update on next auth state change after email verification
     await refreshUserData();
   };
+
+  const reauthenticateWithPassword_ = async (password: string) => {
+      if (!user) throw new Error("User not authenticated.");
+      await authService.reauthenticate(password);
+  }
+
+  const deleteAllUserData_ = async () => {
+      if (!user) throw new Error("User not authenticated.");
+      await userService.deleteAllUserData(user.uid);
+      await refreshUserData();
+  }
+
+  const deleteAccount_ = async () => {
+      if (!user) throw new Error("User not authenticated.");
+      // The re-authentication should have been done before calling this
+      await userService.deleteAllUserData(user.uid);
+      await firebaseDeleteUser(user);
+  }
 
   const value = {
     user,
@@ -142,6 +155,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     uploadAndSetProfileImage: uploadAndSetProfileImage_,
     updateUserPassword: updateUserPassword_,
     updateUserEmail: updateUserEmail_,
+    reauthenticateWithPassword: reauthenticateWithPassword_,
+    deleteAllUserData: deleteAllUserData_,
+    deleteAccount: deleteAccount_,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

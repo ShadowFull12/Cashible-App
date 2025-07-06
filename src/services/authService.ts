@@ -1,7 +1,7 @@
 import { auth } from "@/lib/firebase";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword, updateEmail } from "firebase/auth";
 
-async function reauthenticate(password: string) {
+export async function reauthenticate(password: string) {
     if (!auth?.currentUser) throw new Error("User not found or not authenticated.");
     const credential = EmailAuthProvider.credential(auth.currentUser.email!, password);
     await reauthenticateWithCredential(auth.currentUser, credential);

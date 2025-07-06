@@ -1,6 +1,5 @@
-
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, writeBatch } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, writeBatch, updateDoc, WriteBatch } from "firebase/firestore";
 import type { Transaction } from "@/lib/data";
 
 export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date'> & { date: Date | Timestamp }) {
@@ -17,13 +16,25 @@ export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date
         return docRef.id;
     } catch (error: any) {
         console.error('Error adding transaction:', error);
-        // Provide a more specific error message for permission issues
-        if (error.code === 'permission-denied') {
-            throw new Error("Permission Denied: Could not add transaction. Please check your Firestore security rules.");
+        if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission-denied'))) {
+            throw new Error("Permission Denied: Could not add transaction. This is likely a Firestore Security Rules issue.");
         }
         throw error;
     }
 }
+
+export async function updateTransaction(transactionId: string, data: Partial<Omit<Transaction, 'id' | 'userId'>>) {
+    if (!db) throw new Error("Firebase is not configured.");
+    const docRef = doc(db, "transactions", transactionId);
+    
+    const dataToUpdate: any = { ...data };
+    if (data.date) {
+        dataToUpdate.date = Timestamp.fromDate(data.date);
+    }
+    
+    await updateDoc(docRef, dataToUpdate);
+}
+
 
 export async function getTransactions(userId: string): Promise<Transaction[]> {
     if (!db) return [];
@@ -56,32 +67,47 @@ export async function deleteTransaction(transactionId: string) {
     }
 }
 
-export async function deleteTransactionsByRecurringId(userId: string, recurringExpenseId: string) {
+export async function deleteTransactionsByRecurringId(userId: string, recurringExpenseId: string, batch?: WriteBatch) {
     if (!db) throw new Error("Firebase is not configured.");
     
     const q = query(
         collection(db, "transactions"), 
-        where("recurringExpenseId", "==", recurringExpenseId),
-        where("userId", "==", userId)
+        where("userId", "==", userId),
+        where("recurringExpenseId", "==", recurringExpenseId)
     );
     
     try {
         const querySnapshot = await getDocs(q);
 
         if (querySnapshot.empty) {
-            console.log("No transactions found for this recurring expense, nothing to delete.");
             return;
         }
 
-        const batch = writeBatch(db);
-        querySnapshot.forEach(doc => {
-            batch.delete(doc.ref);
-        });
-        
-        await batch.commit();
-        console.log(`Successfully deleted ${querySnapshot.size} historical transactions.`);
+        if (batch) {
+            // If a batch is provided, add deletions to it
+            querySnapshot.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+        } else {
+            // Otherwise, create a new batch and commit it
+            const newBatch = writeBatch(db);
+            querySnapshot.forEach(doc => {
+                newBatch.delete(doc.ref);
+            });
+            await newBatch.commit();
+        }
     } catch (error) {
         console.error(`Error deleting transactions for recurring expense ${recurringExpenseId}:`, error);
         throw error;
     }
+}
+
+// Used for batch deleting all of a user's data
+export async function addTransactionsDeletionsToBatch(userId: string, batch: WriteBatch) {
+    if (!db) return;
+    const q = query(collection(db, "transactions"), where("userId", "==", userId));
+    const querySnapshot = await getDocs(q);
+    querySnapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+    });
 }
