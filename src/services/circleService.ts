@@ -1,7 +1,7 @@
 
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, arrayUnion, writeBatch, onSnapshot, Unsubscribe, deleteDoc } from "firebase/firestore";
-import type { UserProfile, Circle } from "@/lib/data";
+import type { UserProfile, Circle, CircleInvitation } from "@/lib/data";
 import { createNotification } from './notificationService';
 import { deleteDebtsForCircle } from "./debtService";
 
@@ -71,9 +71,16 @@ export async function getCircleById(circleId: string): Promise<Circle | null> {
     const docSnap = await getDoc(circleDocRef);
     if (docSnap.exists()) {
         const data = docSnap.data();
+        const membersMap = data.members || {};
+        for (const uid in membersMap) {
+            if (Object.prototype.hasOwnProperty.call(membersMap, uid)) {
+                membersMap[uid].photoURL = membersMap[uid].photoURL || null;
+            }
+        }
         return {
             id: docSnap.id,
             ...data,
+            members: membersMap,
             createdAt: (data.createdAt as Timestamp).toDate(),
         } as Circle;
     }
@@ -119,20 +126,20 @@ export async function sendCircleInvitations(circleId: string, circleName: string
     await Promise.all(notificationPromises);
 }
 
-export function getCircleInvitationsListener(userId: string, callback: (requests: any[]) => void): Unsubscribe {
+export function getCircleInvitationsListener(userId: string, callback: (invitations: CircleInvitation[]) => void): Unsubscribe {
     if (!db) return () => {};
     
     const q = query(circleInvitationsRef, where("toUserId", "==", userId), where("status", "==", "pending"));
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-        const invitations: any[] = [];
+        const invitations: CircleInvitation[] = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
             invitations.push({
                 id: doc.id,
                 ...data,
                 createdAt: (data.createdAt as Timestamp).toDate(),
-            });
+            } as CircleInvitation);
         });
         callback(invitations.sort((a,b) => b.createdAt.getTime() - a.createdAt.getTime()));
     }, (error) => {
@@ -192,35 +199,39 @@ export async function deleteCircle(circleId: string, ownerId: string) {
     const circleRef = doc(db, "circles", circleId);
     const circleSnap = await getDoc(circleRef);
 
-    if (!circleSnap.exists() || circleSnap.data().ownerId !== ownerId) {
-        throw new Error("Circle not found or you are not the owner.");
+    if (!circleSnap.exists()) {
+        throw new Error("Circle not found.");
+    }
+    if (circleSnap.data().ownerId !== ownerId) {
+        throw new Error("You are not the owner of this circle.");
     }
     
     const circleData = circleSnap.data() as Circle;
     const batch = writeBatch(db);
     
-    // Delete the circle itself
-    batch.delete(circleRef);
-    
-    // Delete all debts associated with the circle
+    // 1. Delete all debts associated with the circle
     await deleteDebtsForCircle(circleId, batch);
     
-    // Delete pending invitations for this circle
+    // 2. Delete pending invitations for this circle
     const invitationsQuery = query(collection(db, 'circle-invitations'), where('circleId', '==', circleId));
     const invitationsSnapshot = await getDocs(invitationsQuery);
     invitationsSnapshot.forEach(doc => batch.delete(doc.ref));
 
+    // 3. Delete the circle itself (last)
+    batch.delete(circleRef);
+
     await batch.commit();
     
-    // Send notifications to all members (except owner)
+    // Send notifications to all members (except owner) after successful deletion
+    const ownerProfile = circleData.members[ownerId] || { displayName: 'The owner', uid: ownerId, email: '', photoURL: null };
     const notificationPromises = circleData.memberIds
         .filter(id => id !== ownerId)
         .map(memberId => 
             createNotification({
                 userId: memberId,
-                fromUser: circleData.members[ownerId], // The owner's profile
+                fromUser: ownerProfile,
                 type: 'circle-deleted',
-                message: `${circleData.members[ownerId].displayName} has deleted the circle "${circleData.name}".`,
+                message: `${ownerProfile.displayName} has deleted the circle "${circleData.name}".`,
                 link: '/spend-circle'
             })
         );
