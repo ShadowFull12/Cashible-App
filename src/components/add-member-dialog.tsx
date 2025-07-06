@@ -15,7 +15,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Loader2 } from 'lucide-react';
-import type { Circle, UserProfile } from '@/lib/data';
+import type { Circle } from '@/lib/data';
 
 const formSchema = z.object({
   members: z.array(z.string()).min(1, { message: "You must select at least one friend to add." }),

@@ -60,8 +60,8 @@ const formSchema = z.object({
   date: z.date(),
   isRecurring: z.boolean().default(false),
   isSplit: z.boolean().default(false),
-  splitTarget: z.string().optional(), // 'friend-[uid]' or 'circle-[id]'
-  splitMembers: z.array(z.string()).optional(), // array of uids
+  splitTarget: z.string().optional(),
+  splitMembers: z.array(z.string()).optional(),
   payerId: z.string().optional(),
 });
 
@@ -107,6 +107,13 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
     return [];
   }, [splitTarget, circles, friends, user]);
 
+  const selectedCircle = useMemo(() => {
+    if (splitTarget?.startsWith('circle-')) {
+      return circles.find(c => c.id === splitTarget.replace('circle-', ''));
+    }
+    return null;
+  }, [splitTarget, circles]);
+
   useEffect(() => {
     if (potentialSplitMembers.length > 0) {
       setValue('splitMembers', potentialSplitMembers.map(m => m.uid));
@@ -118,7 +125,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
 
   useEffect(() => {
     if (open) {
-      if (isEditing) {
+      if (isEditing && transactionToEdit) {
         form.reset({
           description: transactionToEdit.description, amount: transactionToEdit.amount, category: transactionToEdit.category, date: transactionToEdit.date, isRecurring: !!transactionToEdit.recurringExpenseId, isSplit: transactionToEdit.isSplit,
         });
@@ -136,7 +143,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
     if (!user || !user.displayName || !user.email) return;
     setIsSubmitting(true);
     try {
-      if (isEditing) {
+      if (isEditing && transactionToEdit) {
         await updateTransaction(transactionToEdit.id!, {
           description: values.description, amount: values.amount, category: values.category, date: values.date,
         });
@@ -144,27 +151,23 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
       } else if (values.isSplit) {
         const membersToSplitWith = potentialSplitMembers.filter(m => values.splitMembers?.includes(m.uid));
         
-        if (membersToSplitWith.length === 0) {
+        if (membersToSplitWith.length === 0 || !values.splitMembers) {
             toast.error("You must select at least one person to split with.");
-            setIsSubmitting(false);
-            return;
+            setIsSubmitting(false); return;
         }
         if (!values.payerId) {
             toast.error("You must select who paid for this expense.");
-            setIsSubmitting(false);
-            return;
+            setIsSubmitting(false); return;
         }
-        if (!values.splitMembers?.includes(values.payerId)) {
+        if (!values.splitMembers.includes(values.payerId)) {
             toast.error("The payer must be included in the split participants.");
-            setIsSubmitting(false);
-            return;
+            setIsSubmitting(false); return;
         }
         
         const payerProfile = potentialSplitMembers.find(m => m.uid === values.payerId);
         if (!payerProfile) {
             toast.error("Payer could not be found.");
-            setIsSubmitting(false);
-            return;
+            setIsSubmitting(false); return;
         }
 
         const share = values.amount / membersToSplitWith.length;
@@ -177,27 +180,21 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                 share: share,
             }))
         };
+        
+        const transactionPayload = {
+             userId: user.uid, description: values.description, amount: values.amount, category: values.category, date: values.date, circleId: selectedCircle?.id || null, recurringExpenseId: null
+        };
 
         if (values.payerId !== user.uid) {
             const currentUserProfile: UserProfile = { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL || null };
             await createExpenseClaim({
                 claimerProfile: currentUserProfile,
                 payerId: values.payerId,
-                expenseDetails: {
-                    description: values.description,
-                    amount: values.amount,
-                    category: values.category,
-                    date: values.date,
-                    circleId: selectedCircle?.id || null,
-                    splitDetails,
-                }
+                expenseDetails: { ...transactionPayload, splitDetails }
             });
             toast.success(`Expense claim sent to ${payerProfile.displayName} for approval.`);
         } else {
-             await addSplitTransaction({
-                userId: user.uid, 
-                description: values.description, amount: values.amount, category: values.category, date: values.date, circleId: selectedCircle?.id || null, isSplit: true
-             }, splitDetails);
+             await addSplitTransaction(transactionPayload, splitDetails);
              toast.success("Split expense recorded successfully!");
         }
 
@@ -205,7 +202,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
         let recurringId: string | undefined = undefined;
         if (values.isRecurring) { /* ... */ }
         await addTransaction({
-          userId: user.uid, description: values.description, amount: values.amount, category: values.category, date: values.date, recurringExpenseId: recurringId
+          userId: user.uid, description: values.description, amount: values.amount, category: values.category, date: values.date, recurringExpenseId: recurringId, isSplit: false, splitDetails: null, circleId: null
         });
         toast.success("Expense added successfully!");
       }
@@ -219,13 +216,6 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
     }
   }
 
-  const selectedCircle = useMemo(() => {
-    if (splitTarget?.startsWith('circle-')) {
-      return circles.find(c => c.id === splitTarget.replace('circle-', ''));
-    }
-    return null;
-  }, [splitTarget, circles]);
-
   const selectedSplitMembersCount = watch('splitMembers')?.length || 0;
   const individualShare = amount > 0 && selectedSplitMembersCount > 0 ? (amount / selectedSplitMembersCount).toFixed(2) : 0;
 
@@ -238,7 +228,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
             {isEditing ? "Update the details of your expense below." : "Enter details for your expense. You can also split bills with friends or circles."}
           </DialogDescription>
         </DialogHeader>
-        {isEditing && transactionToEdit.isSplit && (
+        {isEditing && transactionToEdit?.isSplit && (
             <Alert variant="destructive">
                 <AlertTitle>Editing Split Bills</AlertTitle>
                 <AlertDescription>Editing expenses that have been split is not yet supported.</AlertDescription>
@@ -340,7 +330,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                 </Collapsible>
             )}
 
-            <Button type="submit" className="w-full" disabled={isSubmitting || (isEditing && transactionToEdit.isSplit)}>
+            <Button type="submit" className="w-full" disabled={isSubmitting || (isEditing && !!transactionToEdit?.isSplit)}>
               {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {isEditing ? 'Save Changes' : 'Add Expense'}
             </Button>

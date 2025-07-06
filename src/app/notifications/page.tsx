@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { Bell, Check, UserPlus, CircleDollarSign, BellRing, Loader2, UserCheck, UserX, X, FilePlus, CheckCircle2, XCircle, ClipboardCheck, ClipboardX } from 'lucide-react';
+import { Bell, Check, UserPlus, CircleDollarSign, BellRing, Loader2, UserCheck, UserX, X, FilePlus, CheckCircle2, XCircle, ClipboardCheck, ClipboardX, HandCoins } from 'lucide-react';
 import type { Notification, UserProfile } from '@/lib/data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
@@ -17,16 +17,21 @@ import { toast } from 'sonner';
 import { acceptFriendRequest, rejectFriendRequest } from '@/services/friendService';
 import { deleteNotification } from '@/services/notificationService';
 import { acceptExpenseClaim, rejectExpenseClaim } from '@/services/expenseClaimService';
+import { acceptSettlement, rejectSettlement } from '@/services/debtService';
 
 
 const iconMap: {[key: string]: React.ElementType} = {
     'friend-request': UserPlus,
-    'debt-settlement-request': CircleDollarSign,
+    'debt-settlement-request': CircleDollarSign, // This is legacy, will be phased out
     'debt-settlement-confirmed': Check,
     'debt-settlement-rejected': XCircle,
     'expense-claim-request': FilePlus,
     'expense-claim-accepted': CheckCircle2,
     'expense-claim-rejected': XCircle,
+    'settlement-request': HandCoins,
+    'settlement-confirmed': CheckCircle2,
+    'settlement-rejected': XCircle,
+    'circle-member-joined': UserCheck,
 };
 
 export default function NotificationsPage() {
@@ -40,14 +45,11 @@ export default function NotificationsPage() {
             await markAsRead(notification.id);
         }
 
-        const isPendingFriendRequest = notification.type === 'friend-request' && 
-            friendRequests.some(req => 
-                req.fromUser.uid === notification.fromUser.uid && 
-                req.toUserId === user?.uid && 
-                req.status === 'pending'
-            );
+        const isActionable = notification.type === 'friend-request' ||
+                             notification.type === 'expense-claim-request' ||
+                             notification.type === 'settlement-request';
         
-        if (isPendingFriendRequest || notification.type === 'expense-claim-request') {
+        if (isActionable) {
             return;
         }
         
@@ -133,6 +135,32 @@ export default function NotificationsPage() {
         }
     }
 
+    const handleAcceptSettlement = async (notification: Notification) => {
+        if (!notification.relatedId) return;
+        setProcessingId(notification.id);
+        try {
+            await acceptSettlement(notification.relatedId);
+            toast.success("Settlement confirmed and logged!");
+        } catch (error: any) {
+            toast.error("Failed to confirm settlement.", { description: error.message });
+        } finally {
+            setProcessingId(null);
+        }
+    }
+
+    const handleDeclineSettlement = async (notification: Notification) => {
+        if (!notification.relatedId) return;
+        setProcessingId(notification.id);
+        try {
+            await rejectSettlement(notification.relatedId);
+            toast.info("Settlement rejected.");
+        } catch (error: any) {
+            toast.error("Failed to reject settlement.", { description: error.message });
+        } finally {
+            setProcessingId(null);
+        }
+    }
+
 
     return (
         <Card>
@@ -156,15 +184,16 @@ export default function NotificationsPage() {
                 {!isLoading && notifications.map(notification => {
                     const Icon = iconMap[notification.type] || Bell;
                     
-                    const matchingFriendRequest = notification.type === 'friend-request'
+                    const isFriendRequest = notification.type === 'friend-request';
+                    const matchingFriendRequest = isFriendRequest
                         ? friendRequests.find(req => req.fromUser.uid === notification.fromUser.uid && req.toUserId === user?.uid && req.status === 'pending')
                         : undefined;
                     
                     const isClaimRequest = notification.type === 'expense-claim-request';
-                    const isActionableFriendRequest = !!matchingFriendRequest;
-                    const isActionable = isActionableFriendRequest || isClaimRequest;
+                    const isSettlementRequest = notification.type === 'settlement-request';
                     
-                    const isProcessing = (isActionableFriendRequest && processingId === matchingFriendRequest?.id) || processingId === notification.id;
+                    const isActionable = !!matchingFriendRequest || isClaimRequest || isSettlementRequest;
+                    const isProcessing = (matchingFriendRequest && processingId === matchingFriendRequest.id) || processingId === notification.id;
 
                     return (
                         <div
@@ -192,7 +221,7 @@ export default function NotificationsPage() {
                                         {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
                                     </p>
                                     
-                                    {isActionableFriendRequest && (
+                                    {!!matchingFriendRequest && (
                                         <div className="flex gap-2 mt-2">
                                             <Button size="sm" onClick={(e) => { e.stopPropagation(); handleAcceptFriend(matchingFriendRequest!.id, notification.fromUser); }} disabled={isProcessing}>
                                                 {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <UserCheck className="mr-2 size-4"/>} Accept
@@ -210,6 +239,17 @@ export default function NotificationsPage() {
                                             </Button>
                                             <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleDeclineClaim(notification); }} disabled={isProcessing}>
                                                 {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <ClipboardX className="mr-2 size-4"/>} Decline
+                                            </Button>
+                                        </div>
+                                    )}
+
+                                     {isSettlementRequest && (
+                                        <div className="flex gap-2 mt-2">
+                                            <Button size="sm" onClick={(e) => { e.stopPropagation(); handleAcceptSettlement(notification); }} disabled={isProcessing}>
+                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <Check className="mr-2 size-4"/>} Confirm
+                                            </Button>
+                                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleDeclineSettlement(notification); }} disabled={isProcessing}>
+                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <X className="mr-2 size-4"/>} Decline
                                             </Button>
                                         </div>
                                     )}

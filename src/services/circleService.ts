@@ -27,6 +27,7 @@ export async function createCircle({ name, owner, members }: CreateCircleInput) 
         memberIds,
         members: membersMap,
         createdAt: Timestamp.now(),
+        photoURL: null,
     });
 }
 
@@ -88,6 +89,21 @@ export async function getCircleById(circleId: string): Promise<Circle | null> {
     }
 }
 
+async function deleteCircleAndDebts(circleId: string) {
+    if (!db) throw new Error("Firebase is not configured.");
+    const batch = writeBatch(db);
+    
+    // Delete associated debts
+    await deleteDebtsForCircle(circleId, batch);
+
+    // Delete the circle itself
+    const circleRef = doc(db, "circles", circleId);
+    batch.delete(circleRef);
+
+    await batch.commit();
+}
+
+
 export async function leaveCircle(circleId: string, userId: string) {
     if (!db) throw new Error("Firebase is not configured.");
     
@@ -98,25 +114,29 @@ export async function leaveCircle(circleId: string, userId: string) {
         throw new Error("Circle not found.");
     }
     
-    const circleData = circleSnap.data() as Circle;
+    const circleData = circleSnap.data();
     
     if (!circleData.memberIds.includes(userId)) {
         throw new Error("You are not a member of this circle.");
     }
-    
-    const remainingMemberIds = circleData.memberIds.filter(id => id !== userId);
-    const updates: {[key: string]: any} = {
-        memberIds: arrayRemove(userId),
-        [`members.${userId}`]: deleteField(),
-    };
-    
-    // If the leaving user was the owner AND there are members left, reassign ownership.
-    // If they are the last one, the circle becomes ownerless but persists.
-    if (circleData.ownerId === userId && remainingMemberIds.length > 0) {
-        updates.ownerId = remainingMemberIds[0]; 
-    }
 
-    await updateDoc(circleRef, updates);
+    if (circleData.memberIds.length === 1) {
+        // This is the last member, delete the circle
+        await deleteCircleAndDebts(circleId);
+    } else {
+        const updates: {[key: string]: any} = {
+            memberIds: arrayRemove(userId),
+            [`members.${userId}`]: deleteField(),
+        };
+        
+        // If the leaving user was the owner, reassign ownership to the next member.
+        if (circleData.ownerId === userId) {
+            const newOwnerId = circleData.memberIds.find((id: string) => id !== userId);
+            updates.ownerId = newOwnerId; 
+        }
+
+        await updateDoc(circleRef, updates);
+    }
 }
 
 export async function addMembersToCircle(circleId: string, membersToAdd: UserProfile[]) {
@@ -142,4 +162,28 @@ export async function addMembersToCircle(circleId: string, membersToAdd: UserPro
     };
 
     await updateDoc(circleRef, updatePayload);
+}
+
+export async function uploadCircleImage(file: File): Promise<string> {
+    const apiKey = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
+    if (!apiKey) {
+        throw new Error("ImgBB API key is not configured.");
+    }
+    const formData = new FormData();
+    formData.append("image", file);
+    const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+        method: 'POST',
+        body: formData,
+    });
+    const result = await response.json();
+    if (!result.success) {
+        throw new Error(result.error?.message || "Failed to upload image.");
+    }
+    return result.data.url;
+}
+
+export async function updateCircle(circleId: string, data: { name?: string; photoURL?: string }) {
+    if (!db) throw new Error("Firebase is not configured.");
+    const circleRef = doc(db, "circles", circleId);
+    await updateDoc(circleRef, data);
 }

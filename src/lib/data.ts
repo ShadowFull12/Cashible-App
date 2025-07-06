@@ -21,9 +21,10 @@ export interface Transaction {
     amount: number;
     category: string;
     date: Date;
-    recurringExpenseId?: string;
+    recurringExpenseId?: string | null;
     isSplit?: boolean;
     circleId?: string | null;
+    splitDetails?: SplitDetails | null;
 }
 
 export interface RecurringExpense {
@@ -59,6 +60,7 @@ export interface Circle {
     memberIds: string[]; // For querying
     members: { [uid: string]: UserProfile }; // For storing member details
     createdAt: Date;
+    photoURL?: string | null;
 }
 
 export type DebtSettlementStatus = 'unsettled' | 'pending_confirmation' | 'confirmed' | 'logged';
@@ -92,6 +94,22 @@ export interface SplitDetails {
     total: number;
 }
 
+export type SettlementStatus = 'pending_confirmation' | 'confirmed' | 'rejected';
+
+export interface Settlement {
+    id: string;
+    circleId: string;
+    fromUserId: string;
+    fromUser: UserProfile;
+    toUserId: string;
+    toUser: UserProfile;
+    amount: number;
+    status: SettlementStatus;
+    createdAt: Date;
+    processedAt?: Date | null;
+}
+
+
 export type NotificationType = 
     'friend-request' | 
     'debt-settlement-request' | 
@@ -99,7 +117,11 @@ export type NotificationType =
     'debt-settlement-rejected' |
     'expense-claim-request' |
     'expense-claim-accepted' |
-    'expense-claim-rejected';
+    'expense-claim-rejected' |
+    'settlement-request' | 
+    'settlement-confirmed' | 
+    'settlement-rejected' | 
+    'circle-member-joined';
 
 
 export interface Notification {

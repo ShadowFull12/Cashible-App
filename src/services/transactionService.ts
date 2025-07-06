@@ -1,102 +1,46 @@
+
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, writeBatch, updateDoc, WriteBatch, getDoc } from "firebase/firestore";
-import type { Transaction, SplitDetails } from "@/lib/data";
+import type { Transaction, SplitDetails, Settlement } from "@/lib/data";
 import { addDebtCreationToBatch } from "./debtService";
 
+const transactionsRef = collection(db, "transactions");
 
 export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date'> & { date: Date | Timestamp }) {
     if (!db) throw new Error("Firebase is not configured.");
     try {
-        const docRef = await addDoc(collection(db, "transactions"), {
-            userId: transaction.userId,
-            description: transaction.description,
-            amount: transaction.amount,
-            category: transaction.category,
+        const docRef = await addDoc(transactionsRef, {
+            ...transaction,
             date: transaction.date instanceof Date ? Timestamp.fromDate(transaction.date) : transaction.date,
-            recurringExpenseId: transaction.recurringExpenseId || null,
-            isSplit: transaction.isSplit || false,
-            circleId: transaction.circleId || null,
         });
         return docRef.id;
     } catch (error: any) {
         console.error('Error adding transaction:', error);
-        if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission-denied'))) {
-            throw new Error("Permission Denied: Could not add transaction. This is likely a Firestore Security Rules issue.");
-        }
-        throw error;
+        throw new Error(error.message || "Failed to add transaction.");
     }
 }
 
-/**
- * Adds a transaction that is split between multiple users.
- * This function handles two cases:
- * 1. The logger is the payer: A transaction is created, and debts are created for other members.
- * 2. The logger is NOT the payer: Only a debt record is created for the logger. No transaction is logged for them.
- *
- * Firestore Security Rule Requirement:
- * To allow users to log debts for expenses paid by others, your `firestore.rules` must allow
- * a debt to be created by either the debtor or the creditor. The creating user must be in the `involvedUids` array.
- *
- * Example Rule for `/debts/{debtId}`:
- * `allow create: if request.auth.uid in request.resource.data.involvedUids;`
- */
 export async function addSplitTransaction(
-    transaction: Omit<Transaction, 'id' | 'date'> & { date: Date | Timestamp }, 
+    transaction: Omit<Transaction, 'id' | 'date' | 'isSplit' | 'splitDetails'> & { date: Date | Timestamp }, 
     splitDetails: SplitDetails
 ) {
     if (!db) throw new Error("Firebase is not configured.");
     
     try {
         const batch = writeBatch(db);
-
-        const loggerId = transaction.userId;
-        const { payerId, members } = splitDetails;
-        
-        const payerProfile = members.find(m => m.uid === payerId);
-        if (!payerProfile) throw new Error("Payer could not be found in the split members.");
-
-        // Case 1: The person logging the expense is the person who paid.
-        // They have authority to create the main transaction and assign debts to others.
-        if (loggerId === payerId) {
-            const transactionRef = doc(collection(db, "transactions"));
-            batch.set(transactionRef, {
-                userId: loggerId,
-                description: transaction.description,
-                amount: transaction.amount,
-                category: transaction.category,
-                date: transaction.date instanceof Date ? Timestamp.fromDate(transaction.date) : transaction.date,
-                isSplit: true,
-                circleId: transaction.circleId || null,
-                recurringExpenseId: null,
-            });
-
-            addDebtCreationToBatch(batch, transactionRef.id, splitDetails, transaction.circleId || null, transaction.description);
-
-        } else {
-            // Case 2: The person logging the expense is NOT who paid.
-            const loggerProfile = members.find(m => m.uid === loggerId);
-            if (!loggerProfile) throw new Error("Logger could not be found in the split members.");
-            
-            // Create a single debt record for the logger.
-            const debtDocRef = doc(collection(db, "debts"));
-            
-            // The `members` array for debt creation must include both the debtor (logger) and the creditor (payer).
-            const singleDebtDetails: SplitDetails = {
-                ...splitDetails,
-                members: [loggerProfile, payerProfile]
-            };
-            // The transaction ID will be the debt's own ID, as no central transaction exists from the logger's side.
-            addDebtCreationToBatch(batch, debtDocRef.id, singleDebtDetails, transaction.circleId || null, transaction.description);
-        }
-        
+        const transactionRef = doc(collection(db, "transactions"));
+        batch.set(transactionRef, {
+            ...transaction,
+            date: transaction.date instanceof Date ? Timestamp.fromDate(transaction.date) : transaction.date,
+            isSplit: true,
+            splitDetails,
+        });
+        addDebtCreationToBatch(batch, transactionRef.id, splitDetails, transaction.circleId || null, transaction.description);
         await batch.commit();
 
     } catch (error: any) {
         console.error('Error adding split transaction:', error);
-         if (error.code === 'permission-denied' || (error.message && error.message.toLowerCase().includes('permission-denied'))) {
-            throw new Error("Permission Denied: Could not add split transaction. Check Firestore Security Rules.");
-        }
-        throw error;
+        throw new Error(error.message || "Failed to add split transaction.");
     }
 }
 
@@ -131,7 +75,7 @@ export async function getTransactionById(transactionId: string): Promise<Transac
 export async function getTransactions(userId: string): Promise<Transaction[]> {
     if (!db) return [];
     try {
-        const q = query(collection(db, "transactions"), where("userId", "==", userId));
+        const q = query(transactionsRef, where("userId", "==", userId));
         const querySnapshot = await getDocs(q);
         const transactions: Transaction[] = [];
         querySnapshot.forEach((doc) => {
@@ -148,6 +92,40 @@ export async function getTransactions(userId: string): Promise<Transaction[]> {
         throw error;
     }
 }
+
+export async function getCircleTransactions(circleId: string): Promise<Transaction[]> {
+    if (!db) return [];
+    const q = query(transactionsRef, where("circleId", "==", circleId));
+    const querySnapshot = await getDocs(q);
+    const transactions: Transaction[] = [];
+    querySnapshot.forEach(doc => {
+        const data = doc.data();
+        transactions.push({
+            id: doc.id,
+            ...data,
+            date: (data.date as Timestamp).toDate(),
+        } as Transaction);
+    });
+    return transactions.sort((a,b) => b.date.getTime() - a.date.getTime());
+}
+
+export async function getCircleSettlements(circleId: string): Promise<Settlement[]> {
+    if (!db) return [];
+    const q = query(collection(db, "settlements"), where("circleId", "==", circleId));
+    const querySnapshot = await getDocs(q);
+    const settlements: Settlement[] = [];
+    querySnapshot.forEach(doc => {
+        const data = doc.data();
+        settlements.push({
+            id: doc.id,
+            ...data,
+            createdAt: (data.createdAt as Timestamp).toDate(),
+            processedAt: data.processedAt ? (data.processedAt as Timestamp).toDate() : null,
+        } as Settlement);
+    });
+    return settlements.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+}
+
 
 export async function deleteTransaction(transactionId: string) {
     if (!db) throw new Error("Firebase is not configured.");
@@ -192,7 +170,6 @@ export async function deleteTransactionsByRecurringId(userId: string, recurringE
     }
 }
 
-// Used for batch deleting all of a user's data
 export async function addTransactionsDeletionsToBatch(userId: string, batch: WriteBatch) {
     if (!db) return;
     const q = query(collection(db, "transactions"), where("userId", "==", userId));
