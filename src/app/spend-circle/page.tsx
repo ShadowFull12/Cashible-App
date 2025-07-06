@@ -12,7 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 import { UserProfile, FriendRequest as FriendRequestData, Circle } from '@/lib/data';
-import { searchUsersByEmail } from '@/services/userService';
+import { searchUsers } from '@/services/userService';
 import { sendFriendRequest, removeFriend } from '@/services/friendService';
 import { Loader2, UserPlus, UserCheck, UserX, Clock, Search, ArrowRight } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -23,17 +23,17 @@ import { CreateCircleDialog } from '@/components/create-circle-dialog';
 function AddFriendTab() {
     const { user } = useAuth();
     const { friends, friendRequests, refreshData } = useData();
-    const [searchEmail, setSearchEmail] = useState("");
+    const [searchTerm, setSearchTerm] = useState("");
     const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isSending, setIsSending] = useState<{[key: string]: boolean}>({});
 
     const handleSearch = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!searchEmail) return;
+        if (!searchTerm) return;
         setIsLoading(true);
         try {
-            const results = await searchUsersByEmail(searchEmail);
+            const results = await searchUsers(searchTerm);
             setSearchResults(results.filter(u => u.uid !== user?.uid)); // Exclude self
         } catch (error) {
             toast.error("Failed to search for users.");
@@ -43,7 +43,7 @@ function AddFriendTab() {
     };
 
     const handleSendRequest = async (toUser: UserProfile) => {
-        if (!user || !user.displayName) return;
+        if (!user || !user.displayName || !user.email || !user.reloadUserInfo) return;
         setIsSending(prev => ({...prev, [toUser.uid]: true}));
         try {
             const fromUser: UserProfile = {
@@ -51,6 +51,7 @@ function AddFriendTab() {
                 displayName: user.displayName,
                 email: user.email!,
                 photoURL: user.photoURL,
+                username: (await getDoc(doc(db, "users", user.uid))).data()?.username,
             };
             await sendFriendRequest(fromUser, toUser.uid);
             toast.success(`Friend request sent to ${toUser.displayName}`);
@@ -79,33 +80,32 @@ function AddFriendTab() {
         <div className="space-y-6">
             <div>
                 <h3 className="text-lg font-medium">Find New Friends</h3>
-                <p className="text-sm text-muted-foreground">Search for users by their exact email address to add them to your circle.</p>
+                <p className="text-sm text-muted-foreground">Search for users by their username or email address.</p>
             </div>
             <form onSubmit={handleSearch} className="flex items-center gap-2">
                 <Input
-                    type="email"
-                    placeholder="friend@example.com"
-                    value={searchEmail}
-                    onChange={(e) => setSearchEmail(e.target.value)}
+                    placeholder="username or friend@example.com"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                     disabled={isLoading}
                 />
-                <Button type="submit" disabled={isLoading || !searchEmail}>
+                <Button type="submit" disabled={isLoading || !searchTerm}>
                     {isLoading ? <Loader2 className="animate-spin" /> : <Search />}
                 </Button>
             </form>
             <div className="space-y-4">
                 <h4 className="font-medium">Search Results</h4>
                 {isLoading && <Skeleton className="h-20 w-full" />}
-                {!isLoading && searchResults.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No users found. Try another email.</p>}
+                {!isLoading && searchResults.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No users found. Try another search term.</p>}
                 {!isLoading && searchResults.map(foundUser => {
                     const buttonState = getButtonState(foundUser);
                     return (
                         <div key={foundUser.uid} className="flex items-center justify-between p-3 border rounded-lg">
                             <div className="flex items-center gap-4">
-                                <Avatar><AvatarImage src={foundUser.photoURL} /><AvatarFallback>{foundUser.displayName.charAt(0)}</AvatarFallback></Avatar>
+                                <Avatar><AvatarImage src={foundUser.photoURL || undefined} /><AvatarFallback>{foundUser.displayName.charAt(0)}</AvatarFallback></Avatar>
                                 <div>
                                     <p className="font-semibold">{foundUser.displayName}</p>
-                                    <p className="text-sm text-muted-foreground">{foundUser.email}</p>
+                                    <p className="text-sm text-muted-foreground">@{foundUser.username}</p>
                                 </div>
                             </div>
                             <Button size="sm" onClick={() => handleSendRequest(foundUser)} disabled={buttonState.disabled || isSending[foundUser.uid]}>
@@ -145,10 +145,10 @@ function FriendsTab() {
                 {friends.map(friend => (
                      <div key={friend.uid} className="flex items-center justify-between p-3 border rounded-lg">
                         <div className="flex items-center gap-4">
-                            <Avatar><AvatarImage src={friend.photoURL} /><AvatarFallback>{friend.displayName.charAt(0)}</AvatarFallback></Avatar>
+                            <Avatar><AvatarImage src={friend.photoURL || undefined} /><AvatarFallback>{friend.displayName.charAt(0)}</AvatarFallback></Avatar>
                             <div>
                                 <p className="font-semibold">{friend.displayName}</p>
-                                <p className="text-sm text-muted-foreground">{friend.email}</p>
+                                <p className="text-sm text-muted-foreground">@{friend.username}</p>
                             </div>
                         </div>
                          <AlertDialog>
@@ -206,7 +206,7 @@ function CirclesTab() {
                                 <div className="flex -space-x-2 overflow-hidden">
                                     {Object.values(circle.members).slice(0, 5).map(member => (
                                         <Avatar key={member.uid} className="inline-block h-8 w-8 rounded-full ring-2 ring-background">
-                                            <AvatarImage src={member.photoURL} />
+                                            <AvatarImage src={member.photoURL || undefined} />
                                             <AvatarFallback>{member.displayName.charAt(0)}</AvatarFallback>
                                         </Avatar>
                                     ))}

@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -5,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, writeBatch } from "firebase/firestore";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Loader2, AlertTriangle } from "lucide-react";
@@ -19,9 +20,11 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from "@/component
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { auth, db } from "@/lib/firebase";
 import { defaultCategories } from "@/lib/data";
+import { isUsernameAvailable } from "@/services/userService";
 
 const formSchema = z.object({
-  username: z.string().min(2, { message: "Username must be at least 2 characters." }),
+  displayName: z.string().min(2, { message: "Display name must be at least 2 characters." }),
+  username: z.string().min(3, { message: "Username must be 3-15 characters." }).regex(/^[a-zA-Z0-9_]{3,15}$/, { message: "Use only letters, numbers, and underscores." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
 });
@@ -33,6 +36,7 @@ export default function SignupPage() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      displayName: "",
       username: "",
       email: "",
       password: "",
@@ -42,15 +46,26 @@ export default function SignupPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
+      const usernameAvailable = await isUsernameAvailable(values.username);
+      if (!usernameAvailable) {
+        form.setError("username", { type: "manual", message: "This username is already taken." });
+        setIsLoading(false);
+        return;
+      }
+
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
       
-      await updateProfile(user, { displayName: values.username, photoURL: null });
+      await updateProfile(user, { displayName: values.displayName, photoURL: null });
       
-      // Create user document in Firestore
-      await setDoc(doc(db, "users", user.uid), {
+      // Create user documents in Firestore using a batch write for atomicity
+      const batch = writeBatch(db);
+      
+      const userDocRef = doc(db, "users", user.uid);
+      batch.set(userDocRef, {
         uid: user.uid,
-        displayName: values.username,
+        displayName: values.displayName,
+        username: values.username.toLowerCase(),
         email: values.email,
         categories: defaultCategories,
         budget: 0,
@@ -58,6 +73,11 @@ export default function SignupPage() {
         photoURL: null,
         primaryColor: '181 95% 45%', // Default primary color
       });
+
+      const usernameDocRef = doc(db, "usernames", values.username.toLowerCase());
+      batch.set(usernameDocRef, { uid: user.uid });
+
+      await batch.commit();
 
       toast.success("Account created successfully!");
       // Redirect is handled by RootLayoutClient
@@ -98,12 +118,25 @@ export default function SignupPage() {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField
                 control={form.control}
+                name="displayName"
+                render={({ field }) => (
+                  <FormItem>
+                    <Label htmlFor="displayName">Display Name</Label>
+                    <FormControl>
+                      <Input id="displayName" placeholder="Jane Doe" {...field} disabled={!isFirebaseConfigured} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
                 name="username"
                 render={({ field }) => (
                   <FormItem>
                     <Label htmlFor="username">Username</Label>
                     <FormControl>
-                      <Input id="username" placeholder="Jane Doe" {...field} disabled={!isFirebaseConfigured} />
+                      <Input id="username" placeholder="jane_doe" {...field} disabled={!isFirebaseConfigured} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

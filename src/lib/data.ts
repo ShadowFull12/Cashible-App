@@ -43,6 +43,7 @@ export interface UserProfile {
     displayName: string;
     email: string;
     photoURL: string | null;
+    username: string;
 }
 
 export interface FriendRequest {

@@ -39,6 +39,11 @@ const emailSchema = z.object({
   password: z.string().min(1, { message: "Password is required to change email." }),
 });
 
+const usernameSchema = z.object({
+  newUsername: z.string().min(3, { message: "Username must be 3-15 characters long."}).regex(/^[a-zA-Z0-9_]{3,15}$/, { message: "Username can only contain letters, numbers, and underscores."}),
+  password: z.string().min(1, { message: "Password is required to change username." }),
+});
+
 const primaryColors = [
     { name: 'Teal', value: '181 95% 45%' },
     { name: 'Rose', value: '340 82% 52%' },
@@ -143,7 +148,7 @@ function DangerZone() {
 
 
 export default function SettingsPage() {
-    const { user, userData, updateUserProfile, uploadAndSetProfileImage, updateUserPassword, updateUserEmail } = useAuth();
+    const { user, userData, updateUserProfile, uploadAndSetProfileImage, updateUserPassword, updateUserEmail, updateUserUsername } = useAuth();
     const { categories, recurringExpenses, isLoading, refreshData } = useData();
     const { theme, setTheme } = useTheme();
 
@@ -174,15 +179,21 @@ export default function SettingsPage() {
         resolver: zodResolver(emailSchema),
         defaultValues: { newEmail: user?.email || "", password: "" },
     });
+
+    const usernameForm = useForm<z.infer<typeof usernameSchema>>({
+        resolver: zodResolver(usernameSchema),
+        defaultValues: { newUsername: userData?.username || "", password: "" },
+    });
     
     useEffect(() => {
         if (userData) {
             setBudget(userData.budget || 0);
+            usernameForm.reset({ newUsername: userData.username || "", password: "" });
         }
         if (user?.photoURL) {
             setAvatarPreview(user.photoURL);
         }
-    }, [userData, user?.photoURL]);
+    }, [userData, user?.photoURL, usernameForm]);
 
 
     useEffect(() => {
@@ -320,6 +331,21 @@ export default function SettingsPage() {
             toast.error("Email change failed.", { description: error.message });
         }
     }
+
+    const onUsernameChange = async (values: z.infer<typeof usernameSchema>) => {
+        if (values.newUsername.toLowerCase() === userData?.username.toLowerCase()) {
+            toast.info("This is already your username.");
+            return;
+        }
+        try {
+            await updateUserUsername(values.password, values.newUsername);
+            toast.success("Username updated successfully.");
+            usernameForm.reset({ newUsername: values.newUsername, password: "" });
+        } catch (error: any) {
+            usernameForm.setError("newUsername", { type: "manual", message: error.message });
+            toast.error("Username change failed.", { description: error.message });
+        }
+    }
     
     const handleDeleteFuturePayments = async (expenseId: string) => {
         try {
@@ -385,7 +411,8 @@ export default function SettingsPage() {
                                         <p className="text-xs text-muted-foreground">Recommended size: 200x200px</p>
                                     </div>
                                 </div>
-                                <div className="space-y-2"><Label htmlFor="username">Username</Label><Input id="username" value={user?.displayName || ''} disabled /></div>
+                                <div className="space-y-2"><Label htmlFor="displayName">Display Name</Label><Input id="displayName" value={user?.displayName || ''} disabled /></div>
+                                <div className="space-y-2"><Label htmlFor="username">Username</Label><Input id="username" value={userData?.username || ''} disabled /></div>
                                 <div className="space-y-2"><Label htmlFor="email">Email</Label><Input id="email" type="email" value={user?.email || ''} disabled /></div>
                                 <div className="space-y-2">
                                     <Label htmlFor="budget">Monthly Budget (₹)</Label>
@@ -507,8 +534,19 @@ export default function SettingsPage() {
 
                     <TabsContent value="security" className="mt-6">
                         <Card>
-                            <CardHeader><CardTitle>Security</CardTitle><CardDescription>Manage your password and email settings.</CardDescription></CardHeader>
+                            <CardHeader><CardTitle>Security</CardTitle><CardDescription>Manage your password, email, and username.</CardDescription></CardHeader>
                             <CardContent className="space-y-8">
+                                <div>
+                                    <h3 className="text-lg font-medium mb-4">Change Username</h3>
+                                    <Form {...usernameForm}>
+                                        <form onSubmit={usernameForm.handleSubmit(onUsernameChange)} className="space-y-4 max-w-sm">
+                                            <FormField control={usernameForm.control} name="newUsername" render={({ field }) => (<FormItem><FormLabel>New Username</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                            <FormField control={usernameForm.control} name="password" render={({ field }) => (<FormItem><FormLabel>Current Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
+                                            <Button type="submit" disabled={usernameForm.formState.isSubmitting}>{usernameForm.formState.isSubmitting && <Loader2 className="mr-2 animate-spin" />} Change Username</Button>
+                                        </form>
+                                    </Form>
+                                </div>
+                                <hr/>
                                 <div>
                                     <h3 className="text-lg font-medium mb-4">Change Email</h3>
                                     <Form {...emailForm}>
@@ -519,6 +557,7 @@ export default function SettingsPage() {
                                         </form>
                                     </Form>
                                 </div>
+                                 <hr/>
                                 <div>
                                     <h3 className="text-lg font-medium mb-4">Change Password</h3>
                                     <Form {...passwordForm}>

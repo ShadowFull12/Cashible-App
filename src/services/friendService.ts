@@ -5,7 +5,7 @@ import {
 } from "firebase/firestore";
 import type { UserProfile, FriendRequest } from "@/lib/data";
 import type { User } from 'firebase/auth';
-import { createNotification } from './notificationService';
+import { createNotification, deleteNotificationByRelatedId } from './notificationService';
 
 const friendRequestsRef = collection(db, "friend-requests");
 const friendshipsRef = collection(db, "friendships");
@@ -114,11 +114,13 @@ export async function acceptFriendRequest(requestId: string, currentUser: User, 
                 displayName: currentUser.displayName,
                 email: currentUser.email,
                 photoURL: currentUser.photoURL || null,
+                username: (await getDoc(doc(db, 'users', currentUser.uid))).data()?.username,
             },
             [fromUser.uid]: {
                 displayName: fromUser.displayName,
                 email: fromUser.email,
                 photoURL: fromUser.photoURL || null,
+                username: fromUser.username,
             }
         },
         createdAt: Timestamp.now()
@@ -128,11 +130,7 @@ export async function acceptFriendRequest(requestId: string, currentUser: User, 
     batch.delete(requestDocRef);
 
     // Find and delete the associated notification
-    const notificationQuery = query(collection(db, "notifications"), where("relatedId", "==", requestId));
-    const notificationSnapshot = await getDocs(notificationQuery);
-    notificationSnapshot.forEach(notificationDoc => {
-        batch.delete(notificationDoc.ref);
-    });
+    await deleteNotificationByRelatedId(requestId, batch);
 
     await batch.commit();
 }
@@ -141,7 +139,10 @@ export async function acceptFriendRequest(requestId: string, currentUser: User, 
 export async function rejectFriendRequest(requestId: string) {
     if (!db) throw new Error("Firebase is not configured.");
     const requestDocRef = doc(db, "friend-requests", requestId);
-    await deleteDoc(requestDocRef);
+    const batch = writeBatch(db);
+    batch.delete(requestDocRef);
+    await deleteNotificationByRelatedId(requestId, batch);
+    await batch.commit();
 }
 
 // 5. Get a user's friends via a real-time listener
@@ -162,6 +163,7 @@ export function getFriendsListener(userId: string, callback: (friends: UserProfi
                     displayName: friendData.displayName,
                     email: friendData.email,
                     photoURL: friendData.photoURL || null,
+                    username: friendData.username,
                 });
             }
         });

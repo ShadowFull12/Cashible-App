@@ -16,6 +16,7 @@ interface UserData {
   uid: string;
   displayName: string;
   email: string;
+  username: string;
   categories: any[];
   budget: number;
   budgetIsSet: boolean;
@@ -33,6 +34,7 @@ interface AuthContextType {
   uploadAndSetProfileImage: (file: File) => Promise<void>;
   updateUserPassword: (currentPassword: string, newPassword: string) => Promise<void>;
   updateUserEmail: (currentPassword: string, newEmail: string) => Promise<void>;
+  updateUserUsername: (currentPassword: string, newUsername: string) => Promise<void>;
   reauthenticateWithPassword: (password: string) => Promise<void>;
   deleteAllUserData: () => Promise<void>;
   deleteAccount: () => Promise<void>;
@@ -161,6 +163,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await refreshUserData();
   };
 
+  const updateUserUsername_ = async (currentPassword: string, newUsername: string) => {
+    if (!user) throw new Error("User not authenticated.");
+    if (!userData) throw new Error("User data not found.");
+    await authService.reauthenticate(currentPassword);
+    await userService.updateUsernameAndPropagate(user.uid, userData.username, newUsername);
+    await refreshUserData();
+  };
+
   const reauthenticateWithPassword_ = async (password: string) => {
       if (!user) throw new Error("User not authenticated.");
       await authService.reauthenticate(password);
@@ -189,6 +199,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     uploadAndSetProfileImage: uploadAndSetProfileImage_,
     updateUserPassword: updateUserPassword_,
     updateUserEmail: updateUserEmail_,
+    updateUserUsername: updateUserUsername_,
     reauthenticateWithPassword: reauthenticateWithPassword_,
     deleteAllUserData: deleteAllUserData_,
     deleteAccount: deleteAccount_,

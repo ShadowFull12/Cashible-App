@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -17,9 +18,10 @@ import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { auth } from "@/lib/firebase";
+import { getUserByUsername } from "@/services/userService";
 
 const formSchema = z.object({
-  email: z.string().email({ message: "Invalid email address." }),
+  email: z.string().min(1, { message: "Email or Username is required." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
 });
 
@@ -38,7 +40,19 @@ export default function LoginPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-      await signInWithEmailAndPassword(auth, values.email, values.password);
+      let emailToLogin = values.email;
+
+      // Check if the input is likely a username (no '@' symbol)
+      if (!emailToLogin.includes('@')) {
+        const userProfile = await getUserByUsername(emailToLogin);
+        if (userProfile?.email) {
+          emailToLogin = userProfile.email;
+        } else {
+          throw new Error("User not found with that username or email.");
+        }
+      }
+
+      await signInWithEmailAndPassword(auth, emailToLogin, values.password);
       toast.success("Logged in successfully!");
       // The redirect is handled by RootLayoutClient
     } catch (error: any) {
@@ -81,9 +95,9 @@ export default function LoginPage() {
                 name="email"
                 render={({ field }) => (
                   <FormItem>
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">Email or Username</Label>
                     <FormControl>
-                      <Input id="email" type="email" placeholder="m@example.com" {...field} disabled={!isFirebaseConfigured} />
+                      <Input id="email" placeholder="m@example.com or jane_doe" {...field} disabled={!isFirebaseConfigured} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

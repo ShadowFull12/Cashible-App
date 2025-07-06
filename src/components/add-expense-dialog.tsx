@@ -90,11 +90,11 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      description: "", amount: 0, category: "", date: new Date(), isRecurring: false, isSplit: false, payerId: user?.uid || "",
+      description: "", amount: undefined, category: "", date: new Date(), isRecurring: false, isSplit: false, payerId: user?.uid || "",
     },
   });
 
-  const { watch, setValue, control } = form;
+  const { watch, setValue, control, getValues } = form;
   const isSplit = watch('isSplit');
   const amount = watch('amount');
   const splitTarget = watch('splitTarget');
@@ -133,13 +133,13 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
         });
       } else if (defaultCircleId) {
         form.reset({
-            description: "", amount: 0, category: "", date: defaultDate || new Date(),
+            description: "", amount: undefined, category: "", date: defaultDate || new Date(),
             isRecurring: false, isSplit: true, splitTarget: `circle-${defaultCircleId}`,
             splitMembers: [], payerId: user?.uid
         });
       } else {
         form.reset({
-          description: "", amount: 0, category: "", date: defaultDate || new Date(), isRecurring: false, isSplit: false, splitMembers: [], splitTarget: undefined, payerId: user?.uid
+          description: "", amount: undefined, category: "", date: defaultDate || new Date(), isRecurring: false, isSplit: false, splitMembers: [], splitTarget: undefined, payerId: user?.uid
         });
       }
       setSplitMethod('equally');
@@ -159,7 +159,30 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSplitMembers]);
 
-  const handleSuggestCategory = async () => { /* ... */ };
+  const handleSuggestCategory = async () => {
+    const description = getValues("description");
+    if (!description) {
+        toast.info("Please enter a description first.");
+        return;
+    }
+    setIsSuggesting(true);
+    try {
+        const result = await suggestCategory({
+            description,
+            categories: categories.map(c => c.name),
+        });
+        if (result.category) {
+            setValue("category", result.category);
+            toast.success(`Suggested category: ${result.category}`);
+        } else {
+            toast.info("Could not suggest a category from your list.");
+        }
+    } catch (error) {
+        toast.error("Failed to get AI suggestion.");
+    } finally {
+        setIsSuggesting(false);
+    }
+  };
   
   const handleShareChange = (uid: string, value: string) => {
     setCustomShares(prev => ({...prev, [uid]: value}));
@@ -169,7 +192,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
       return Object.values(customShares).reduce((sum, val) => sum + (Number(val) || 0), 0);
   }, [customShares]);
 
-  const isCustomSplitInvalid = splitMethod === 'unequally' && Math.abs(totalCustomShare - amount) > 0.01 && selectedSplitMembers.length > 0;
+  const isCustomSplitInvalid = splitMethod === 'unequally' && Math.abs(totalCustomShare - (amount || 0)) > 0.01 && selectedSplitMembers.length > 0;
 
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -234,7 +257,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
         };
 
         if (values.payerId !== user.uid) {
-            const currentUserProfile: UserProfile = { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL || null };
+            const currentUserProfile: UserProfile = { uid: user.uid, displayName: user.displayName, email: user.email, photoURL: user.photoURL || null, username: user.uid }; // a bit of a hack for username
             await createExpenseClaim({
                 claimerProfile: currentUserProfile,
                 payerId: values.payerId,
@@ -264,7 +287,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
     }
   }
 
-  const individualShare = amount > 0 && selectedSplitMembers.length > 0 ? (amount / selectedSplitMembers.length).toFixed(2) : 0;
+  const individualShare = amount && amount > 0 && selectedSplitMembers.length > 0 ? (amount / selectedSplitMembers.length).toFixed(2) : 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -284,7 +307,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField name="description" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea placeholder="e.g. Lunch with colleagues" {...field} /></FormControl><FormMessage /></FormItem> )} />
-            <FormField name="amount" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Amount (₹)</FormLabel><FormControl><Input type="number" placeholder="e.g. 500" {...field} /></FormControl><FormMessage /></FormItem> )} />
+            <FormField name="amount" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Amount (₹)</FormLabel><FormControl><Input type="number" placeholder="e.g. 500" {...field} value={field.value ?? ''} /></FormControl><FormMessage /></FormItem> )} />
             <FormField name="category" control={form.control} render={({ field }) => ( <FormItem><FormLabel>Category</FormLabel><div className="flex items-center gap-2"><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a category" /></SelectTrigger></FormControl><SelectContent>{categories?.map((cat) => ( <SelectItem key={cat.name} value={cat.name}>{cat.name}</SelectItem> ))}</SelectContent></Select><Button type="button" variant="outline" size="icon" onClick={handleSuggestCategory} disabled={isSuggesting}>{isSuggesting ? <Loader2 className="animate-spin" /> : <Lightbulb />}<span className="sr-only">Suggest Category</span></Button></div><FormMessage /></FormItem> )} />
             <FormField name="date" control={form.control} render={({ field }) => ( <FormItem className="flex flex-col"><FormLabel>Date</FormLabel><Popover><PopoverTrigger asChild><FormControl><Button variant={"outline"} className={cn( "w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground" )}>{field.value ? format(field.value, "PPP") : <span>Pick a date</span>}<CalendarIcon className="ml-auto h-4 w-4 opacity-50" /></Button></FormControl></PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus /></PopoverContent></Popover><FormMessage /></FormItem> )} />
             
@@ -350,7 +373,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                                                 <FormControl>
                                                     <Checkbox
                                                         checked={field.value?.includes(item.uid)}
-                                                        disabled={field.value?.includes(item.uid) && selectedSplitMembers.length <= 2}
+                                                        disabled={selectedSplitMembers.length <= 2 && field.value?.includes(item.uid)}
                                                         onCheckedChange={(checked) => {
                                                             return checked
                                                                 ? field.onChange([...(field.value || []), item.uid])
@@ -379,7 +402,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                                 </FormItem>
 
                                 {splitMethod === 'equally' ? (
-                                    amount > 0 && ( <p className="text-sm text-muted-foreground">Each person owes: <span className="font-bold text-foreground">₹{individualShare}</span></p>)
+                                    amount && amount > 0 && ( <p className="text-sm text-muted-foreground">Each person owes: <span className="font-bold text-foreground">₹{individualShare}</span></p>)
                                 ) : (
                                     <div className="space-y-2">
                                         <FormLabel>Enter Custom Shares</FormLabel>
@@ -397,7 +420,7 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
                                             <div className="flex justify-between font-medium">
                                                 <span>Total of shares:</span><span>₹{totalCustomShare.toFixed(2)}</span>
                                             </div>
-                                            {isCustomSplitInvalid && <div className="flex justify-between text-xs mt-1"><span>Remaining:</span><span>₹{(amount - totalCustomShare).toFixed(2)}</span></div>}
+                                            {isCustomSplitInvalid && <div className="flex justify-between text-xs mt-1"><span>Remaining:</span><span>₹{((amount || 0) - totalCustomShare).toFixed(2)}</span></div>}
                                         </div>
                                     </div>
                                 )}
