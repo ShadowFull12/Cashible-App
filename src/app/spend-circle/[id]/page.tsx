@@ -1,17 +1,16 @@
-
 "use client";
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
 import { getCircleById } from '@/services/circleService';
-import { getDebtsForCircle, settleDebt } from '@/services/debtService';
-import type { Circle, Debt, UserProfile } from '@/lib/data';
+import { getDebtsForCircle, initiateSettlement, cancelSettlement, rejectSettlement, confirmSettlement, logSettledDebtAsExpense } from '@/services/debtService';
+import type { Circle, Debt, UserProfile, DebtSettlementStatus } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, ArrowRight, Users, VenetianMask, Check, Loader2, List, UserPlus, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Users, VenetianMask, Check, Loader2, List, UserPlus, AlertCircle, Clock, CheckCircle2, XCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -24,6 +23,11 @@ type SimplifiedDebt = {
     amount: number;
 }
 
+type ProcessingState = {
+    debtId: string;
+    action: 'settle' | 'confirm' | 'reject' | 'log' | 'cancel';
+} | null;
+
 export default function CircleDetailPage() {
     const { user } = useAuth();
     const router = useRouter();
@@ -33,7 +37,7 @@ export default function CircleDetailPage() {
     const [circle, setCircle] = useState<Circle | null>(null);
     const [debts, setDebts] = useState<Debt[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [settlingDebtId, setSettlingDebtId] = useState<string | null>(null);
+    const [processingState, setProcessingState] = useState<ProcessingState>(null);
     const [isInviteOpen, setIsInviteOpen] = useState(false);
     const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -82,38 +86,26 @@ export default function CircleDetailPage() {
         fetchCircleData();
     }, [fetchCircleData]);
 
-    const handleSettleDebt = async (debtId: string) => {
-        setSettlingDebtId(debtId);
-        try {
-            await settleDebt(debtId);
-            toast.success("Debt marked as settled!");
-            await fetchCircleData();
-        } catch (error) {
-            toast.error("Failed to settle debt.");
-        } finally {
-            setSettlingDebtId(null);
-        }
-    }
-
     const simplifiedDebts = useMemo((): SimplifiedDebt[] => {
         if (!circle || debts.length === 0) return [];
-
-        const unsettledDebts = debts.filter(d => !d.isSettled && d.debtorId && d.creditorId && d.debtor && d.creditor);
+    
+        // Only consider completely unsettled debts for simplification
+        const unsettledDebts = debts.filter(d => d.settlementStatus === 'unsettled');
         if (unsettledDebts.length === 0) return [];
-
+    
         const balances = new Map<string, number>();
-        const profiles = new Map<string, UserProfile>();
-
+    
+        // Populate profiles from the main circle member list for consistency
+        const profiles = new Map<string, UserProfile>(Object.entries(circle.members));
+    
         unsettledDebts.forEach(debt => {
             if (!balances.has(debt.debtorId)) balances.set(debt.debtorId, 0);
             if (!balances.has(debt.creditorId)) balances.set(debt.creditorId, 0);
-            if (!profiles.has(debt.debtorId) && debt.debtor) profiles.set(debt.debtorId, debt.debtor);
-            if (!profiles.has(debt.creditorId) && debt.creditor) profiles.set(debt.creditorId, debt.creditor);
-
+    
             balances.set(debt.debtorId, (balances.get(debt.debtorId)!) - debt.amount);
             balances.set(debt.creditorId, (balances.get(debt.creditorId)!) + debt.amount);
         });
-
+    
         const debtors = Array.from(balances.entries())
             .filter(([, balance]) => balance < -0.01)
             .map(([uid, balance]) => ({ uid, balance: -balance }));
@@ -129,10 +121,10 @@ export default function CircleDetailPage() {
             const debtor = debtors[i];
             const creditor = creditors[j];
             const amount = Math.min(debtor.balance, creditor.balance);
-
+    
             const fromProfile = profiles.get(debtor.uid);
             const toProfile = profiles.get(creditor.uid);
-
+    
             if (amount > 0.01 && fromProfile && toProfile) { 
                  settlements.push({
                     from: fromProfile,
@@ -140,18 +132,32 @@ export default function CircleDetailPage() {
                     amount: amount
                 });
             }
-
+    
             debtor.balance -= amount;
             creditor.balance -= amount;
-
+    
             if (debtor.balance < 0.01) i++;
             if (creditor.balance < 0.01) j++;
         }
-
+    
         return settlements;
     }, [circle, debts]);
     
-    const individualDebts = useMemo(() => debts.filter(d => !d.isSettled), [debts]);
+    const individualDebts = useMemo(() => debts.filter(d => d.settlementStatus !== 'logged'), [debts]);
+    
+    const handleAction = async (action: () => Promise<any>, debtId: string, actionName: ProcessingState['action'], successMessage: string, errorMessage: string) => {
+        setProcessingState({ debtId, action: actionName });
+        try {
+            await action();
+            toast.success(successMessage);
+            await fetchCircleData();
+        } catch (error) {
+            toast.error(errorMessage);
+            console.error(error);
+        } finally {
+            setProcessingState(null);
+        }
+    }
 
     if (isLoading) return <CircleDetailSkeleton />;
     if (fetchError) {
@@ -169,6 +175,59 @@ export default function CircleDetailPage() {
         )
     }
     if (!circle) return null;
+
+    const renderDebtActions = (debt: Debt) => {
+        const isDebtor = user?.uid === debt.debtorId;
+        const isCreditor = user?.uid === debt.creditorId;
+        const isProcessing = processingState?.debtId === debt.id;
+
+        if (isDebtor) {
+            switch(debt.settlementStatus) {
+                case 'unsettled':
+                    return <Button size="sm" disabled={isProcessing} onClick={() => handleAction(() => initiateSettlement(debt.id), debt.id, 'settle', "Payment marked as sent", "Failed to mark payment")}>
+                        {isProcessing && processingState.action === 'settle' ? <Loader2 className="animate-spin" /> : <Check />} I've Paid
+                        </Button>;
+                case 'pending_confirmation':
+                    return <Button size="sm" variant="ghost" disabled={isProcessing} onClick={() => handleAction(() => cancelSettlement(debt.id), debt.id, 'cancel', "Settlement cancelled", "Failed to cancel")}>
+                        {isProcessing && processingState.action === 'cancel' ? <Loader2 className="animate-spin" /> : <XCircle className="text-muted-foreground"/>} Cancel
+                        </Button>;
+                case 'confirmed':
+                     return <Button size="sm" variant="secondary" disabled={isProcessing} onClick={() => handleAction(() => logSettledDebtAsExpense(debt), debt.id, 'log', "Expense logged!", "Failed to log expense")}>
+                        {isProcessing && processingState.action === 'log' ? <Loader2 className="animate-spin" /> : <List />} Log as Expense
+                        </Button>;
+                default: return null;
+            }
+        }
+        
+        if (isCreditor) {
+            switch(debt.settlementStatus) {
+                case 'pending_confirmation':
+                    return <div className="flex gap-2">
+                        <Button size="sm" variant="outline" disabled={isProcessing} onClick={() => handleAction(() => rejectSettlement(debt.id), debt.id, 'reject', "Payment rejected", "Failed to reject")}>
+                            {isProcessing && processingState.action === 'reject' ? <Loader2 className="animate-spin" /> : <XCircle />} Reject
+                        </Button>
+                        <Button size="sm" disabled={isProcessing} onClick={() => handleAction(() => confirmSettlement(debt), debt.id, 'confirm', "Payment confirmed!", "Failed to confirm payment")}>
+                             {isProcessing && processingState.action === 'confirm' ? <Loader2 className="animate-spin" /> : <CheckCircle2 />} Accept
+                        </Button>
+                    </div>
+                 default: return null;
+            }
+        }
+
+        return null;
+    }
+
+    const getStatusBadge = (status: DebtSettlementStatus) => {
+        switch(status) {
+            case 'pending_confirmation':
+                return <Badge variant="outline" className="text-yellow-500 border-yellow-500/50"><Clock className="mr-1"/>Pending</Badge>
+            case 'confirmed':
+                return <Badge variant="outline" className="text-green-500 border-green-500/50"><Check className="mr-1"/>Confirmed</Badge>
+            default:
+                return <Badge variant="secondary">Unsettled</Badge>
+        }
+    }
+
 
     return (
         <>
@@ -257,7 +316,7 @@ export default function CircleDetailPage() {
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2"><List /> Outstanding Debts</CardTitle>
-                    <CardDescription>A list of all individual unsettled transactions.</CardDescription>
+                    <CardDescription>A list of all individual unsettled transactions and their statuses.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
                     {individualDebts.length > 0 ? (
@@ -276,12 +335,10 @@ export default function CircleDetailPage() {
                                             <p className="text-xs text-muted-foreground">For: {debt.transactionDescription}</p>
                                          </div>
                                     </div>
-                                    {user?.uid === debt.creditorId && (
-                                         <Button size="sm" onClick={() => handleSettleDebt(debt.id)} disabled={settlingDebtId === debt.id}>
-                                            {settlingDebtId === debt.id ? <Loader2 className="animate-spin" /> : <Check />}
-                                            Mark as Settled
-                                         </Button>
-                                    )}
+                                    <div className="flex items-center gap-4">
+                                        {getStatusBadge(debt.settlementStatus)}
+                                        {renderDebtActions(debt)}
+                                    </div>
                                 </div>
                             )
                         })
@@ -316,7 +373,6 @@ function CircleDetailSkeleton() {
                     <CardContent className="space-y-3">
                         <Skeleton className="h-12 w-full" />
                         <Skeleton className="h-12 w-full" />
-                        <Skeleton className="h-10 w-full mt-4" />
                     </CardContent>
                 </Card>
                 <Card>
@@ -324,7 +380,7 @@ function CircleDetailSkeleton() {
                     <CardContent className="space-y-3">
                         <Skeleton className="h-12 w-full" />
                         <Skeleton className="h-12 w-full" />
-                        <Skeleton className="h-12 w-full" />
+                        <Skeleton className="h-10 w-full mt-4" />
                     </CardContent>
                 </Card>
             </div>

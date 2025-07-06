@@ -9,6 +9,7 @@ export const defaultCategories = [
     { name: "Housing", color: "#3b82f6" },
     { name: "Shopping", color: "#ec4899" },
     { name: "College", color: "#8b5cf6" },
+    { name: "Settlement", color: "#64748b" },
     { name: "Others", color: "#6b7280" },
 ];
 
@@ -59,6 +60,8 @@ export interface Circle {
     createdAt: Date;
 }
 
+export type DebtSettlementStatus = 'unsettled' | 'pending_confirmation' | 'confirmed' | 'logged';
+
 export interface Debt {
     id: string;
     circleId: string | null;
@@ -66,10 +69,10 @@ export interface Debt {
     debtorId: string;
     creditorId: string;
     amount: number;
-    isSettled: boolean;
+    isSettled?: boolean; // For backwards compatibility
+    settlementStatus: DebtSettlementStatus;
     createdAt: Date;
     involvedUids: string[];
-    // Add full profiles for easier display
     debtor: UserProfile;
     creditor: UserProfile;
     transactionDescription: string;

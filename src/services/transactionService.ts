@@ -1,5 +1,5 @@
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, writeBatch, updateDoc, WriteBatch } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, writeBatch, updateDoc, WriteBatch, getDoc } from "firebase/firestore";
 import type { Transaction, SplitDetails } from "@/lib/data";
 import { addDebtCreationToBatch } from "./debtService";
 
@@ -14,8 +14,8 @@ export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date
             category: transaction.category,
             date: transaction.date instanceof Date ? Timestamp.fromDate(transaction.date) : transaction.date,
             recurringExpenseId: transaction.recurringExpenseId || null,
-            isSplit: false,
-            circleId: null,
+            isSplit: transaction.isSplit || false,
+            circleId: transaction.circleId || null,
         });
         return docRef.id;
     } catch (error: any) {
@@ -85,8 +85,7 @@ export async function addSplitTransaction(
                 ...splitDetails,
                 members: [loggerProfile, payerProfile]
             };
-
-            // Use the debt's own ID as a placeholder, since no central transaction exists for this logger.
+            // The transaction ID will be the debt's own ID, as no central transaction exists from the logger's side.
             addDebtCreationToBatch(batch, debtDocRef.id, singleDebtDetails, transaction.circleId || null, transaction.description);
         }
         
@@ -106,13 +105,28 @@ export async function updateTransaction(transactionId: string, data: Partial<Omi
     const docRef = doc(db, "transactions", transactionId);
     
     const dataToUpdate: any = { ...data };
-    if (data.date) {
+    if (data.date && data.date instanceof Date) {
         dataToUpdate.date = Timestamp.fromDate(data.date);
     }
     
     await updateDoc(docRef, dataToUpdate);
 }
 
+export async function getTransactionById(transactionId: string): Promise<Transaction | null> {
+    if (!db) return null;
+    const docRef = doc(db, "transactions", transactionId);
+    const docSnap = await getDoc(docRef);
+
+    if (docSnap.exists()) {
+        const data = docSnap.data();
+        return {
+            id: docSnap.id,
+            ...data,
+            date: (data.date as Timestamp).toDate(),
+        } as Transaction;
+    }
+    return null;
+}
 
 export async function getTransactions(userId: string): Promise<Transaction[]> {
     if (!db) return [];
@@ -162,12 +176,10 @@ export async function deleteTransactionsByRecurringId(userId: string, recurringE
         }
 
         if (batch) {
-            // If a batch is provided, add deletions to it
             querySnapshot.forEach(doc => {
                 batch.delete(doc.ref);
             });
         } else {
-            // Otherwise, create a new batch and commit it
             const newBatch = writeBatch(db);
             querySnapshot.forEach(doc => {
                 newBatch.delete(doc.ref);
