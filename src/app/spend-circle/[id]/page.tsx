@@ -216,26 +216,30 @@ export default function CircleDetailPage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                     {individualDebts.length > 0 ? (
-                        individualDebts.map(debt => (
-                            <div key={debt.id} className="flex items-center justify-between p-3 rounded-lg border">
-                                <div className="flex items-center gap-4">
-                                     <Avatar className="h-10 w-10"><AvatarImage src={debt.debtor.photoURL || undefined}/><AvatarFallback>{debt.debtor.displayName.charAt(0)}</AvatarFallback></Avatar>
-                                     <div>
-                                        <p className="text-sm">
-                                            <span className="font-bold">{debt.debtor.displayName}</span> owes <span className="font-bold">{debt.creditor.displayName}</span>
-                                        </p>
-                                        <p className="font-bold text-lg text-primary">₹{debt.amount.toFixed(2)}</p>
-                                        <p className="text-xs text-muted-foreground">For: {debt.transactionDescription}</p>
-                                     </div>
+                        individualDebts.map(debt => {
+                            if (!debt.debtor || !debt.creditor) return null; // Defensively skip rendering malformed debt data
+                            
+                            return (
+                                <div key={debt.id} className="flex items-center justify-between p-3 rounded-lg border">
+                                    <div className="flex items-center gap-4">
+                                         <Avatar className="h-10 w-10"><AvatarImage src={debt.debtor.photoURL || undefined}/><AvatarFallback>{debt.debtor.displayName?.charAt(0) || '?'}</AvatarFallback></Avatar>
+                                         <div>
+                                            <p className="text-sm">
+                                                <span className="font-bold">{debt.debtor.displayName || 'Unknown User'}</span> owes <span className="font-bold">{debt.creditor.displayName || 'Unknown User'}</span>
+                                            </p>
+                                            <p className="font-bold text-lg text-primary">₹{debt.amount.toFixed(2)}</p>
+                                            <p className="text-xs text-muted-foreground">For: {debt.transactionDescription}</p>
+                                         </div>
+                                    </div>
+                                    {user?.uid === debt.creditorId && (
+                                         <Button size="sm" onClick={() => handleSettleDebt(debt.id)} disabled={settlingDebtId === debt.id}>
+                                            {settlingDebtId === debt.id ? <Loader2 className="animate-spin" /> : <Check />}
+                                            Mark as Settled
+                                         </Button>
+                                    )}
                                 </div>
-                                {user?.uid === debt.creditorId && (
-                                     <Button size="sm" onClick={() => handleSettleDebt(debt.id)} disabled={settlingDebtId === debt.id}>
-                                        {settlingDebtId === debt.id ? <Loader2 className="animate-spin" /> : <Check />}
-                                        Mark as Settled
-                                     </Button>
-                                )}
-                            </div>
-                        ))
+                            )
+                        })
                     ) : (
                         <div className="text-center text-sm text-muted-foreground py-6">
                             <p className="font-semibold">No individual debts to settle.</p>
@@ -286,3 +290,5 @@ function CircleDetailSkeleton() {
         </div>
     );
 }
+
+    
