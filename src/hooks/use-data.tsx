@@ -205,7 +205,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     };
 
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
-}
+};
 
 export const useData = () => {
     const context = useContext(DataContext);
