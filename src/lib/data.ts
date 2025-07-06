@@ -90,3 +90,16 @@ export interface SplitDetails {
     members: SplitMember[];
     total: number;
 }
+
+export type NotificationType = 'friend-request' | 'circle-invite' | 'debt-settlement-request' | 'debt-settlement-confirmed';
+
+export interface Notification {
+    id: string;
+    userId: string; // The user who receives the notification
+    fromUser: UserProfile;
+    type: NotificationType;
+    message: string;
+    link: string;
+    read: boolean;
+    createdAt: Date;
+}

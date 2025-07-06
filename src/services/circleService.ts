@@ -1,6 +1,7 @@
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, arrayUnion } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, arrayUnion, writeBatch } from "firebase/firestore";
 import type { UserProfile, Circle } from "@/lib/data";
+import { createNotification } from './notificationService';
 
 const circlesRef = collection(db, "circles");
 
@@ -63,9 +64,15 @@ export async function getCircleById(circleId: string): Promise<Circle | null> {
     return null;
 }
 
-export async function addMembersToCircle(circleId: string, friendsToAdd: UserProfile[]) {
+export async function addMembersToCircle(circleId: string, friendsToAdd: UserProfile[], inviter: UserProfile) {
     if (!db) throw new Error("Firebase is not configured.");
     const circleRef = doc(db, "circles", circleId);
+
+    const circleSnap = await getDoc(circleRef);
+    if (!circleSnap.exists()) throw new Error("Circle not found.");
+    const circleName = circleSnap.data().name;
+
+    const batch = writeBatch(db);
 
     const updates: {[key: string]: any} = {
         memberIds: arrayUnion(...friendsToAdd.map(f => f.uid))
@@ -75,5 +82,19 @@ export async function addMembersToCircle(circleId: string, friendsToAdd: UserPro
         updates[`members.${friend.uid}`] = friend;
     });
 
-    await updateDoc(circleRef, updates);
+    batch.update(circleRef, updates);
+    await batch.commit();
+
+    // Create notifications after commit
+    const notificationPromises = friendsToAdd.map(friend => {
+        return createNotification({
+            userId: friend.uid,
+            fromUser: inviter,
+            type: 'circle-invite',
+            message: `${inviter.displayName} invited you to join the circle "${circleName}".`,
+            link: `/spend-circle/${circleId}`
+        });
+    });
+
+    await Promise.all(notificationPromises);
 }

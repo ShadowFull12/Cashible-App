@@ -5,6 +5,7 @@ import {
 } from "firebase/firestore";
 import type { UserProfile, FriendRequest } from "@/lib/data";
 import type { User } from 'firebase/auth';
+import { createNotification } from './notificationService';
 
 const friendRequestsRef = collection(db, "friend-requests");
 const friendshipsRef = collection(db, "friendships");
@@ -45,6 +46,14 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
         toUserId,
         status: 'pending',
         createdAt: Timestamp.now()
+    });
+
+    await createNotification({
+        userId: toUserId,
+        fromUser: fromUser,
+        type: 'friend-request',
+        message: `${fromUser.displayName} sent you a friend request.`,
+        link: '/spend-circle', // Links to the page with the 'Requests' tab
     });
 }
 
@@ -96,12 +105,12 @@ export async function acceptFriendRequest(requestId: string, currentUser: User, 
             [currentUser.uid]: {
                 displayName: currentUser.displayName,
                 email: currentUser.email,
-                photoURL: currentUser.photoURL || '',
+                photoURL: currentUser.photoURL || null,
             },
             [fromUser.uid]: {
                 displayName: fromUser.displayName,
                 email: fromUser.email,
-                photoURL: fromUser.photoURL || ''
+                photoURL: fromUser.photoURL || null
             }
         },
         createdAt: Timestamp.now()

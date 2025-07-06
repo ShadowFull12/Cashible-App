@@ -3,9 +3,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, History, Lightbulb, Users, Plus, Calendar, Settings } from "lucide-react";
+import { LayoutDashboard, History, Lightbulb, Users, Plus, Calendar, Bell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/button";
+import { useData } from "@/hooks/use-data";
 
 const navItems = [
   { href: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
@@ -13,7 +14,7 @@ const navItems = [
   { href: "/spend-circle", icon: Users, label: "Circle" },
   { href: "/calendar", icon: Calendar, label: "Calendar" },
   { href: "/insights", icon: Lightbulb, label: "Insights" },
-  { href: "/settings", icon: Settings, label: "Settings" },
+  { href: "/notifications", icon: Bell, label: "Notifications" },
 ];
 
 interface BottomNavProps {
@@ -22,12 +23,13 @@ interface BottomNavProps {
 
 export function BottomNav({ onAddExpenseClick }: BottomNavProps) {
   const pathname = usePathname();
+  const { unreadNotificationCount } = useData();
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-20 border-t bg-background/95 backdrop-blur-sm md:hidden">
       <div className="relative mx-auto grid h-16 grid-cols-7 max-w-md items-center justify-around">
         {navItems.slice(0, 3).map((item) => (
-          <Link href={item.href} key={item.href} className="flex-1">
+          <Link href={item.href} key={item.href} className="flex-1 relative">
             <div
               className={cn(
                 "flex h-full flex-col items-center justify-center gap-1 text-sm font-medium transition-colors",
@@ -39,6 +41,11 @@ export function BottomNav({ onAddExpenseClick }: BottomNavProps) {
               <item.icon className="size-5" />
               <span className="text-xs">{item.label}</span>
             </div>
+             {item.href === '/notifications' && unreadNotificationCount > 0 && (
+                <div className="absolute top-2 right-1/2 translate-x-3 h-4 min-w-[1rem] px-1 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
+                    {unreadNotificationCount}
+                </div>
+            )}
           </Link>
         ))}
         
@@ -53,7 +60,7 @@ export function BottomNav({ onAddExpenseClick }: BottomNavProps) {
         </div>
 
         {navItems.slice(3).map((item) => (
-          <Link href={item.href} key={item.href} className="flex-1">
+          <Link href={item.href} key={item.href} className="flex-1 relative">
             <div
               className={cn(
                 "flex h-full flex-col items-center justify-center gap-1 text-sm font-medium transition-colors",
@@ -65,6 +72,11 @@ export function BottomNav({ onAddExpenseClick }: BottomNavProps) {
               <item.icon className="size-5" />
                <span className="text-xs">{item.label}</span>
             </div>
+            {item.href === '/notifications' && unreadNotificationCount > 0 && (
+                <div className="absolute top-2 right-1/2 translate-x-3 h-4 min-w-[1rem] px-1 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
+                    {unreadNotificationCount}
+                </div>
+            )}
           </Link>
         ))}
       </div>

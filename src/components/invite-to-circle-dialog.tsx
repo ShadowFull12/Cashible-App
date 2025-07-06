@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
 import { useData } from '@/hooks/use-data';
+import { useAuth } from '@/hooks/use-auth';
 import { addMembersToCircle } from '@/services/circleService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
@@ -30,6 +31,7 @@ interface InviteToCircleDialogProps {
 
 export function InviteToCircleDialog({ open, onOpenChange, circle, onInviteSent }: InviteToCircleDialogProps) {
     const { friends } = useData();
+    const { user } = useAuth();
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const friendsToInvite = friends.filter(f => !circle.memberIds.includes(f.uid));
@@ -42,10 +44,19 @@ export function InviteToCircleDialog({ open, onOpenChange, circle, onInviteSent 
     });
 
     const onSubmit = async (values: z.infer<typeof formSchema>) => {
+        if (!user || !user.displayName || !user.email) return;
+        
         setIsSubmitting(true);
         try {
             const selectedFriends = friends.filter(f => values.members.includes(f.uid));
-            await addMembersToCircle(circle.id, selectedFriends);
+            const inviterProfile: UserProfile = {
+                uid: user.uid,
+                displayName: user.displayName,
+                email: user.email,
+                photoURL: user.photoURL || undefined
+            };
+
+            await addMembersToCircle(circle.id, selectedFriends, inviterProfile);
 
             toast.success(`Invited ${selectedFriends.length} friend(s) to "${circle.name}"!`);
             onInviteSent();
@@ -104,7 +115,7 @@ export function InviteToCircleDialog({ open, onOpenChange, circle, onInviteSent 
                                                                     checked={field.value?.includes(friend.uid)}
                                                                     onCheckedChange={(checked) => {
                                                                         return checked
-                                                                            ? field.onChange([...field.value, friend.uid])
+                                                                            ? field.onChange([...(field.value || []), friend.uid])
                                                                             : field.onChange(
                                                                                 field.value?.filter(
                                                                                     (value) => value !== friend.uid
