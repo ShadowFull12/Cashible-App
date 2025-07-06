@@ -89,21 +89,21 @@ export async function getCircleById(circleId: string): Promise<Circle | null> {
 
 export async function sendCircleInvitations(circleId: string, circleName: string, fromUser: UserProfile, friendsToInvite: UserProfile[]) {
     if (!db) throw new Error("Firebase is not configured.");
-    const batch = writeBatch(db);
 
-    const notificationPromises: Promise<any>[] = [];
-
-    for (const friend of friendsToInvite) {
-        // Check if invitation already exists
-        const q = query(circleInvitationsRef, where("circleId", "==", circleId), where("toUserId", "==", friend.uid));
+    const invitationPromises = friendsToInvite.map(async (friend) => {
+        const q = query(
+            circleInvitationsRef, 
+            where("circleId", "==", circleId), 
+            where("toUserId", "==", friend.uid),
+            where("status", "==", "pending")
+        );
         const existingInvites = await getDocs(q);
         if (!existingInvites.empty) {
             console.log(`Invitation for ${friend.displayName} to circle ${circleName} already exists.`);
-            continue; // Skip if invite already sent
+            return;
         }
 
-        const invitationRef = doc(circleInvitationsRef);
-        batch.set(invitationRef, {
+        const invitationDocRef = await addDoc(circleInvitationsRef, {
             circleId,
             circleName,
             fromUser,
@@ -111,19 +111,18 @@ export async function sendCircleInvitations(circleId: string, circleName: string
             status: 'pending',
             createdAt: Timestamp.now(),
         });
-        
-        notificationPromises.push(createNotification({
+
+        await createNotification({
             userId: friend.uid,
             fromUser: fromUser,
             type: 'circle-invitation',
             message: `${fromUser.displayName} invited you to join the circle "${circleName}".`,
             link: `/notifications`,
-            relatedId: invitationRef.id
-        }));
-    }
+            relatedId: invitationDocRef.id
+        });
+    });
     
-    await batch.commit();
-    await Promise.all(notificationPromises);
+    await Promise.all(invitationPromises);
 }
 
 export function getCircleInvitationsListener(userId: string, callback: (invitations: CircleInvitation[]) => void): Unsubscribe {
@@ -149,18 +148,6 @@ export function getCircleInvitationsListener(userId: string, callback: (invitati
     return unsubscribe;
 }
 
-
-export async function addMembersToCircle(circleId: string, friendsToAdd: UserProfile[], inviter: UserProfile) {
-    if (!db) throw new Error("Firebase is not configured.");
-    const circleRef = doc(db, "circles", circleId);
-
-    const circleSnap = await getDoc(circleRef);
-    if (!circleSnap.exists()) throw new Error("Circle not found.");
-    const circleName = circleSnap.data().name;
-
-    await sendCircleInvitations(circleId, circleName, inviter, friendsToAdd);
-}
-
 export async function acceptCircleInvitation(invitationId: string, user: UserProfile) {
     if (!db) throw new Error("Firebase not configured");
     const invitationRef = doc(db, 'circle-invitations', invitationId);
@@ -170,27 +157,45 @@ export async function acceptCircleInvitation(invitationId: string, user: UserPro
         throw new Error("Invitation not found or you are not the recipient.");
     }
     
-    const { circleId } = invitationSnap.data();
+    const { circleId, circleName, fromUser } = invitationSnap.data();
     const circleRef = doc(db, "circles", circleId);
 
     const batch = writeBatch(db);
     
-    // Add user to circle
     batch.update(circleRef, {
         memberIds: arrayUnion(user.uid),
         [`members.${user.uid}`]: user
     });
     
-    // Delete invitation
     batch.delete(invitationRef);
     
+    const notificationsQuery = query(collection(db, 'notifications'), where('relatedId', '==', invitationId));
+    const notificationsSnapshot = await getDocs(notificationsQuery);
+    notificationsSnapshot.forEach(doc => batch.delete(doc.ref));
+
     await batch.commit();
+
+    await createNotification({
+        userId: fromUser.uid,
+        fromUser: user,
+        type: 'circle-join',
+        message: `${user.displayName} has joined your circle "${circleName}".`,
+        link: `/spend-circle/${circleId}`,
+    });
 }
 
 export async function rejectCircleInvitation(invitationId: string) {
     if (!db) throw new Error("Firebase not configured");
+    const batch = writeBatch(db);
+    
     const invitationRef = doc(db, 'circle-invitations', invitationId);
-    await deleteDoc(invitationRef);
+    batch.delete(invitationRef);
+
+    const notificationsQuery = query(collection(db, 'notifications'), where('relatedId', '==', invitationId));
+    const notificationsSnapshot = await getDocs(notificationsQuery);
+    notificationsSnapshot.forEach(doc => batch.delete(doc.ref));
+
+    await batch.commit();
 }
 
 export async function deleteCircle(circleId: string, ownerId: string) {
@@ -209,20 +214,16 @@ export async function deleteCircle(circleId: string, ownerId: string) {
     const circleData = circleSnap.data() as Circle;
     const batch = writeBatch(db);
     
-    // 1. Delete all debts associated with the circle
     await deleteDebtsForCircle(circleId, batch);
     
-    // 2. Delete pending invitations for this circle
     const invitationsQuery = query(collection(db, 'circle-invitations'), where('circleId', '==', circleId));
     const invitationsSnapshot = await getDocs(invitationsQuery);
     invitationsSnapshot.forEach(doc => batch.delete(doc.ref));
 
-    // 3. Delete the circle itself (last)
     batch.delete(circleRef);
 
     await batch.commit();
     
-    // Send notifications to all members (except owner) after successful deletion
     const ownerProfile = circleData.members[ownerId] || { displayName: 'The owner', uid: ownerId, email: '', photoURL: null };
     const notificationPromises = circleData.memberIds
         .filter(id => id !== ownerId)

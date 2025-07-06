@@ -22,6 +22,7 @@ import { deleteNotification } from '@/services/notificationService';
 const iconMap: {[key: string]: React.ElementType} = {
     'friend-request': UserPlus,
     'circle-invitation': BellRing,
+    'circle-join': UserCheck,
     'debt-settlement-request': CircleDollarSign,
     'debt-settlement-confirmed': Check,
     'circle-deleted': Bell,
@@ -135,8 +136,9 @@ export default function NotificationsPage() {
                 }
             } else {
                  setProcessingId(idToProcess);
+                 await deleteNotification(notification.id);
             }
-            await deleteNotification(notification.id);
+            
             toast.success("Notification dismissed.");
         } catch (e: any) {
             toast.error("Failed to dismiss notification.", { description: e.message });

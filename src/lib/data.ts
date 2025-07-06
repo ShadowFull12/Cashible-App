@@ -91,7 +91,7 @@ export interface SplitDetails {
     total: number;
 }
 
-export type NotificationType = 'friend-request' | 'circle-invitation' | 'debt-settlement-request' | 'debt-settlement-confirmed' | 'circle-deleted';
+export type NotificationType = 'friend-request' | 'circle-invitation' | 'debt-settlement-request' | 'debt-settlement-confirmed' | 'circle-deleted' | 'circle-join';
 
 export interface Notification {
     id: string;
