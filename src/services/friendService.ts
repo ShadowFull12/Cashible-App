@@ -14,23 +14,26 @@ const friendshipsRef = collection(db, "friendships");
 export async function sendFriendRequest(fromUser: UserProfile, toUserId: string) {
     if (!db) throw new Error("Firebase is not configured.");
 
-    // Check if a PENDING request already exists between these users
-    const q = query(friendRequestsRef, 
+    // Check for a pending request from me to them
+    const q1 = query(friendRequestsRef, 
         where("status", "==", "pending"),
-        or(
-            where("fromUser.uid", "==", toUserId),
-            where("toUserId", "==", toUserId)
-        )
+        where("fromUser.uid", "==", fromUser.uid),
+        where("toUserId", "==", toUserId)
     );
+    const snapshot1 = await getDocs(q1);
+    if (!snapshot1.empty) {
+        throw new Error("You have already sent a friend request to this user.");
+    }
 
-    const querySnapshot = await getDocs(q);
-    const existingRequest = querySnapshot.docs.find(d => {
-        const data = d.data();
-        return (data.fromUser.uid === fromUser.uid || data.toUserId === fromUser.uid);
-    });
-
-    if (existingRequest) {
-        throw new Error("A friend request is already pending with this user.");
+    // Check for a pending request from them to me
+    const q2 = query(friendRequestsRef, 
+        where("status", "==", "pending"),
+        where("fromUser.uid", "==", toUserId),
+        where("toUserId", "==", fromUser.uid)
+    );
+    const snapshot2 = await getDocs(q2);
+     if (!snapshot2.empty) {
+        throw new Error("This user has already sent you a friend request. Check your notifications.");
     }
 
     // Check if they are already friends

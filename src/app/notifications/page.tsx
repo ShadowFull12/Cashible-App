@@ -77,12 +77,32 @@ export default function NotificationsPage() {
         }
     };
 
-    const handleDeleteNotification = async (notificationId: string) => {
+    const handleDeleteNotification = async (notification: Notification) => {
+        // Find the corresponding friend request if it's that type of notification
+        const matchingFriendRequest = notification.type === 'friend-request'
+            ? friendRequests.find(req => 
+                req.fromUser.uid === notification.fromUser.uid &&
+                req.toUserId === user?.uid &&
+                req.status === 'pending'
+              )
+            : undefined;
+
+        // Use the friend request ID for processing state if one exists to disable all related buttons.
+        const idToProcess = matchingFriendRequest?.id || notification.id;
+        setProcessingId(idToProcess);
+
         try {
-            await deleteNotification(notificationId);
+            // If it was a friend request, rejecting it deletes the request document.
+            if (matchingFriendRequest) {
+                await rejectFriendRequest(matchingFriendRequest.id);
+            }
+            // Always delete the notification document itself.
+            await deleteNotification(notification.id);
             toast.success("Notification dismissed.");
-        } catch(e) {
-            toast.error("Failed to dismiss notification.");
+        } catch (e: any) {
+            toast.error("Failed to dismiss notification.", { description: e.message });
+        } finally {
+            setProcessingId(null);
         }
     };
 
@@ -120,7 +140,8 @@ export default function NotificationsPage() {
                             req.status === 'pending'
                           )
                         : undefined;
-                    const isProcessing = processingId === matchingFriendRequest?.id;
+                    
+                    const isProcessing = processingId === matchingFriendRequest?.id || processingId === notification.id;
 
                     return (
                         <div
@@ -177,8 +198,9 @@ export default function NotificationsPage() {
                                 size="icon"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    handleDeleteNotification(notification.id);
+                                    handleDeleteNotification(notification);
                                 }}
+                                disabled={isProcessing}
                                 className="absolute top-1 right-1 h-7 w-7 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
                                 aria-label="Dismiss notification"
                             >
