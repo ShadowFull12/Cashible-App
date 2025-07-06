@@ -61,17 +61,16 @@ export async function addSplitTransaction(
 
         } else {
             // Case 2: The person logging the expense is NOT who paid.
-            // They can only declare their own debt. They cannot create a transaction
-            // for the payer or create debts for other people.
-            
             const loggerProfile = members.find(m => m.uid === loggerId);
             if (!loggerProfile) throw new Error("Logger could not be found in the split members.");
             
             // Create a single debt record for the logger.
             const debtDocRef = doc(collection(db, "debts"));
+            
+            // The `members` array for debt creation must include both the debtor (logger) and the creditor (payer).
             const singleDebtDetails: SplitDetails = {
                 ...splitDetails,
-                members: [loggerProfile] // Only create a debt for the logger
+                members: [loggerProfile, payerProfile]
             };
 
             // Use the debt's own ID as a placeholder, since no central transaction exists for this logger.
