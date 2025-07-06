@@ -107,6 +107,7 @@ export interface Settlement {
     status: SettlementStatus;
     createdAt: Date;
     processedAt?: Date | null;
+    payerTransactionId?: string | null;
 }
 
 

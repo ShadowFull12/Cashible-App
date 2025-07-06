@@ -19,6 +19,7 @@ export async function initiateSettlement(fromUser: UserProfile, toUser: UserProf
         amount,
         status: 'pending_confirmation',
         createdAt: Timestamp.now(),
+        payerTransactionId: null,
     });
 
     await createNotification({
@@ -57,7 +58,8 @@ export async function acceptSettlement(settlementId: string) {
         fromUser: settlement.toUser,
         type: 'settlement-confirmed',
         message: `${settlement.toUser.displayName} confirmed your payment of ₹${settlement.amount.toFixed(2)}.`,
-        link: `/spend-circle/${settlement.circleId}?tab=history`,
+        link: `/notifications`,
+        relatedId: settlementId,
     });
 }
 
@@ -83,6 +85,55 @@ export async function rejectSettlement(settlementId: string) {
         message: `${settlement.toUser.displayName} declined your payment claim of ₹${settlement.amount.toFixed(2)}.`,
         link: `/spend-circle/${settlement.circleId}?tab=balances`,
     });
+}
+
+export async function logSettlementAsExpense(settlementId: string, notificationId: string) {
+    if (!db) throw new Error("Firebase is not configured.");
+    
+    const batch = writeBatch(db);
+    const settlementRef = doc(db, "settlements", settlementId);
+    const settlementSnap = await getDoc(settlementRef);
+
+    if (!settlementSnap.exists() || settlementSnap.data().status !== 'confirmed') {
+        throw new Error("Settlement not found or not confirmed.");
+    }
+    if (settlementSnap.data().payerTransactionId) {
+        const notificationRef = doc(db, "notifications", notificationId);
+        await deleteDoc(notificationRef);
+        throw new Error("This settlement has already been logged.");
+    }
+    
+    const settlementData = settlementSnap.data();
+    const settlement = {
+        id: settlementSnap.id,
+        ...settlementData,
+        createdAt: (settlementData.createdAt as Timestamp).toDate(),
+        processedAt: settlementData.processedAt ? (settlementData.processedAt as Timestamp).toDate() : new Date(),
+    } as Settlement;
+
+
+    // 1. Create the personal expense transaction for the payer
+    const newTransactionRef = doc(collection(db, "transactions"));
+    batch.set(newTransactionRef, {
+        userId: settlement.fromUserId,
+        description: `Settlement to ${settlement.toUser.displayName}`,
+        amount: settlement.amount,
+        category: "Settlement",
+        date: Timestamp.fromDate(settlement.processedAt!),
+        isSplit: false,
+        circleId: null, // Not a circle expense
+        recurringExpenseId: null,
+        splitDetails: null
+    });
+    
+    // 2. Update the settlement with the new transaction ID
+    batch.update(settlementRef, { payerTransactionId: newTransactionRef.id });
+
+    // 3. Delete the actionable notification
+    const notificationRef = doc(db, "notifications", notificationId);
+    batch.delete(notificationRef);
+
+    await batch.commit();
 }
 
 

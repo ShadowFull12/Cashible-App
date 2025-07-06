@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 import { acceptFriendRequest, rejectFriendRequest } from '@/services/friendService';
 import { deleteNotification } from '@/services/notificationService';
 import { acceptExpenseClaim, rejectExpenseClaim } from '@/services/expenseClaimService';
-import { acceptSettlement, rejectSettlement } from '@/services/debtService';
+import { acceptSettlement, rejectSettlement, logSettlementAsExpense } from '@/services/debtService';
 
 
 const iconMap: {[key: string]: React.ElementType} = {
@@ -29,7 +29,7 @@ const iconMap: {[key: string]: React.ElementType} = {
     'expense-claim-accepted': CheckCircle2,
     'expense-claim-rejected': XCircle,
     'settlement-request': HandCoins,
-    'settlement-confirmed': CheckCircle2,
+    'settlement-confirmed': HandCoins,
     'settlement-rejected': XCircle,
     'circle-member-joined': UserCheck,
 };
@@ -47,7 +47,8 @@ export default function NotificationsPage() {
 
         const isActionable = notification.type === 'friend-request' ||
                              notification.type === 'expense-claim-request' ||
-                             notification.type === 'settlement-request';
+                             notification.type === 'settlement-request' ||
+                             notification.type === 'settlement-confirmed';
         
         if (isActionable) {
             return;
@@ -161,6 +162,20 @@ export default function NotificationsPage() {
         }
     }
 
+    const handleLogSettlement = async (notification: Notification) => {
+        if (!notification.relatedId) return;
+        setProcessingId(notification.id);
+        try {
+            await logSettlementAsExpense(notification.relatedId, notification.id);
+            toast.success("Settlement logged as a personal expense.");
+            // Data will refresh automatically due to listeners
+        } catch (error: any) {
+            toast.error("Failed to log settlement.", { description: error.message });
+        } finally {
+            setProcessingId(null);
+        }
+    }
+
 
     return (
         <Card>
@@ -191,8 +206,9 @@ export default function NotificationsPage() {
                     
                     const isClaimRequest = notification.type === 'expense-claim-request';
                     const isSettlementRequest = notification.type === 'settlement-request';
+                    const isSettlementConfirmed = notification.type === 'settlement-confirmed';
                     
-                    const isActionable = !!matchingFriendRequest || isClaimRequest || isSettlementRequest;
+                    const isActionable = !!matchingFriendRequest || isClaimRequest || isSettlementRequest || isSettlementConfirmed;
                     const isProcessing = (matchingFriendRequest && processingId === matchingFriendRequest.id) || processingId === notification.id;
 
                     return (
@@ -250,6 +266,14 @@ export default function NotificationsPage() {
                                             </Button>
                                             <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleDeclineSettlement(notification); }} disabled={isProcessing}>
                                                 {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <X className="mr-2 size-4"/>} Decline
+                                            </Button>
+                                        </div>
+                                    )}
+
+                                    {isSettlementConfirmed && (
+                                        <div className="flex gap-2 mt-2">
+                                            <Button size="sm" onClick={(e) => { e.stopPropagation(); handleLogSettlement(notification); }} disabled={isProcessing}>
+                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <ClipboardCheck className="mr-2 size-4"/>} Log as Expense
                                             </Button>
                                         </div>
                                     )}

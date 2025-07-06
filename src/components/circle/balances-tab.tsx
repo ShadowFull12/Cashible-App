@@ -52,9 +52,9 @@ export function BalancesTab({ circle, transactions, settlements }: BalancesTabPr
         // Process confirmed settlements
         settlements.forEach(s => {
             if (s.status === 'confirmed') {
-                // Debit the sender
+                // Debit the sender (fromUser) because they paid money
                 balances.set(s.fromUserId, (balances.get(s.fromUserId) || 0) - s.amount);
-                // Credit the receiver
+                // Credit the receiver (toUser) because they received money
                 balances.set(s.toUserId, (balances.get(s.toUserId) || 0) + s.amount);
             }
         });
