@@ -76,7 +76,7 @@ export async function searchUsersByEmail(email: string): Promise<UserProfile[]> 
             uid: data.uid,
             displayName: data.displayName,
             email: data.email,
-            photoURL: data.photoURL,
+            photoURL: data.photoURL || null,
         });
     });
     return users;

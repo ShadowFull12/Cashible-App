@@ -53,7 +53,7 @@ export function InviteToCircleDialog({ open, onOpenChange, circle, onInviteSent 
                 uid: user.uid,
                 displayName: user.displayName,
                 email: user.email,
-                photoURL: user.photoURL || undefined
+                photoURL: user.photoURL
             };
 
             await addMembersToCircle(circle.id, selectedFriends, inviterProfile);
@@ -127,7 +127,7 @@ export function InviteToCircleDialog({ open, onOpenChange, circle, onInviteSent 
                                                              <FormLabel className="font-normal w-full cursor-pointer">
                                                                 <div className="flex items-center gap-3">
                                                                      <Avatar className="h-8 w-8">
-                                                                        <AvatarImage src={friend.photoURL || undefined} />
+                                                                        <AvatarImage src={friend.photoURL} />
                                                                         <AvatarFallback>{friend.displayName.charAt(0)}</AvatarFallback>
                                                                     </Avatar>
                                                                     <div>

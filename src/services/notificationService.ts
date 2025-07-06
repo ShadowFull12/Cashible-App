@@ -35,9 +35,14 @@ export function getNotificationsForUser(userId: string, callback: (notifications
         const notifications: Notification[] = [];
         querySnapshot.forEach(doc => {
             const data = doc.data();
+            const fromUser = data.fromUser as UserProfile;
+            // Sanitize photoURL to prevent 'undefined' values
+            fromUser.photoURL = fromUser.photoURL || null;
+
             notifications.push({
                 id: doc.id,
                 ...data,
+                fromUser: fromUser,
                 createdAt: (data.createdAt as Timestamp).toDate(),
             } as Notification);
         });

@@ -46,11 +46,11 @@ function AddFriendTab() {
         if (!user || !user.displayName) return;
         setIsSending(prev => ({...prev, [toUser.uid]: true}));
         try {
-            const fromUser = {
+            const fromUser: UserProfile = {
                 uid: user.uid,
                 displayName: user.displayName,
                 email: user.email!,
-                photoURL: user.photoURL || undefined,
+                photoURL: user.photoURL,
             };
             await sendFriendRequest(fromUser, toUser.uid);
             toast.success(`Friend request sent to ${toUser.displayName}`);
@@ -102,7 +102,7 @@ function AddFriendTab() {
                     return (
                         <div key={foundUser.uid} className="flex items-center justify-between p-3 border rounded-lg">
                             <div className="flex items-center gap-4">
-                                <Avatar><AvatarImage src={foundUser.photoURL || undefined} /><AvatarFallback>{foundUser.displayName.charAt(0)}</AvatarFallback></Avatar>
+                                <Avatar><AvatarImage src={foundUser.photoURL} /><AvatarFallback>{foundUser.displayName.charAt(0)}</AvatarFallback></Avatar>
                                 <div>
                                     <p className="font-semibold">{foundUser.displayName}</p>
                                     <p className="text-sm text-muted-foreground">{foundUser.email}</p>
@@ -145,7 +145,7 @@ function FriendsTab() {
                 {friends.map(friend => (
                      <div key={friend.uid} className="flex items-center justify-between p-3 border rounded-lg">
                         <div className="flex items-center gap-4">
-                            <Avatar><AvatarImage src={friend.photoURL || undefined} /><AvatarFallback>{friend.displayName.charAt(0)}</AvatarFallback></Avatar>
+                            <Avatar><AvatarImage src={friend.photoURL} /><AvatarFallback>{friend.displayName.charAt(0)}</AvatarFallback></Avatar>
                             <div>
                                 <p className="font-semibold">{friend.displayName}</p>
                                 <p className="text-sm text-muted-foreground">{friend.email}</p>
@@ -206,7 +206,7 @@ function CirclesTab() {
                                 <div className="flex -space-x-2 overflow-hidden">
                                     {Object.values(circle.members).slice(0, 5).map(member => (
                                         <Avatar key={member.uid} className="inline-block h-8 w-8 rounded-full ring-2 ring-background">
-                                            <AvatarImage src={member.photoURL || undefined} />
+                                            <AvatarImage src={member.photoURL} />
                                             <AvatarFallback>{member.displayName.charAt(0)}</AvatarFallback>
                                         </Avatar>
                                     ))}

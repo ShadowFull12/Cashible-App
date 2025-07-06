@@ -39,9 +39,17 @@ export function getCirclesForUserListener(userId: string, callback: (circles: Ci
         const circles: Circle[] = [];
         querySnapshot.forEach(doc => {
             const data = doc.data();
+            const membersMap = data.members || {};
+            // Sanitize photoURL to prevent 'undefined' values
+            for (const uid in membersMap) {
+                if (Object.prototype.hasOwnProperty.call(membersMap, uid)) {
+                    membersMap[uid].photoURL = membersMap[uid].photoURL || null;
+                }
+            }
             circles.push({
                 id: doc.id,
                 ...data,
+                members: membersMap,
                 createdAt: (data.createdAt as Timestamp).toDate(),
             } as Circle);
         });

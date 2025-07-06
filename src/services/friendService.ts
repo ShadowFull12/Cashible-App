@@ -16,12 +16,10 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
 
     // Check for any pending request involving both users
     const q = query(friendRequestsRef, 
+        where("status", "==", "pending"),
         and(
-            where("status", "==", "pending"),
-            or(
-                and(where('fromUser.uid', '==', fromUser.uid), where('toUserId', '==', toUserId)),
-                and(where('fromUser.uid', '==', toUserId), where('toUserId', '==', fromUser.uid))
-            )
+            or(where('fromUser.uid', '==', fromUser.uid), where('fromUser.uid', '==', toUserId)),
+            or(where('toUserId', '==', toUserId), where('toUserId', '==', fromUser.uid))
         )
     );
 
@@ -98,12 +96,12 @@ export async function acceptFriendRequest(requestId: string, currentUser: User, 
             [currentUser.uid]: {
                 displayName: currentUser.displayName,
                 email: currentUser.email,
-                photoURL: currentUser.photoURL || null,
+                photoURL: currentUser.photoURL,
             },
             [fromUser.uid]: {
                 displayName: fromUser.displayName,
                 email: fromUser.email,
-                photoURL: fromUser.photoURL || null
+                photoURL: fromUser.photoURL
             }
         },
         createdAt: Timestamp.now()
@@ -140,7 +138,7 @@ export function getFriendsListener(userId: string, callback: (friends: UserProfi
                     uid: friendId,
                     displayName: friendData.displayName,
                     email: friendData.email,
-                    photoURL: friendData.photoURL,
+                    photoURL: friendData.photoURL || null,
                 });
             }
         });

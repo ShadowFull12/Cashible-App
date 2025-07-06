@@ -52,7 +52,7 @@ export function CreateCircleDialog({ open, onOpenChange }: CreateCircleDialogPro
                 uid: user.uid,
                 displayName: user.displayName,
                 email: user.email,
-                photoURL: user.photoURL || undefined,
+                photoURL: user.photoURL,
             };
             
             await createCircle({
@@ -131,7 +131,7 @@ export function CreateCircleDialog({ open, onOpenChange }: CreateCircleDialogPro
                                                                     checked={field.value?.includes(friend.uid)}
                                                                     onCheckedChange={(checked) => {
                                                                         return checked
-                                                                            ? field.onChange([...field.value, friend.uid])
+                                                                            ? field.onChange([...(field.value || []), friend.uid])
                                                                             : field.onChange(
                                                                                 field.value?.filter(
                                                                                     (value) => value !== friend.uid
@@ -143,7 +143,7 @@ export function CreateCircleDialog({ open, onOpenChange }: CreateCircleDialogPro
                                                              <FormLabel className="font-normal w-full cursor-pointer">
                                                                 <div className="flex items-center gap-3">
                                                                      <Avatar className="h-8 w-8">
-                                                                        <AvatarImage src={friend.photoURL || undefined} />
+                                                                        <AvatarImage src={friend.photoURL} />
                                                                         <AvatarFallback>{friend.displayName.charAt(0)}</AvatarFallback>
                                                                     </Avatar>
                                                                     <div>
