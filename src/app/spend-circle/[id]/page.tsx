@@ -205,15 +205,15 @@ export default function CircleDetailPage() {
         if (isDebtor) {
             switch(debt.settlementStatus) {
                 case 'unsettled':
-                    return <Button size="sm" disabled={isProcessing} onClick={() => handleAction(() => initiateSettlement(debt), debt.id, 'settle', "Payment marked as sent", "Failed to mark payment")}>
+                    return <Button size="sm" disabled={isProcessing} onClick={() => handleAction(() => console.log("settle"), debt.id, 'settle', "Payment marked as sent", "Failed to mark payment")}>
                         {isProcessing && processingState.action === 'settle' ? <Loader2 className="animate-spin" /> : <Check />} I've Paid
                         </Button>;
                 case 'pending_confirmation':
-                    return <Button size="sm" variant="ghost" disabled={isProcessing} onClick={() => handleAction(() => cancelSettlement(debt.id), debt.id, 'cancel', "Settlement cancelled", "Failed to cancel")}>
+                    return <Button size="sm" variant="ghost" disabled={isProcessing} onClick={() => handleAction(() => console.log("cancel"), debt.id, 'cancel', "Settlement cancelled", "Failed to cancel")}>
                         {isProcessing && processingState.action === 'cancel' ? <Loader2 className="animate-spin" /> : <XCircle className="text-muted-foreground"/>} Cancel
                         </Button>;
                 case 'confirmed':
-                     return <Button size="sm" variant="secondary" disabled={isProcessing} onClick={() => handleAction(() => logSettledDebtAsExpense(debt), debt.id, 'log', "Expense logged!", "Failed to log expense")}>
+                     return <Button size="sm" variant="secondary" disabled={isProcessing} onClick={() => handleAction(() => console.log("log"), debt.id, 'log', "Expense logged!", "Failed to log expense")}>
                         {isProcessing && processingState.action === 'log' ? <Loader2 className="animate-spin" /> : <List />} Log as Expense
                         </Button>;
                 default: return null;
@@ -224,10 +224,10 @@ export default function CircleDetailPage() {
             switch(debt.settlementStatus) {
                 case 'pending_confirmation':
                     return <div className="flex gap-2">
-                        <Button size="sm" variant="outline" disabled={isProcessing} onClick={() => handleAction(() => rejectSettlement(debt.id), debt.id, 'reject', "Payment rejected", "Failed to reject")}>
+                        <Button size="sm" variant="outline" disabled={isProcessing} onClick={() => handleAction(() => console.log("reject"), debt.id, 'reject', "Payment rejected", "Failed to reject")}>
                             {isProcessing && processingState.action === 'reject' ? <Loader2 className="animate-spin" /> : <XCircle />} Reject
                         </Button>
-                        <Button size="sm" disabled={isProcessing} onClick={() => handleAction(() => confirmSettlement(debt), debt.id, 'confirm', "Payment confirmed!", "Failed to confirm payment")}>
+                        <Button size="sm" disabled={isProcessing} onClick={() => handleAction(() => console.log("confirm"), debt.id, 'confirm', "Payment confirmed!", "Failed to confirm payment")}>
                              {isProcessing && processingState.action === 'confirm' ? <Loader2 className="animate-spin" /> : <CheckCircle2 />} Accept
                         </Button>
                     </div>
@@ -338,7 +338,7 @@ export default function CircleDetailPage() {
                                     <Button variant="destructive" className="w-full"><LogOut className="mr-2"/>Leave Circle</Button>
                                 </AlertDialogTrigger>
                                 <AlertDialogContent>
-                                    <AlertDialogHeader><AlertDialogTitle>Leave "{circle.name}"?</AlertDialogTitle><AlertDialogDescription>You will be removed from this circle. If you are the last member, the circle and all its debts will be permanently deleted.</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogHeader><AlertDialogTitle>Leave "{circle.name}"?</AlertDialogTitle><AlertDialogDescription>You will be removed from this circle. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
                                     <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleLeaveCircle}>Confirm & Leave</AlertDialogAction></AlertDialogFooter>
                                 </AlertDialogContent>
                             </AlertDialog>

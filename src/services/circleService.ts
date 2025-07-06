@@ -103,26 +103,17 @@ export async function leaveCircle(circleId: string, userId: string) {
     if (!circleData.memberIds.includes(userId)) {
         throw new Error("You are not a member of this circle.");
     }
-
-    // If user is the last member, delete the circle and its debts
-    if (circleData.memberIds.length === 1) {
-        const batch = writeBatch(db);
-        await deleteDebtsForCircle(circleId, batch);
-        batch.delete(circleRef);
-        await batch.commit();
-        return;
-    }
-
-    // If more than one member, just remove the user
+    
     const remainingMemberIds = circleData.memberIds.filter(id => id !== userId);
     const updates: {[key: string]: any} = {
         memberIds: arrayRemove(userId),
         [`members.${userId}`]: deleteField(),
     };
     
-    // If the leaving user was the owner, reassign ownership
-    if (circleData.ownerId === userId) {
-        updates.ownerId = remainingMemberIds[0]; // Assign to the next person in the list
+    // If the leaving user was the owner AND there are members left, reassign ownership.
+    // If they are the last one, the circle becomes ownerless but persists.
+    if (circleData.ownerId === userId && remainingMemberIds.length > 0) {
+        updates.ownerId = remainingMemberIds[0]; 
     }
 
     await updateDoc(circleRef, updates);
