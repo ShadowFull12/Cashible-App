@@ -3,19 +3,21 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/use-auth';
-import { getCircleById } from '@/services/circleService';
-import { getDebtsForCircle, initiateSettlement, cancelSettlement, rejectSettlement, confirmSettlement, logSettledDebtAsExpense } from '@/services/debtService';
+import { getCircleById, deleteCircle } from '@/services/circleService';
+import { getDebtsForCircle, initiateSettlement, cancelSettlement, rejectSettlement, confirmSettlement, logSettledDebtAsExpense, deleteDebtById } from '@/services/debtService';
 import type { Circle, Debt, UserProfile, DebtSettlementStatus } from '@/lib/data';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ArrowLeft, ArrowRight, Users, VenetianMask, Check, Loader2, List, UserPlus, AlertCircle, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Users, VenetianMask, Check, Loader2, List, UserPlus, AlertCircle, Clock, CheckCircle2, XCircle, Trash2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { InviteToCircleDialog } from '@/components/invite-to-circle-dialog';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+
 
 type SimplifiedDebt = {
     from: UserProfile;
@@ -25,7 +27,7 @@ type SimplifiedDebt = {
 
 type ProcessingState = {
     debtId: string;
-    action: 'settle' | 'confirm' | 'reject' | 'log' | 'cancel';
+    action: 'settle' | 'confirm' | 'reject' | 'log' | 'cancel' | 'delete';
 } | null;
 
 export default function CircleDetailPage() {
@@ -89,14 +91,16 @@ export default function CircleDetailPage() {
     const simplifiedDebts = useMemo((): SimplifiedDebt[] => {
         if (!circle || debts.length === 0) return [];
     
-        // Only consider completely unsettled debts for simplification
         const unsettledDebts = debts.filter(d => d.settlementStatus === 'unsettled');
         if (unsettledDebts.length === 0) return [];
     
         const balances = new Map<string, number>();
     
-        // Populate profiles from the main circle member list for consistency
-        const profiles = new Map<string, UserProfile>(Object.entries(circle.members));
+        const profiles = new Map<string, UserProfile>();
+        unsettledDebts.forEach(debt => {
+            if (debt.debtor) profiles.set(debt.debtor.uid, debt.debtor);
+            if (debt.creditor) profiles.set(debt.creditor.uid, debt.creditor);
+        });
     
         unsettledDebts.forEach(debt => {
             if (!balances.has(debt.debtorId)) balances.set(debt.debtorId, 0);
@@ -141,7 +145,7 @@ export default function CircleDetailPage() {
         }
     
         return settlements;
-    }, [circle, debts]);
+    }, [debts]);
     
     const individualDebts = useMemo(() => debts.filter(d => d.settlementStatus !== 'logged'), [debts]);
     
@@ -157,6 +161,22 @@ export default function CircleDetailPage() {
         } finally {
             setProcessingState(null);
         }
+    }
+
+    const handleDeleteCircle = async () => {
+        if (!circle || !user || user.uid !== circle.ownerId) return;
+        try {
+            await deleteCircle(circle.id, user.uid);
+            toast.success(`Circle "${circle.name}" has been deleted.`);
+            router.push('/spend-circle');
+        } catch (error: any) {
+            toast.error("Failed to delete circle.", { description: error.message });
+        }
+    }
+
+    const handleDeleteDebt = async (debtId: string) => {
+        if (!circle || !user || user.uid !== circle.ownerId) return;
+        await handleAction(() => deleteDebtById(debtId, circle.id, user.uid), debtId, 'delete', "Debt record deleted.", "Failed to delete debt.");
     }
 
     if (isLoading) return <CircleDetailSkeleton />;
@@ -184,7 +204,7 @@ export default function CircleDetailPage() {
         if (isDebtor) {
             switch(debt.settlementStatus) {
                 case 'unsettled':
-                    return <Button size="sm" disabled={isProcessing} onClick={() => handleAction(() => initiateSettlement(debt.id), debt.id, 'settle', "Payment marked as sent", "Failed to mark payment")}>
+                    return <Button size="sm" disabled={isProcessing} onClick={() => handleAction(() => initiateSettlement(debt), debt.id, 'settle', "Payment marked as sent", "Failed to mark payment")}>
                         {isProcessing && processingState.action === 'settle' ? <Loader2 className="animate-spin" /> : <Check />} I've Paid
                         </Button>;
                 case 'pending_confirmation':
@@ -309,6 +329,17 @@ export default function CircleDetailPage() {
                          <Button variant="outline" className="w-full mt-4" onClick={() => setIsInviteOpen(true)} disabled={user?.uid !== circle.ownerId}>
                             <UserPlus className="mr-2" /> Invite Friends
                          </Button>
+                         {user?.uid === circle.ownerId && (
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <Button variant="destructive" className="w-full mt-2"><Trash2 className="mr-2"/>Delete Circle</Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                    <AlertDialogHeader><AlertDialogTitle>Delete "{circle.name}"?</AlertDialogTitle><AlertDialogDescription>This will permanently delete the circle and all associated debts for everyone. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteCircle}>Confirm & Delete</AlertDialogAction></AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
+                        )}
                     </CardContent>
                 </Card>
             </div>
@@ -322,6 +353,7 @@ export default function CircleDetailPage() {
                     {individualDebts.length > 0 ? (
                         individualDebts.map(debt => {
                             if (!debt.debtor || !debt.creditor) return null;
+                            const isProcessingDebt = processingState?.debtId === debt.id;
                             
                             return (
                                 <div key={debt.id} className="flex items-center justify-between p-3 rounded-lg border">
@@ -338,6 +370,17 @@ export default function CircleDetailPage() {
                                     <div className="flex items-center gap-4">
                                         {getStatusBadge(debt.settlementStatus)}
                                         {renderDebtActions(debt)}
+                                        {user?.uid === circle.ownerId && (
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button variant="ghost" size="icon" className="text-destructive" disabled={isProcessingDebt}><Trash2 className="size-4" /></Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader><AlertDialogTitle>Delete Debt Record?</AlertDialogTitle><AlertDialogDescription>This will permanently remove the debt record of ₹{debt.amount.toFixed(2)} from {debt.debtor.displayName} to {debt.creditor.displayName}. This is useful for correcting mistakes. This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+                                                    <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteDebt(debt.id)}>Confirm Delete</AlertDialogAction></AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        )}
                                     </div>
                                 </div>
                             )

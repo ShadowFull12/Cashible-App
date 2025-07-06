@@ -11,6 +11,7 @@ interface CreateNotificationInput {
     type: NotificationType;
     message: string;
     link: string;
+    relatedId?: string;
 }
 
 export async function createNotification(data: CreateNotificationInput) {

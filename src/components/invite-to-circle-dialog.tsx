@@ -8,7 +8,7 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 import { useData } from '@/hooks/use-data';
 import { useAuth } from '@/hooks/use-auth';
-import { addMembersToCircle } from '@/services/circleService';
+import { sendCircleInvitations } from '@/services/circleService';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Button } from '@/components/ui/button';
@@ -53,10 +53,10 @@ export function InviteToCircleDialog({ open, onOpenChange, circle, onInviteSent 
                 uid: user.uid,
                 displayName: user.displayName,
                 email: user.email,
-                photoURL: user.photoURL
+                photoURL: user.photoURL || null
             };
 
-            await addMembersToCircle(circle.id, selectedFriends, inviterProfile);
+            await sendCircleInvitations(circle.id, circle.name, inviterProfile, selectedFriends);
 
             toast.success(`Invited ${selectedFriends.length} friend(s) to "${circle.name}"!`);
             onInviteSent();
@@ -127,7 +127,7 @@ export function InviteToCircleDialog({ open, onOpenChange, circle, onInviteSent 
                                                              <FormLabel className="font-normal w-full cursor-pointer">
                                                                 <div className="flex items-center gap-3">
                                                                      <Avatar className="h-8 w-8">
-                                                                        <AvatarImage src={friend.photoURL} />
+                                                                        <AvatarImage src={friend.photoURL || null} />
                                                                         <AvatarFallback>{friend.displayName.charAt(0)}</AvatarFallback>
                                                                     </Avatar>
                                                                     <div>

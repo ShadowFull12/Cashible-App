@@ -1,5 +1,5 @@
 import { db } from "@/lib/firebase";
-import { collection, doc, getDocs, query, where, Timestamp, writeBatch, WriteBatch, updateDoc, getDoc } from "firebase/firestore";
+import { collection, doc, getDocs, query, where, Timestamp, writeBatch, WriteBatch, updateDoc, getDoc, deleteDoc } from "firebase/firestore";
 import type { Debt, SplitDetails, Transaction } from "@/lib/data";
 import { getTransactionById, addTransaction, updateTransaction } from "./transactionService";
 import { createNotification } from "./notificationService";
@@ -179,4 +179,25 @@ export async function logSettledDebtAsExpense(debt: Debt) {
      batch.update(debtRef, { settlementStatus: 'logged' });
 
      await batch.commit();
+}
+
+export async function deleteDebtById(debtId: string, circleId: string, userId: string) {
+    if (!db) throw new Error("Firebase not configured.");
+
+    const circleRef = doc(db, "circles", circleId);
+    const circleSnap = await getDoc(circleRef);
+
+    if (!circleSnap.exists() || circleSnap.data().ownerId !== userId) {
+        throw new Error("You must be the circle owner to delete a debt.");
+    }
+    
+    const debtRef = doc(db, "debts", debtId);
+    await deleteDoc(debtRef);
+}
+
+export async function deleteDebtsForCircle(circleId: string, batch: WriteBatch) {
+    if (!db) return;
+    const debtsQuery = query(collection(db, "debts"), where("circleId", "==", circleId));
+    const debtsSnapshot = await getDocs(debtsQuery);
+    debtsSnapshot.forEach(doc => batch.delete(doc.ref));
 }

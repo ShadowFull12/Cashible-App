@@ -21,7 +21,7 @@ import type { UserProfile } from '@/lib/data';
 
 const formSchema = z.object({
   name: z.string().min(3, { message: "Circle name must be at least 3 characters." }),
-  members: z.array(z.string()).min(1, { message: "You must select at least one friend." }),
+  members: z.array(z.string()), // No longer required, can be empty
 });
 
 interface CreateCircleDialogProps {
@@ -47,21 +47,21 @@ export function CreateCircleDialog({ open, onOpenChange }: CreateCircleDialogPro
 
         setIsSubmitting(true);
         try {
-            const selectedFriends = friends.filter(f => values.members.includes(f.uid));
+            const friendsToInvite = friends.filter(f => values.members.includes(f.uid));
             const currentUserProfile: UserProfile = {
                 uid: user.uid,
                 displayName: user.displayName,
                 email: user.email,
-                photoURL: user.photoURL,
+                photoURL: user.photoURL || null,
             };
             
             await createCircle({
                 name: values.name,
-                ownerId: user.uid,
-                friends: [currentUserProfile, ...selectedFriends],
+                owner: currentUserProfile,
+                friendsToInvite,
             });
 
-            toast.success(`Circle "${values.name}" created!`);
+            toast.success(`Circle "${values.name}" created! Invitations sent.`);
             await refreshData();
             onOpenChange(false);
             form.reset();
@@ -85,7 +85,7 @@ export function CreateCircleDialog({ open, onOpenChange }: CreateCircleDialogPro
                 <DialogHeader>
                     <DialogTitle>Create a New Spend Circle</DialogTitle>
                     <DialogDescription>
-                        Give your circle a name and select friends to include. You can always add more later.
+                        Give your circle a name and select friends to invite. You can always add more later.
                     </DialogDescription>
                 </DialogHeader>
                 <Form {...form}>
@@ -109,11 +109,11 @@ export function CreateCircleDialog({ open, onOpenChange }: CreateCircleDialogPro
                             render={() => (
                                 <FormItem>
                                      <div className="mb-4">
-                                        <FormLabel className="text-base">Select Friends</FormLabel>
+                                        <FormLabel className="text-base">Invite Friends (Optional)</FormLabel>
                                     </div>
                                     <ScrollArea className="h-48 rounded-md border p-2">
                                     {friends.length === 0 ? (
-                                        <p className="text-sm text-center text-muted-foreground p-4">You need to add friends before you can create a circle.</p>
+                                        <p className="text-sm text-center text-muted-foreground p-4">You need to add friends before you can invite them to a circle.</p>
                                     ) : (
                                         friends.map((friend) => (
                                             <FormField
@@ -143,7 +143,7 @@ export function CreateCircleDialog({ open, onOpenChange }: CreateCircleDialogPro
                                                              <FormLabel className="font-normal w-full cursor-pointer">
                                                                 <div className="flex items-center gap-3">
                                                                      <Avatar className="h-8 w-8">
-                                                                        <AvatarImage src={friend.photoURL} />
+                                                                        <AvatarImage src={friend.photoURL || null} />
                                                                         <AvatarFallback>{friend.displayName.charAt(0)}</AvatarFallback>
                                                                     </Avatar>
                                                                     <div>

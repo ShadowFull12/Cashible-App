@@ -9,53 +9,61 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { Bell, Check, UserPlus, CircleDollarSign, BellRing, Loader2, UserCheck, UserX, X } from 'lucide-react';
+import { Bell, Check, UserPlus, CircleDollarSign, BellRing, Loader2, UserCheck, UserX, X, DoorOpen, DoorClosed } from 'lucide-react';
 import type { Notification, UserProfile } from '@/lib/data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
 import { acceptFriendRequest, rejectFriendRequest } from '@/services/friendService';
+import { acceptCircleInvitation, rejectCircleInvitation } from '@/services/circleService';
 import { deleteNotification } from '@/services/notificationService';
 
 
-const iconMap = {
+const iconMap: {[key: string]: React.ElementType} = {
     'friend-request': UserPlus,
-    'circle-invite': BellRing,
+    'circle-invitation': BellRing,
     'debt-settlement-request': CircleDollarSign,
     'debt-settlement-confirmed': Check,
+    'circle-deleted': Bell,
 };
 
 export default function NotificationsPage() {
     const router = useRouter();
     const { user } = useAuth();
-    const { notifications, isLoading, markAsRead, markAllAsRead, unreadNotificationCount, friendRequests, refreshData } = useData();
+    const { notifications, isLoading, markAsRead, markAllAsRead, unreadNotificationCount, friendRequests, circleInvitations, refreshData } = useData();
     const [processingId, setProcessingId] = useState<string | null>(null);
 
     const handleNotificationClick = async (notification: Notification) => {
         if (!notification.read) {
             await markAsRead(notification.id);
         }
-        // Don't navigate for actionable requests, let the buttons handle it
+
         const isPendingFriendRequest = notification.type === 'friend-request' && 
             friendRequests.some(req => 
                 req.fromUser.uid === notification.fromUser.uid && 
                 req.toUserId === user?.uid && 
                 req.status === 'pending'
             );
+        
+        const isPendingCircleInvite = notification.type === 'circle-invitation' &&
+            circleInvitations.some(inv => inv.id === notification.relatedId && inv.status === 'pending');
 
-        if (isPendingFriendRequest) {
+        if (isPendingFriendRequest || isPendingCircleInvite) {
             return;
         }
-        router.push(notification.link);
+        
+        if (notification.link) {
+            router.push(notification.link);
+        }
     };
 
-    const handleAccept = async (requestId: string, fromUser: UserProfile) => {
+    const handleAcceptFriend = async (requestId: string, fromUser: UserProfile) => {
         if (!user) return;
         setProcessingId(requestId);
         try {
             await acceptFriendRequest(requestId, user, fromUser);
             toast.success(`You are now friends with ${fromUser.displayName}!`);
-            await refreshData(); // Refresh friends list
+            await refreshData();
         } catch (error) {
             toast.error("Failed to accept request.");
             console.error(error);
@@ -64,12 +72,11 @@ export default function NotificationsPage() {
         }
     };
     
-    const handleDecline = async (requestId: string) => {
+    const handleDeclineFriend = async (requestId: string) => {
         setProcessingId(requestId);
         try {
             await rejectFriendRequest(requestId);
             toast.info("Friend request declined.");
-            // No need to refresh, listeners will handle it
         } catch (error) {
             toast.error("Failed to decline request.");
         } finally {
@@ -77,26 +84,58 @@ export default function NotificationsPage() {
         }
     };
 
-    const handleDeleteNotification = async (notification: Notification) => {
-        // Find the corresponding friend request if it's that type of notification
-        const matchingFriendRequest = notification.type === 'friend-request'
-            ? friendRequests.find(req => 
-                req.fromUser.uid === notification.fromUser.uid &&
-                req.toUserId === user?.uid &&
-                req.status === 'pending'
-              )
-            : undefined;
-
-        // Use the friend request ID for processing state if one exists to disable all related buttons.
-        const idToProcess = matchingFriendRequest?.id || notification.id;
-        setProcessingId(idToProcess);
-
+    const handleAcceptInvitation = async (invitationId: string) => {
+        if (!user) return;
+        setProcessingId(invitationId);
         try {
-            // If it was a friend request, rejecting it deletes the request document.
-            if (matchingFriendRequest) {
-                await rejectFriendRequest(matchingFriendRequest.id);
+            await acceptCircleInvitation(invitationId, {
+                uid: user.uid,
+                displayName: user.displayName || 'User',
+                email: user.email || '',
+                photoURL: user.photoURL || null
+            });
+            toast.success(`You have joined the circle!`);
+            await refreshData();
+        } catch (error) {
+            toast.error("Failed to accept invitation.");
+            console.error(error);
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    const handleDeclineInvitation = async (invitationId: string) => {
+        setProcessingId(invitationId);
+        try {
+            await rejectCircleInvitation(invitationId);
+            toast.info("Circle invitation declined.");
+        } catch (error) {
+            toast.error("Failed to decline invitation.");
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
+    const handleDeleteNotification = async (notification: Notification) => {
+        let idToProcess = notification.id;
+        try {
+            if (notification.type === 'friend-request') {
+                const matchingFriendRequest = friendRequests.find(req => req.fromUser.uid === notification.fromUser.uid && req.toUserId === user?.uid && req.status === 'pending');
+                if (matchingFriendRequest) {
+                    idToProcess = matchingFriendRequest.id;
+                    setProcessingId(idToProcess);
+                    await rejectFriendRequest(matchingFriendRequest.id);
+                }
+            } else if (notification.type === 'circle-invitation') {
+                const matchingInvite = circleInvitations.find(inv => inv.id === notification.relatedId && inv.status === 'pending');
+                if (matchingInvite) {
+                    idToProcess = matchingInvite.id;
+                    setProcessingId(idToProcess);
+                    await rejectCircleInvitation(matchingInvite.id);
+                }
+            } else {
+                 setProcessingId(idToProcess);
             }
-            // Always delete the notification document itself.
             await deleteNotification(notification.id);
             toast.success("Notification dismissed.");
         } catch (e: any) {
@@ -118,13 +157,7 @@ export default function NotificationsPage() {
                 </Button>
             </CardHeader>
             <CardContent className="space-y-3">
-                {isLoading && (
-                    <>
-                        <NotificationSkeleton />
-                        <NotificationSkeleton />
-                        <NotificationSkeleton />
-                    </>
-                )}
+                {isLoading && Array.from({ length: 3 }).map((_, i) => <NotificationSkeleton key={i} />)}
                 {!isLoading && notifications.length === 0 && (
                     <div className="text-center text-muted-foreground py-10">
                         <p>You have no notifications.</p>
@@ -133,15 +166,17 @@ export default function NotificationsPage() {
                 )}
                 {!isLoading && notifications.map(notification => {
                     const Icon = iconMap[notification.type] || Bell;
+                    
                     const matchingFriendRequest = notification.type === 'friend-request'
-                        ? friendRequests.find(req => 
-                            req.fromUser.uid === notification.fromUser.uid &&
-                            req.toUserId === user?.uid &&
-                            req.status === 'pending'
-                          )
+                        ? friendRequests.find(req => req.fromUser.uid === notification.fromUser.uid && req.toUserId === user?.uid && req.status === 'pending')
+                        : undefined;
+
+                    const matchingCircleInvitation = notification.type === 'circle-invitation'
+                        ? circleInvitations.find(inv => inv.id === notification.relatedId && inv.status === 'pending')
                         : undefined;
                     
-                    const isProcessing = processingId === matchingFriendRequest?.id || processingId === notification.id;
+                    const isActionable = matchingFriendRequest || matchingCircleInvitation;
+                    const isProcessing = processingId === matchingFriendRequest?.id || processingId === notification.id || processingId === matchingCircleInvitation?.id;
 
                     return (
                         <div
@@ -149,17 +184,15 @@ export default function NotificationsPage() {
                             className={cn(
                                 "group relative flex items-start gap-3 p-3 rounded-lg border transition-colors",
                                 !notification.read && "bg-muted/30 border-primary/20",
-                                !matchingFriendRequest && "hover:bg-muted/50"
+                                !isActionable && "hover:bg-muted/50"
                             )}
                         >
                             <div className="flex-grow flex items-start gap-3" onClick={() => handleNotificationClick(notification)}>
-                                {!notification.read && (
-                                    <div className="h-2 w-2 rounded-full bg-primary mt-2.5 flex-shrink-0" />
-                                )}
+                                {!notification.read && ( <div className="h-2 w-2 rounded-full bg-primary mt-2.5 flex-shrink-0" /> )}
                                 <div className={cn("flex-shrink-0 pt-1", notification.read && "ml-4")}>
-                                <Icon className="size-6 text-muted-foreground" />
+                                    <Icon className="size-6 text-muted-foreground" />
                                 </div>
-                                <div className="flex-grow cursor-pointer">
+                                <div className={cn("flex-grow", isActionable ? "" : "cursor-pointer")}>
                                     <div className="flex items-center gap-2">
                                         <Avatar className="h-6 w-6">
                                             <AvatarImage src={notification.fromUser.photoURL || undefined} />
@@ -170,40 +203,31 @@ export default function NotificationsPage() {
                                     <p className="text-xs text-muted-foreground mt-1">
                                         {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
                                     </p>
+                                    
                                     {matchingFriendRequest && (
                                         <div className="flex gap-2 mt-2">
-                                            <Button 
-                                                size="sm" 
-                                                onClick={(e) => { e.stopPropagation(); handleAccept(matchingFriendRequest.id, notification.fromUser); }} 
-                                                disabled={isProcessing}
-                                            >
-                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <UserCheck className="mr-2 size-4"/>}
-                                                Accept
+                                            <Button size="sm" onClick={(e) => { e.stopPropagation(); handleAcceptFriend(matchingFriendRequest.id, notification.fromUser); }} disabled={isProcessing}>
+                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <UserCheck className="mr-2 size-4"/>} Accept
                                             </Button>
-                                            <Button 
-                                                size="sm" 
-                                                variant="outline" 
-                                                onClick={(e) => { e.stopPropagation(); handleDecline(matchingFriendRequest.id); }} 
-                                                disabled={isProcessing}
-                                            >
-                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <UserX className="mr-2 size-4"/>}
-                                                Decline
+                                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleDeclineFriend(matchingFriendRequest.id); }} disabled={isProcessing}>
+                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <UserX className="mr-2 size-4"/>} Decline
+                                            </Button>
+                                        </div>
+                                    )}
+
+                                    {matchingCircleInvitation && (
+                                        <div className="flex gap-2 mt-2">
+                                            <Button size="sm" onClick={(e) => { e.stopPropagation(); handleAcceptInvitation(matchingCircleInvitation.id); }} disabled={isProcessing}>
+                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <DoorOpen className="mr-2 size-4"/>} Accept
+                                            </Button>
+                                            <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleDeclineInvitation(matchingCircleInvitation.id); }} disabled={isProcessing}>
+                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <DoorClosed className="mr-2 size-4"/>} Decline
                                             </Button>
                                         </div>
                                     )}
                                 </div>
                             </div>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteNotification(notification);
-                                }}
-                                disabled={isProcessing}
-                                className="absolute top-1 right-1 h-7 w-7 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive"
-                                aria-label="Dismiss notification"
-                            >
+                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteNotification(notification); }} disabled={isProcessing} className="absolute top-1 right-1 h-7 w-7 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive" aria-label="Dismiss notification">
                                 <X className="size-4" />
                             </Button>
                         </div>
