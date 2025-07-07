@@ -72,18 +72,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             } else {
                 setIsSettingUsername(false);
             }
-        } else {
-             // This can happen if the user doc creation failed or is delayed
-             // For now, we assume a new Google sign-in needs a doc.
-            await userService.createInitialUserDocForGoogle(user);
-            userDoc = await getDoc(userDocRef);
-             if (userDoc.exists()) {
-                const data = userDoc.data() as UserData;
-                setUserData(data);
-                if (!data.username) setIsSettingUsername(true);
-             } else {
-                setUserData(null);
-             }
         }
     } catch (error: any) {
         console.error("Failed to fetch user data:", error);

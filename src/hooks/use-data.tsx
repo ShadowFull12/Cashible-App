@@ -50,9 +50,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [circles, setCircles] = useState<Circle[]>([]);
     const [settlements, setSettlements] = useState<Settlement[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
+    
+    // Individual loading states for better perceived performance
+    const [transactionsLoading, setTransactionsLoading] = useState(true);
+    const [categoriesLoading, setCategoriesLoading] = useState(true);
+    const [recurringLoading, setRecurringLoading] = useState(true);
+    const [friendsLoading, setFriendsLoading] = useState(true);
+    const [requestsLoading, setRequestsLoading] = useState(true);
+    const [circlesLoading, setCirclesLoading] = useState(true);
+    const [settlementsLoading, setSettlementsLoading] = useState(true);
+    const [notificationsLoading, setNotificationsLoading] = useState(true);
 
-    // State for the global "Add Expense" dialog
     const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
     const [newExpenseDefaultDate, setNewExpenseDefaultDate] = useState<Date | null>(null);
     const [newExpenseDefaultCircleId, setNewExpenseDefaultCircleId] = useState<string | null>(null);
@@ -62,6 +70,31 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const unreadNotificationCount = useMemo(() => {
         return notifications.filter(n => !n.read).length;
     }, [notifications]);
+
+    // Combined loading state for consumers
+    const isLoading = useMemo(() => {
+        if (!user) return true;
+        return (
+            transactionsLoading ||
+            categoriesLoading ||
+            recurringLoading ||
+            friendsLoading ||
+            requestsLoading ||
+            circlesLoading ||
+            settlementsLoading ||
+            notificationsLoading
+        );
+    }, [
+        user,
+        transactionsLoading,
+        categoriesLoading,
+        recurringLoading,
+        friendsLoading,
+        requestsLoading,
+        circlesLoading,
+        settlementsLoading,
+        notificationsLoading,
+    ]);
     
     const processRecurringExpenses = useCallback(async (userId: string, expenses: RecurringExpense[]) => {
         const today = new Date();
@@ -102,26 +135,36 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         return newTransactionsAdded;
     }, []);
 
+    const resetLoadingStates = useCallback(() => {
+        setTransactionsLoading(true);
+        setCategoriesLoading(true);
+        setRecurringLoading(true);
+        setFriendsLoading(true);
+        setRequestsLoading(true);
+        setCirclesLoading(true);
+        setSettlementsLoading(true);
+        setNotificationsLoading(true);
+    }, []);
+
     const refreshData = useCallback(async (showLoading = true) => {
         if (!user) return;
-        if(showLoading) setIsLoading(true);
+        if(showLoading) {
+            resetLoadingStates();
+        }
         try {
             await refreshUserData();
             const fetchedRecurring = await getRecurringExpenses(user.uid);
             setRecurringExpenses(fetchedRecurring);
+            setRecurringLoading(false);
         } catch (error: any) {
             if (error.code === 'permission-denied') {
-                toast.error("Permission Denied", {
-                    description: "The app could not refresh your data. Please check your Firestore security rules."
-                });
+                toast.error("Permission Denied", { description: "The app could not refresh your data." });
             } else {
                 toast.error("Failed to refresh data.");
             }
             console.error(error);
-        } finally {
-            if(showLoading) setIsLoading(false);
         }
-    }, [user, refreshUserData]);
+    }, [user, refreshUserData, resetLoadingStates]);
 
     useEffect(() => {
         if (user && userData && !hasProcessedRecurring) {
@@ -136,6 +179,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                 } catch (error) {
                     console.error("Failed to process recurring expenses in background:", error);
                 } finally {
+                    setRecurringLoading(false);
                     setHasProcessedRecurring(true); 
                 }
             };
@@ -144,9 +188,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [user, userData, hasProcessedRecurring, processRecurringExpenses]);
 
     useEffect(() => {
-        if (user && userData) {
-            setIsLoading(false);
-        }
         if (!user) {
             setTransactions([]);
             setCategories([]);
@@ -156,58 +197,79 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setCircles([]);
             setSettlements([]);
             setNotifications([]);
-            setIsLoading(true);
+            resetLoadingStates();
             setHasProcessedRecurring(false);
         }
-    }, [user, userData]);
+    }, [user, resetLoadingStates]);
     
     useEffect(() => {
         if (userData?.categories) {
             setCategories(userData.categories);
+            setCategoriesLoading(false);
+        } else if (user) {
+            setCategoriesLoading(true);
         }
-    }, [userData]);
+    }, [userData, user]);
     
     useEffect(() => {
         if (user) {
-            const unsubscribe = getTransactionsListener(user.uid, setTransactions);
+            const unsubscribe = getTransactionsListener(user.uid, (data) => {
+                setTransactions(data);
+                if (transactionsLoading) setTransactionsLoading(false);
+            });
             return () => unsubscribe();
         }
-    }, [user]);
+    }, [user, transactionsLoading]);
     
     useEffect(() => {
         if (user) {
-            const unsubscribe = getNotificationsForUser(user.uid, setNotifications);
+            const unsubscribe = getNotificationsForUser(user.uid, (data) => {
+                setNotifications(data);
+                if (notificationsLoading) setNotificationsLoading(false);
+            });
             return () => unsubscribe();
         }
-    }, [user]);
+    }, [user, notificationsLoading]);
 
     useEffect(() => {
         if (user) {
-            const unsubscribe = getFriendRequestsListener(user.uid, setFriendRequests);
+            const unsubscribe = getFriendRequestsListener(user.uid, (data) => {
+                setFriendRequests(data);
+                if (requestsLoading) setRequestsLoading(false);
+            });
             return () => unsubscribe();
         }
-    }, [user]);
+    }, [user, requestsLoading]);
 
     useEffect(() => {
         if (user) {
-            const unsubscribe = getFriendsListener(user.uid, setFriends);
+            const unsubscribe = getFriendsListener(user.uid, (data) => {
+                setFriends(data);
+                if (friendsLoading) setFriendsLoading(false);
+            });
             return () => unsubscribe();
         }
-    }, [user]);
+    }, [user, friendsLoading]);
 
     useEffect(() => {
         if (user) {
-            const unsubscribe = getCirclesForUserListener(user.uid, setCircles);
+            const unsubscribe = getCirclesForUserListener(user.uid, (data) => {
+                setCircles(data);
+                if (circlesLoading) setCirclesLoading(false);
+            });
             return () => unsubscribe();
         }
-    }, [user]);
+    }, [user, circlesLoading]);
 
     useEffect(() => {
         if (user) {
-            const unsubscribe = getSettlementsForUserListener(user.uid, setSettlements);
+            const unsubscribe = getSettlementsForUserListener(user.uid, (data) => {
+                setSettlements(data);
+                if (settlementsLoading) setSettlementsLoading(false);
+            });
             return () => unsubscribe();
         }
-    }, [user]);
+    }, [user, settlementsLoading]);
     
 
     const markAsRead = async (notificationId: string) => {
