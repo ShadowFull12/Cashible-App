@@ -1,6 +1,4 @@
 
-'use server';
-
 import { db } from "@/lib/firebase";
 import { collection, addDoc, query, onSnapshot, Unsubscribe, Timestamp, orderBy, updateDoc, doc } from "firebase/firestore";
 import type { ChatMessage, UserProfile } from "@/lib/data";
