@@ -1,7 +1,7 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth, GoogleAuthProvider } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { getFirestore, type Firestore, enableIndexedDbPersistence } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 // IMPORTANT: Replace the placeholder values with your actual
@@ -24,6 +24,18 @@ if (firebaseConfig.apiKey && firebaseConfig.projectId) {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
     db = getFirestore(app);
+    enableIndexedDbPersistence(db)
+      .catch((err) => {
+        if (err.code == 'failed-precondition') {
+          // Multiple tabs open, persistence can only be enabled
+          // in one tab at a time.
+          console.warn("Firestore persistence failed because multiple tabs are open.");
+        } else if (err.code == 'unimplemented') {
+          // The current browser does not support all of the
+          // features required to enable persistence
+          console.warn("Firestore persistence is not supported in this browser.");
+        }
+      });
   } catch(e) {
     console.error("Firebase initialization error. Make sure your API key in .env.local is valid.", e);
   }

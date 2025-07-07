@@ -108,7 +108,7 @@ function AddFriendTab() {
                     return (
                         <div key={foundUser.uid} className="flex items-center justify-between p-3 border rounded-lg">
                             <div className="flex items-center gap-4">
-                                <Avatar><AvatarImage src={foundUser.photoURL || undefined} /><AvatarFallback>{foundUser.displayName?.charAt(0) || 'U'}</AvatarFallback></Avatar>
+                                <Avatar><AvatarImage src={foundUser.photoURL || undefined} /><AvatarFallback>{(foundUser.displayName || foundUser.username || "U").charAt(0)}</AvatarFallback></Avatar>
                                 <div>
                                     <p className="font-semibold">{foundUser.displayName || foundUser.username}</p>
                                     <p className="text-sm text-muted-foreground">@{foundUser.username}</p>
@@ -151,7 +151,7 @@ function FriendsTab() {
                 {friends.map(friend => (
                      <div key={friend.uid} className="flex items-center justify-between p-3 border rounded-lg">
                         <div className="flex items-center gap-4">
-                            <Avatar><AvatarImage src={friend.photoURL || undefined} /><AvatarFallback>{friend.displayName?.charAt(0) || 'U'}</AvatarFallback></Avatar>
+                            <Avatar><AvatarImage src={friend.photoURL || undefined} /><AvatarFallback>{(friend.displayName || friend.username || "U").charAt(0)}</AvatarFallback></Avatar>
                             <div>
                                 <p className="font-semibold">{friend.displayName || friend.username}</p>
                                 <p className="text-sm text-muted-foreground">@{friend.username}</p>
