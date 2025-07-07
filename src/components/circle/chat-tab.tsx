@@ -154,7 +154,10 @@ export function ChatTab({ circle }: ChatTabProps) {
                                                     <p className="text-xs font-bold mb-1">{msg.user.displayName}</p>
                                                     {msg.replyTo && <QuotedMessage reply={msg.replyTo} />}
                                                     {msg.mediaURL && (
-                                                        <button onClick={() => setPreviewImage(msg.mediaURL)} className="block w-full">
+                                                        <button 
+                                                            onClick={(e) => { e.stopPropagation(); setPreviewImage(msg.mediaURL); }} 
+                                                            className="block w-full"
+                                                        >
                                                             <Image
                                                                 src={msg.mediaURL}
                                                                 alt="Chat attachment"

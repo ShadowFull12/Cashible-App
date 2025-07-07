@@ -20,15 +20,21 @@ export async function sendChatMessage(data: SendMessageInput) {
     const chatCollectionRef = collection(circleRef, "chats");
     const newChatDocRef = doc(chatCollectionRef);
 
-    const messagePayload: Omit<ChatMessage, 'id' | 'createdAt'> = {
+    // Build the payload dynamically to avoid undefined fields
+    const messagePayload: any = {
         circleId: data.circle.id,
         user: data.user,
-        text: data.text,
+        text: data.text || "",
+        createdAt: Timestamp.now(),
         replyTo: data.replyTo || null,
-        mediaURL: data.mediaURL || null,
-        mediaType: data.mediaType,
     };
-    batch.set(newChatDocRef, { ...messagePayload, createdAt: Timestamp.now() });
+
+    if (data.mediaURL) {
+        messagePayload.mediaURL = data.mediaURL;
+        messagePayload.mediaType = data.mediaType || 'image';
+    }
+    
+    batch.set(newChatDocRef, messagePayload);
 
     const unreadUpdates = data.circle.memberIds
         .filter(id => id !== data.user.uid)
