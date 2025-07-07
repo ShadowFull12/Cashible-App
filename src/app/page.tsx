@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Loader2, AlertTriangle } from "lucide-react";
+import React, { useState } from "react";
 
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
@@ -36,8 +37,9 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export default function LoginPage() {
-  const { signInWithEmail, signInWithGoogle, googleAuthError, loading, authInProgress } = useAuth();
+  const { signInWithEmail, signInWithGoogle, googleAuthError } = useAuth();
   const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  const [inProgress, setInProgress] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -48,19 +50,31 @@ export default function LoginPage() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    setInProgress(true);
     try {
       await signInWithEmail(values.email, values.password);
     } catch (error: any) {
       toast.error("Login Failed", { description: error.message || "Please check your credentials." });
+    } finally {
+        setInProgress(false);
     }
   }
 
   const handleGoogleSignIn = async () => {
+    setInProgress(true);
     try {
       await signInWithGoogle();
       // Redirect is handled by RootLayoutClient after onAuthStateChanged fires
     } catch (error: any) {
-      // Errors are now handled inside the hook and displayed via `googleAuthError` or toast
+       if (error.code === 'auth/popup-closed-by-user') {
+            toast.info("Sign-in cancelled.");
+        } else if (error.code === 'auth/account-exists-with-different-credential') {
+            toast.error("Account already exists", { description: "This email is linked to another sign-in method." });
+        } else {
+            toast.error("Google Sign-In Failed", { description: error.message });
+        }
+    } finally {
+        setInProgress(false);
     }
   };
 
@@ -105,7 +119,7 @@ export default function LoginPage() {
                   <FormItem>
                     <Label htmlFor="email">Email or Username</Label>
                     <FormControl>
-                      <Input id="email" placeholder="m@example.com or jane_doe" {...field} disabled={!isFirebaseConfigured || loading || authInProgress} />
+                      <Input id="email" placeholder="m@example.com or jane_doe" {...field} disabled={!isFirebaseConfigured || inProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -123,14 +137,14 @@ export default function LoginPage() {
                       </Link>
                     </div>
                     <FormControl>
-                      <Input id="password" type="password" {...field} disabled={!isFirebaseConfigured || loading || authInProgress} />
+                      <Input id="password" type="password" {...field} disabled={!isFirebaseConfigured || inProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={loading || authInProgress || !isFirebaseConfigured}>
-                {(loading || authInProgress) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" className="w-full" disabled={inProgress || !isFirebaseConfigured}>
+                {inProgress && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Login
               </Button>
             </form>
@@ -145,8 +159,8 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={loading || authInProgress || !isFirebaseConfigured}>
-              {(loading || authInProgress) ? (
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={inProgress || !isFirebaseConfigured}>
+              {inProgress ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <GoogleIcon className="mr-2 h-4 w-4" />

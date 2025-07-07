@@ -34,7 +34,6 @@ interface UserData {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  authInProgress: boolean;
   userData: UserData | null; 
   isSettingUsername: boolean;
   googleAuthError: string | null;
@@ -60,7 +59,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [authInProgress, setAuthInProgress] = useState(false);
   const [isSettingUsername, setIsSettingUsername] = useState(false);
   const [googleAuthError, setGoogleAuthError] = useState<string | null>(null);
 
@@ -113,86 +111,58 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsSettingUsername(false);
       }
       setLoading(false);
-      setAuthInProgress(false);
     });
     return () => unsubscribe();
   }, [fetchUserData]);
 
   const logout = useCallback(async () => {
     if (!auth) return;
-    setAuthInProgress(true);
     await firebaseSignOut(auth);
+    // onAuthStateChanged will handle the rest
   }, []);
   
   const signInWithEmail = useCallback(async (emailOrUsername: string, password: string) => {
     if (!auth) throw new Error("Firebase not configured.");
-    setAuthInProgress(true);
     let emailToLogin = emailOrUsername;
-    try {
-        if (!emailOrUsername.includes('@')) {
-            const userProfile = await userService.getUserByUsername(emailOrUsername);
-            if (userProfile?.email) {
-              emailToLogin = userProfile.email;
-            } else {
-              throw new Error("User not found with that username or email.");
-            }
+    if (!emailOrUsername.includes('@')) {
+        const userProfile = await userService.getUserByUsername(emailOrUsername);
+        if (userProfile?.email) {
+          emailToLogin = userProfile.email;
+        } else {
+          throw new Error("User not found with that username or email.");
         }
-        await signInWithEmailAndPassword(auth, emailToLogin, password);
-    } catch(error) {
-        setAuthInProgress(false);
-        throw error;
     }
+    await signInWithEmailAndPassword(auth, emailToLogin, password);
+    // onAuthStateChanged will handle the rest
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
     if (!auth) throw new Error("Firebase not configured.");
-    setAuthInProgress(true);
     setGoogleAuthError(null);
     const provider = new GoogleAuthProvider();
-    try {
-        await signInWithPopup(auth, provider);
-    } catch (error: any) {
-        if (error.code === 'auth/popup-closed-by-user') {
-            toast.info("Sign-in cancelled.");
-        } else if (error.code === 'auth/account-exists-with-different-credential') {
-            setGoogleAuthError("An account already exists with this email address. Please sign in with your original method to link it.");
-            toast.error("Account already exists", { description: "This email is linked to another sign-in method." });
-        } else {
-            setGoogleAuthError(error.message || "An unknown error occurred during Google sign-in.");
-            toast.error("Google Sign-In Failed", { description: error.message });
-        }
-        setAuthInProgress(false);
-        throw error;
-    }
+    await signInWithPopup(auth, provider);
+    // onAuthStateChanged will handle the rest
   }, []);
 
   const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string, username: string) => {
     if (!auth) throw new Error("Firebase not configured.");
-    setAuthInProgress(true);
-    try {
-        const usernameAvailable = await userService.isUsernameAvailable(username);
-        if (!usernameAvailable) {
-          throw new Error(`Username "${username}" is already taken.`);
-        }
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        await updateProfile(user, { displayName });
-        await userService.createInitialUserDocument(user, username, displayName);
-    } catch(error) {
-        setAuthInProgress(false);
-        throw error;
+    const usernameAvailable = await userService.isUsernameAvailable(username);
+    if (!usernameAvailable) {
+      throw new Error(`Username "${username}" is already taken.`);
     }
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    await userService.createInitialUserDocument(user, username, displayName);
+    // onAuthStateChanged will handle the rest
   }, []);
 
   const completeInitialSetup = useCallback(async (username: string) => {
     if (!user) throw new Error("User not authenticated.");
-    setAuthInProgress(true);
     try {
         await userService.setUsernameForNewUser(user.uid, username);
         await refreshUserData();
         setIsSettingUsername(false);
     } catch(error) {
-        setAuthInProgress(false);
         throw error;
     }
   }, [user, refreshUserData]);
@@ -256,7 +226,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
   const value: AuthContextType = {
-    user, loading, authInProgress, userData, isSettingUsername, googleAuthError, logout, refreshUserData,
+    user, loading, userData, isSettingUsername, googleAuthError, logout, refreshUserData,
     updateUserProfile, uploadAndSetProfileImage,
     updateUserPassword, updateUserEmail, updateUserUsername, reauthenticateWithPassword,
     deleteAllUserData, deleteAccount,

@@ -7,6 +7,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Loader2, AlertTriangle } from "lucide-react";
+import React, { useState } from "react";
 
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
@@ -25,8 +26,9 @@ const formSchema = z.object({
 });
 
 export default function SignupPage() {
-  const { signUpWithEmail, loading, authInProgress } = useAuth();
+  const { signUpWithEmail } = useAuth();
   const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
+  const [inProgress, setInProgress] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -39,6 +41,7 @@ export default function SignupPage() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    setInProgress(true);
     try {
       await signUpWithEmail(values.email, values.password, values.displayName, values.username);
     } catch (error: any) {
@@ -51,6 +54,8 @@ export default function SignupPage() {
       } else {
         toast.error("Signup Failed", { description: error.message || "Please try again."});
       }
+    } finally {
+      setInProgress(false);
     }
   }
 
@@ -89,7 +94,7 @@ export default function SignupPage() {
                   <FormItem>
                     <Label htmlFor="displayName">Display Name</Label>
                     <FormControl>
-                      <Input id="displayName" placeholder="Jane Doe" {...field} disabled={!isFirebaseConfigured || loading || authInProgress} />
+                      <Input id="displayName" placeholder="Jane Doe" {...field} disabled={!isFirebaseConfigured || inProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -102,7 +107,7 @@ export default function SignupPage() {
                   <FormItem>
                     <Label htmlFor="username">Username</Label>
                     <FormControl>
-                      <Input id="username" placeholder="jane_doe" {...field} disabled={!isFirebaseConfigured || loading || authInProgress} />
+                      <Input id="username" placeholder="jane_doe" {...field} disabled={!isFirebaseConfigured || inProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -115,7 +120,7 @@ export default function SignupPage() {
                   <FormItem>
                     <Label htmlFor="email">Email</Label>
                     <FormControl>
-                      <Input id="email" type="email" placeholder="m@example.com" {...field} disabled={!isFirebaseConfigured || loading || authInProgress} />
+                      <Input id="email" type="email" placeholder="m@example.com" {...field} disabled={!isFirebaseConfigured || inProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -128,14 +133,14 @@ export default function SignupPage() {
                   <FormItem>
                     <Label htmlFor="password">Password</Label>
                     <FormControl>
-                      <Input id="password" type="password" {...field} disabled={!isFirebaseConfigured || loading || authInProgress} />
+                      <Input id="password" type="password" {...field} disabled={!isFirebaseConfigured || inProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={loading || authInProgress || !isFirebaseConfigured}>
-                {(loading || authInProgress) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" className="w-full" disabled={inProgress || !isFirebaseConfigured}>
+                {inProgress && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create Account
               </Button>
             </form>
