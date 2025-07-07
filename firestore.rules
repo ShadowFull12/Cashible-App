@@ -4,101 +4,14 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Helper function to check if a user is authenticated
-    function isAuthenticated() {
-      return request.auth != null;
-    }
+    // WARNING: These rules are completely open and are for development purposes only.
+    // Anyone can read, write, and delete any data in your database.
+    // Before deploying to production, you MUST secure your database.
+    // A more secure starting point is to replace 'if true;' with 'if request.auth != null;'.
 
-    // Helper function to check if the user is the owner of a document
-    function isOwner(userId) {
-      return request.auth.uid == userId;
-    }
-
-    // users:
-    // - Anyone can create their own user document during signup.
-    // - Users can only read or update their own data.
-    // - Deletion is disallowed from the client.
-    match /users/{userId} {
-      allow create: if isOwner(userId);
-      allow read, update: if isOwner(userId);
-      allow delete: if false;
-    }
-
-    // usernames:
-    // - Any authenticated user can read to check for availability.
-    // - A user can create a username document if the UID inside it matches their own.
-    // - A user can delete their own username document (for changing usernames).
-    match /usernames/{username} {
-      allow read: if isAuthenticated();
-      allow create: if isOwner(request.resource.data.uid);
-      allow delete: if isOwner(resource.data.uid);
-      allow update: if false;
-    }
-    
-    // transactions & recurring-expenses:
-    // - Users can only read, create, update, or delete their own transactions.
-    match /transactions/{transactionId} {
-      allow read, write: if isOwner(resource.data.userId);
-      allow create: if isOwner(request.resource.data.userId);
-    }
-    
-    match /recurring-expenses/{expenseId} {
-      allow read, write: if isOwner(resource.data.userId);
-       allow create: if isOwner(request.resource.data.userId);
-    }
-    
-    // circles:
-    // - Users can read/update a circle if they are a member.
-    // - Only the owner can delete a circle.
-    // - A user must be the owner to create it.
-    match /circles/{circleId} {
-      allow read: if resource.data.memberIds.hasAny([request.auth.uid]);
-      allow create: if isOwner(request.resource.data.ownerId);
-      // Only the owner can update the core details. Members can update chat-related fields via service logic.
-      allow update: if isOwner(resource.data.ownerId);
-      allow delete: if isOwner(resource.data.ownerId);
-      
-      // chats (subcollection):
-      // - Members of the parent circle can read and write chat messages.
-      match /chats/{chatId} {
-         allow read, write: if get(/databases/$(database)/documents/circles/$(circleId)).data.memberIds.hasAny([request.auth.uid]);
-      }
-    }
-    
-    // friendships:
-    // - A user can only read/delete a friendship they are part of.
-    match /friendships/{friendshipId} {
-      allow read, delete: if resource.data.userIds.hasAny([request.auth.uid]);
-      allow create, update: if false;
-    }
-    
-    // friend-requests, notifications, expense-claims:
-    // - These are mostly managed by server-side logic (or more granular rules)
-    // - For now, allow a user to read/delete if they are the recipient.
-    // - Creation is allowed if they are the sender.
-    match /friend-requests/{requestId} {
-      allow create: if isOwner(request.resource.data.fromUser.uid);
-      allow read, delete: if isOwner(resource.data.toUserId);
-      allow update: if false;
-    }
-    
-    match /notifications/{notificationId} {
-        allow read, update, delete: if isOwner(resource.data.userId);
-        allow create: if isOwner(request.resource.data.fromUser.uid);
-    }
-
-    match /expense-claims/{claimId} {
-       allow create: if isOwner(request.resource.data.claimerId);
-       allow read, update: if isOwner(resource.data.payerId);
-       allow delete: if false;
-    }
-
-    // settlements:
-    // - Allow create if the settlement is from the authenticated user.
-    // - Allow read/update if the user is either the sender or receiver.
-    match /settlements/{settlementId} {
-        allow create: if isOwner(request.resource.data.fromUserId);
-        allow read, update, delete: if isOwner(resource.data.fromUserId) || isOwner(resource.data.toUserId);
+    // Allows anyone to read and write to any document.
+    match /{document=**} {
+      allow read, write: if true;
     }
   }
 }

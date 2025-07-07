@@ -59,13 +59,17 @@ export default function SignupPage() {
         return;
       }
 
+      // Step 1: Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
 
-      // Force a token refresh to ensure auth state is propagated to the backend
+      // Step 2: Update the auth profile immediately. This doesn't require Firestore permissions.
+      await updateProfile(user, { displayName: values.displayName, photoURL: null });
+      
+      // Step 3: Force a token refresh AFTER updating profile to ensure all data is current for Firestore rules.
       await user.getIdToken(true);
       
-      // Use a batch to write both documents atomically
+      // Step 4: Now, perform Firestore writes with the newly authenticated user.
       const batch = writeBatch(db);
 
       const userDocRef = doc(db, "users", user.uid);
@@ -73,7 +77,7 @@ export default function SignupPage() {
         uid: user.uid,
         displayName: values.displayName,
         username: values.username.toLowerCase(),
-        email: user.email!, // Use email from the created user object for guaranteed safety
+        email: user.email!,
         categories: defaultCategories,
         budget: 0,
         budgetIsSet: false,
@@ -84,16 +88,18 @@ export default function SignupPage() {
       const usernameDocRef = doc(db, "usernames", values.username.toLowerCase());
       batch.set(usernameDocRef, { uid: user.uid });
 
-      // First, commit the database changes
       await batch.commit();
-      
-      // Then, update the Auth profile. This is less critical and can be done last.
-      await updateProfile(user, { displayName: values.displayName, photoURL: null });
 
-      toast.success("Account created successfully!");
-      // Redirect is handled by RootLayoutClient
+      toast.success("Account created successfully! Redirecting...");
+      // The redirect will be handled by the onAuthStateChanged listener in RootLayoutClient
     } catch (error: any) {
-      toast.error(error.message || "Failed to create account. Please try again.");
+       if (error.code === 'auth/email-already-in-use') {
+        form.setError("email", { type: "manual", message: "This email address is already in use." });
+        toast.error("This email address is already in use.");
+      } else {
+        toast.error(error.message || "Failed to create account. Please try again.");
+      }
+      console.error("Signup error:", error);
     } finally {
       setIsLoading(false);
     }
