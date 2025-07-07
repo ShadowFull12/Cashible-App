@@ -36,7 +36,7 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export default function LoginPage() {
-  const { signInWithEmail, signInWithGoogle, googleAuthError, loading } = useAuth();
+  const { signInWithEmail, signInWithGoogle, googleAuthError, loading, authInProgress } = useAuth();
   const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -50,7 +50,6 @@ export default function LoginPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       await signInWithEmail(values.email, values.password);
-      toast.success("Logged in successfully!");
     } catch (error: any) {
       toast.error("Login Failed", { description: error.message || "Please check your credentials." });
     }
@@ -106,7 +105,7 @@ export default function LoginPage() {
                   <FormItem>
                     <Label htmlFor="email">Email or Username</Label>
                     <FormControl>
-                      <Input id="email" placeholder="m@example.com or jane_doe" {...field} disabled={!isFirebaseConfigured || loading} />
+                      <Input id="email" placeholder="m@example.com or jane_doe" {...field} disabled={!isFirebaseConfigured || loading || authInProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -124,14 +123,14 @@ export default function LoginPage() {
                       </Link>
                     </div>
                     <FormControl>
-                      <Input id="password" type="password" {...field} disabled={!isFirebaseConfigured || loading} />
+                      <Input id="password" type="password" {...field} disabled={!isFirebaseConfigured || loading || authInProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={loading || !isFirebaseConfigured}>
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" className="w-full" disabled={loading || authInProgress || !isFirebaseConfigured}>
+                {(loading || authInProgress) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Login
               </Button>
             </form>
@@ -146,8 +145,8 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={loading || !isFirebaseConfigured}>
-              {loading ? (
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={loading || authInProgress || !isFirebaseConfigured}>
+              {(loading || authInProgress) ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <GoogleIcon className="mr-2 h-4 w-4" />

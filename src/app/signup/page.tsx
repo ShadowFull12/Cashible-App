@@ -25,7 +25,7 @@ const formSchema = z.object({
 });
 
 export default function SignupPage() {
-  const { signUpWithEmail, loading } = useAuth();
+  const { signUpWithEmail, loading, authInProgress } = useAuth();
   const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -41,8 +41,6 @@ export default function SignupPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     try {
       await signUpWithEmail(values.email, values.password, values.displayName, values.username);
-      toast.success("Account created successfully! Redirecting...");
-      // The redirect will be handled by the onAuthStateChanged listener in RootLayoutClient
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use' || error.message.includes("already in use")) {
         form.setError("email", { type: "manual", message: "This email address is already in use." });
@@ -91,7 +89,7 @@ export default function SignupPage() {
                   <FormItem>
                     <Label htmlFor="displayName">Display Name</Label>
                     <FormControl>
-                      <Input id="displayName" placeholder="Jane Doe" {...field} disabled={!isFirebaseConfigured || loading} />
+                      <Input id="displayName" placeholder="Jane Doe" {...field} disabled={!isFirebaseConfigured || loading || authInProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -104,7 +102,7 @@ export default function SignupPage() {
                   <FormItem>
                     <Label htmlFor="username">Username</Label>
                     <FormControl>
-                      <Input id="username" placeholder="jane_doe" {...field} disabled={!isFirebaseConfigured || loading} />
+                      <Input id="username" placeholder="jane_doe" {...field} disabled={!isFirebaseConfigured || loading || authInProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -117,7 +115,7 @@ export default function SignupPage() {
                   <FormItem>
                     <Label htmlFor="email">Email</Label>
                     <FormControl>
-                      <Input id="email" type="email" placeholder="m@example.com" {...field} disabled={!isFirebaseConfigured || loading} />
+                      <Input id="email" type="email" placeholder="m@example.com" {...field} disabled={!isFirebaseConfigured || loading || authInProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -130,14 +128,14 @@ export default function SignupPage() {
                   <FormItem>
                     <Label htmlFor="password">Password</Label>
                     <FormControl>
-                      <Input id="password" type="password" {...field} disabled={!isFirebaseConfigured || loading} />
+                      <Input id="password" type="password" {...field} disabled={!isFirebaseConfigured || loading || authInProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={loading || !isFirebaseConfigured}>
-                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" className="w-full" disabled={loading || authInProgress || !isFirebaseConfigured}>
+                {(loading || authInProgress) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Create Account
               </Button>
             </form>
