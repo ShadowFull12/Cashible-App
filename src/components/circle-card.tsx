@@ -92,18 +92,22 @@ export function CircleCard({ circle }: CircleCardProps) {
 
     return (
         <Card className="flex flex-col transition-transform duration-300 ease-in-out hover:-translate-y-1 hover:shadow-lg">
-            <CardHeader>
-                <div className="flex justify-between items-start">
-                    <div>
-                        <CardTitle>{circle.name}</CardTitle>
-                        <CardDescription>{Object.keys(circle.members).length} members</CardDescription>
-                    </div>
-                     {unreadMessagesCount > 0 && (
-                        <Badge variant="destructive" className="flex items-center gap-1">
-                            <MessageSquare className="size-3"/> {unreadMessagesCount}
-                        </Badge>
-                    )}
+            <CardHeader className="flex flex-row items-center gap-4">
+                 <Avatar className="h-12 w-12">
+                    <AvatarImage src={circle.photoURL || undefined} alt={circle.name} />
+                    <AvatarFallback className="text-lg">
+                        {circle.name?.charAt(0).toUpperCase() || '?'}
+                    </AvatarFallback>
+                </Avatar>
+                <div className="flex-1">
+                    <CardTitle>{circle.name}</CardTitle>
+                    <CardDescription>{Object.keys(circle.members).length} members</CardDescription>
                 </div>
+                 {unreadMessagesCount > 0 && (
+                    <Badge variant="destructive" className="flex items-center gap-1 self-start">
+                        <MessageSquare className="size-3"/> {unreadMessagesCount}
+                    </Badge>
+                )}
             </CardHeader>
             <CardContent className="flex-grow">
                  <div className="flex -space-x-2 overflow-hidden">
