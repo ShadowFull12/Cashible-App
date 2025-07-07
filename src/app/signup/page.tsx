@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, writeBatch } from "firebase/firestore";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Loader2, AlertTriangle } from "lucide-react";
@@ -45,6 +45,12 @@ export default function SignupPage() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
+    if (!db) {
+        toast.error("Database connection not available. Please try again later.");
+        setIsLoading(false);
+        return;
+    }
+
     try {
       const usernameAvailable = await isUsernameAvailable(values.username);
       if (!usernameAvailable) {
@@ -55,25 +61,32 @@ export default function SignupPage() {
 
       const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
       const user = userCredential.user;
+
+      // Force a token refresh to ensure auth state is propagated to the backend
+      await user.getIdToken(true);
       
       await updateProfile(user, { displayName: values.displayName, photoURL: null });
       
-      // Create user documents in Firestore
+      // Use a batch to write both documents atomically
+      const batch = writeBatch(db);
+
       const userDocRef = doc(db, "users", user.uid);
-      await setDoc(userDocRef, {
+      batch.set(userDocRef, {
         uid: user.uid,
         displayName: values.displayName,
         username: values.username.toLowerCase(),
-        email: values.email,
+        email: values.email, // Use email from form values for guaranteed type safety
         categories: defaultCategories,
         budget: 0,
         budgetIsSet: false,
         photoURL: null,
-        primaryColor: '181 95% 45%', // Default primary color
+        primaryColor: '181 95% 45%',
       });
 
       const usernameDocRef = doc(db, "usernames", values.username.toLowerCase());
-      await setDoc(usernameDocRef, { uid: user.uid });
+      batch.set(usernameDocRef, { uid: user.uid });
+
+      await batch.commit();
 
       toast.success("Account created successfully!");
       // Redirect is handled by RootLayoutClient
