@@ -60,7 +60,7 @@ function AddFriendTab() {
             };
 
             await sendFriendRequest(fromUserProfile, toUser.uid);
-            toast.success(`Friend request sent to ${toUser.displayName}`);
+            toast.success(`Friend request sent to ${toUser.displayName || toUser.username}`);
             await refreshData();
         } catch (error: any) {
             toast.error(error.message || "Failed to send friend request.");
@@ -108,9 +108,9 @@ function AddFriendTab() {
                     return (
                         <div key={foundUser.uid} className="flex items-center justify-between p-3 border rounded-lg">
                             <div className="flex items-center gap-4">
-                                <Avatar><AvatarImage src={foundUser.photoURL || undefined} /><AvatarFallback>{foundUser.displayName.charAt(0)}</AvatarFallback></Avatar>
+                                <Avatar><AvatarImage src={foundUser.photoURL || undefined} /><AvatarFallback>{foundUser.displayName?.charAt(0) || 'U'}</AvatarFallback></Avatar>
                                 <div>
-                                    <p className="font-semibold">{foundUser.displayName}</p>
+                                    <p className="font-semibold">{foundUser.displayName || foundUser.username}</p>
                                     <p className="text-sm text-muted-foreground">@{foundUser.username}</p>
                                 </div>
                             </div>
@@ -134,7 +134,7 @@ function FriendsTab() {
         if (!user) return;
         try {
             await removeFriend(user.uid, friendToRemove.uid);
-            toast.success(`${friendToRemove.displayName} has been removed from your friends.`);
+            toast.success(`${friendToRemove.displayName || friendToRemove.username} has been removed from your friends.`);
             await refreshData();
         } catch (error) {
             toast.error("Failed to remove friend.");
@@ -151,9 +151,9 @@ function FriendsTab() {
                 {friends.map(friend => (
                      <div key={friend.uid} className="flex items-center justify-between p-3 border rounded-lg">
                         <div className="flex items-center gap-4">
-                            <Avatar><AvatarImage src={friend.photoURL || undefined} /><AvatarFallback>{friend.displayName.charAt(0)}</AvatarFallback></Avatar>
+                            <Avatar><AvatarImage src={friend.photoURL || undefined} /><AvatarFallback>{friend.displayName?.charAt(0) || 'U'}</AvatarFallback></Avatar>
                             <div>
-                                <p className="font-semibold">{friend.displayName}</p>
+                                <p className="font-semibold">{friend.displayName || friend.username}</p>
                                 <p className="text-sm text-muted-foreground">@{friend.username}</p>
                             </div>
                         </div>
@@ -163,7 +163,7 @@ function FriendsTab() {
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                                 <AlertDialogHeader>
-                                <AlertDialogTitle>Remove {friend.displayName}?</AlertDialogTitle>
+                                <AlertDialogTitle>Remove {friend.displayName || friend.username}?</AlertDialogTitle>
                                 <AlertDialogDescription>
                                     This will remove them from your friends list. You can add them again later.
                                 </AlertDialogDescription>
