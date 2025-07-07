@@ -65,8 +65,6 @@ export default function SignupPage() {
       // Force a token refresh to ensure auth state is propagated to the backend
       await user.getIdToken(true);
       
-      await updateProfile(user, { displayName: values.displayName, photoURL: null });
-      
       // Use a batch to write both documents atomically
       const batch = writeBatch(db);
 
@@ -75,7 +73,7 @@ export default function SignupPage() {
         uid: user.uid,
         displayName: values.displayName,
         username: values.username.toLowerCase(),
-        email: values.email, // Use email from form values for guaranteed type safety
+        email: user.email!, // Use email from the created user object for guaranteed safety
         categories: defaultCategories,
         budget: 0,
         budgetIsSet: false,
@@ -86,7 +84,11 @@ export default function SignupPage() {
       const usernameDocRef = doc(db, "usernames", values.username.toLowerCase());
       batch.set(usernameDocRef, { uid: user.uid });
 
+      // First, commit the database changes
       await batch.commit();
+      
+      // Then, update the Auth profile. This is less critical and can be done last.
+      await updateProfile(user, { displayName: values.displayName, photoURL: null });
 
       toast.success("Account created successfully!");
       // Redirect is handled by RootLayoutClient
