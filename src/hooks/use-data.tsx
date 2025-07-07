@@ -146,16 +146,13 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         setNotificationsLoading(true);
     }, []);
 
-    const refreshData = useCallback(async (showLoading = true) => {
+    const refreshData = useCallback(async () => {
         if (!user) return;
-        if(showLoading) {
-            resetLoadingStates();
-        }
         try {
+            // Re-fetch non-listener data. Listeners will update automatically.
             await refreshUserData();
             const fetchedRecurring = await getRecurringExpenses(user.uid);
             setRecurringExpenses(fetchedRecurring);
-            setRecurringLoading(false);
         } catch (error: any) {
             if (error.code === 'permission-denied') {
                 toast.error("Permission Denied", { description: "The app could not refresh your data." });
@@ -164,7 +161,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             }
             console.error(error);
         }
-    }, [user, refreshUserData, resetLoadingStates]);
+    }, [user, refreshUserData]);
 
     useEffect(() => {
         if (user && userData && !hasProcessedRecurring) {

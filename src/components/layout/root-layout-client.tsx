@@ -34,8 +34,8 @@ function AppBootstrapper({ children }: { children: React.ReactNode }) {
     }
   }, [userData?.primaryColor]);
 
-  // Show splash screen if auth is loading, OR if we are on a protected page and data is still loading for a logged in user.
-  const showSplash = authLoading || (!isAuthPage && dataLoading && user);
+  // Show splash screen only during the initial auth check.
+  const showSplash = authLoading;
 
   if (showSplash) {
     return <SplashScreen />;
