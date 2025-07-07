@@ -7,7 +7,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Loader2, AlertTriangle } from "lucide-react";
-import { useState } from "react";
 
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
@@ -37,9 +36,7 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export default function LoginPage() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const { signInWithEmail, signInWithGoogle, googleAuthError } = useAuth();
+  const { signInWithEmail, signInWithGoogle, googleAuthError, loading } = useAuth();
   const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -51,26 +48,20 @@ export default function LoginPage() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsLoading(true);
     try {
       await signInWithEmail(values.email, values.password);
       toast.success("Logged in successfully!");
     } catch (error: any) {
       toast.error("Login Failed", { description: error.message || "Please check your credentials." });
-    } finally {
-      setIsLoading(false);
     }
   }
 
   const handleGoogleSignIn = async () => {
-    setIsGoogleLoading(true);
     try {
       await signInWithGoogle();
-      // Redirect is handled by RootLayoutClient
+      // Redirect is handled by RootLayoutClient after onAuthStateChanged fires
     } catch (error: any) {
       // Errors are now handled inside the hook and displayed via `googleAuthError` or toast
-    } finally {
-      setIsGoogleLoading(false);
     }
   };
 
@@ -115,7 +106,7 @@ export default function LoginPage() {
                   <FormItem>
                     <Label htmlFor="email">Email or Username</Label>
                     <FormControl>
-                      <Input id="email" placeholder="m@example.com or jane_doe" {...field} disabled={!isFirebaseConfigured || isLoading} />
+                      <Input id="email" placeholder="m@example.com or jane_doe" {...field} disabled={!isFirebaseConfigured || loading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -133,14 +124,14 @@ export default function LoginPage() {
                       </Link>
                     </div>
                     <FormControl>
-                      <Input id="password" type="password" {...field} disabled={!isFirebaseConfigured || isLoading} />
+                      <Input id="password" type="password" {...field} disabled={!isFirebaseConfigured || loading} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={isLoading || isGoogleLoading || !isFirebaseConfigured}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" className="w-full" disabled={loading || !isFirebaseConfigured}>
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Login
               </Button>
             </form>
@@ -155,8 +146,8 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isGoogleLoading || isLoading || !isFirebaseConfigured}>
-              {isGoogleLoading ? (
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={loading || !isFirebaseConfigured}>
+              {loading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <GoogleIcon className="mr-2 h-4 w-4" />

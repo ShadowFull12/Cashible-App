@@ -17,14 +17,14 @@ export async function updateUser(userId: string, data: object) {
     await updateDoc(userDocRef, data);
 }
 
-export async function createInitialUserDocument(user: User, username: string) {
+export async function createInitialUserDocument(user: User, username: string, displayName: string) {
     if (!db) throw new Error("Firebase is not initialized.");
     const batch = writeBatch(db);
     
     const userDocRef = doc(db, "users", user.uid);
     batch.set(userDocRef, {
       uid: user.uid,
-      displayName: user.displayName,
+      displayName: displayName,
       username: username.toLowerCase(),
       email: user.email!,
       categories: defaultCategories,

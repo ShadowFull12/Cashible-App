@@ -34,7 +34,6 @@ interface UserData {
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  isAuthenticating: boolean;
   userData: UserData | null; 
   isSettingUsername: boolean;
   googleAuthError: string | null;
@@ -60,7 +59,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
   const [isSettingUsername, setIsSettingUsername] = useState(false);
   const [googleAuthError, setGoogleAuthError] = useState<string | null>(null);
 
@@ -101,67 +99,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setLoading(false);
         return;
     }
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      setUser(user);
-      if (user) {
-        await fetchUserData(user);
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      setLoading(true);
+      setUser(currentUser);
+      if (currentUser) {
+        await fetchUserData(currentUser);
       } else {
         setUserData(null);
         setIsSettingUsername(false);
       }
       setLoading(false);
-      // This is the single source of truth for when authentication is "finished"
-      setIsAuthenticating(false);
     });
     return () => unsubscribe();
   }, [fetchUserData]);
 
   const logout = useCallback(async () => {
     if (!auth) return;
-    setIsAuthenticating(true);
-    try {
-        await firebaseSignOut(auth);
-    } catch(error) {
-        console.error("Logout failed", error);
-        toast.error("Logout failed.");
-        setIsAuthenticating(false);
-    }
-    // onAuthStateChanged will set isAuthenticating to false on success
+    await firebaseSignOut(auth);
+    // onAuthStateChanged will handle the rest
   }, []);
   
   const signInWithEmail = useCallback(async (emailOrUsername: string, password: string) => {
     if (!auth) throw new Error("Firebase not configured.");
-    setIsAuthenticating(true);
-    try {
-      let emailToLogin = emailOrUsername;
-      if (!emailOrUsername.includes('@')) {
-          const userProfile = await userService.getUserByUsername(emailOrUsername);
-          if (userProfile?.email) {
-            emailToLogin = userProfile.email;
-          } else {
-            throw new Error("User not found with that username or email.");
-          }
-      }
-      await signInWithEmailAndPassword(auth, emailToLogin, password);
-    } catch(error) {
-        setIsAuthenticating(false);
-        throw error;
+    let emailToLogin = emailOrUsername;
+    if (!emailOrUsername.includes('@')) {
+        const userProfile = await userService.getUserByUsername(emailOrUsername);
+        if (userProfile?.email) {
+          emailToLogin = userProfile.email;
+        } else {
+          throw new Error("User not found with that username or email.");
+        }
     }
-    // onAuthStateChanged will set isAuthenticating to false on success
+    await signInWithEmailAndPassword(auth, emailToLogin, password);
+    // onAuthStateChanged will handle the rest
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
     if (!auth) throw new Error("Firebase not configured.");
     setGoogleAuthError(null);
-    setIsAuthenticating(true);
     const provider = new GoogleAuthProvider();
     try {
         await signInWithPopup(auth, provider);
+        // onAuthStateChanged will handle the rest
     } catch (error: any) {
-        setIsAuthenticating(false);
         if (error.code === 'auth/popup-closed-by-user') {
             console.warn("Google sign-in popup closed by user.");
-            // Don't throw an error, just stop the process
+            toast.info("Sign-in cancelled.");
             return;
         } else if (error.code === 'auth/account-exists-with-different-credential') {
             setGoogleAuthError("An account already exists with this email address. Please sign in with your original method to link it.");
@@ -172,27 +155,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         throw error;
     }
-     // onAuthStateChanged will set isAuthenticating to false on success
   }, []);
 
   const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string, username: string) => {
     if (!auth) throw new Error("Firebase not configured.");
-    setIsAuthenticating(true);
-    try {
-      const usernameAvailable = await userService.isUsernameAvailable(username);
-      if (!usernameAvailable) {
-        throw new Error(`Username "${username}" is already taken.`);
-      }
-
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-      await user.getIdToken(true); 
-      await userService.createInitialUserDocument(user, username, displayName);
-    } catch (error: any) {
-        setIsAuthenticating(false);
-        throw error;
+    
+    const usernameAvailable = await userService.isUsernameAvailable(username);
+    if (!usernameAvailable) {
+      throw new Error(`Username "${username}" is already taken.`);
     }
-    // onAuthStateChanged will set isAuthenticating to false on success
+
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    await updateProfile(user, { displayName });
+    await userService.createInitialUserDocument(user, username, displayName);
+    // onAuthStateChanged will handle the rest
   }, []);
 
   const completeInitialSetup = useCallback(async (username: string) => {
@@ -267,7 +244,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     deleteAllUserData, deleteAccount,
     signInWithEmail, signInWithGoogle, signUpWithEmail,
     completeInitialSetup,
-    isAuthenticating,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

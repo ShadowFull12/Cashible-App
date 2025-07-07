@@ -15,12 +15,12 @@ export function RootLayoutClient({
 }>) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading, isAuthenticating, userData } = useAuth();
+  const { user, loading, userData } = useAuth();
 
   const isAuthPage = pathname === "/" || pathname === "/signup";
 
   useEffect(() => {
-    if (loading || isAuthenticating) return;
+    if (loading) return; // Wait until loading is complete
 
     if (!user && !isAuthPage) {
       router.push("/");
@@ -29,7 +29,7 @@ export function RootLayoutClient({
     if (user && isAuthPage) {
       router.push("/dashboard");
     }
-  }, [user, loading, isAuthenticating, isAuthPage, router]);
+  }, [user, loading, isAuthPage, router]);
 
   useEffect(() => {
     if (userData?.primaryColor) {
