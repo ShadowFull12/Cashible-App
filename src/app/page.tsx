@@ -41,7 +41,8 @@ export default function LoginPage() {
   const { user, signInWithEmail, signInWithGoogle, googleAuthError } = useAuth();
   const router = useRouter();
   const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
-  const [inProgress, setInProgress] = useState(false);
+  const [isEmailLoading, setIsEmailLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   useEffect(() => {
     // If the user is already logged in, redirect them to the dashboard.
@@ -61,18 +62,19 @@ export default function LoginPage() {
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    setInProgress(true);
+    setIsEmailLoading(true);
     try {
       await signInWithEmail(values.email, values.password);
       router.push('/dashboard');
     } catch (error: any) {
       toast.error("Login Failed", { description: error.message || "Please check your credentials." });
-      setInProgress(false);
+    } finally {
+        setIsEmailLoading(false);
     }
   }
 
   const handleGoogleSignIn = async () => {
-    setInProgress(true);
+    setIsGoogleLoading(true);
     try {
       await signInWithGoogle();
       router.push('/dashboard');
@@ -84,9 +86,12 @@ export default function LoginPage() {
         } else {
             toast.error("Google Sign-In Failed", { description: error.message });
         }
-       setInProgress(false);
+    } finally {
+        setIsGoogleLoading(false);
     }
   };
+
+  const isAuthInProgress = isEmailLoading || isGoogleLoading;
 
   return (
     <div className="relative flex min-h-screen w-full flex-col items-center justify-center overflow-hidden bg-background p-4">
@@ -129,7 +134,7 @@ export default function LoginPage() {
                   <FormItem>
                     <Label htmlFor="email">Email or Username</Label>
                     <FormControl>
-                      <Input id="email" placeholder="m@example.com or jane_doe" {...field} disabled={!isFirebaseConfigured || inProgress} />
+                      <Input id="email" placeholder="m@example.com or jane_doe" {...field} disabled={!isFirebaseConfigured || isAuthInProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -147,14 +152,14 @@ export default function LoginPage() {
                       </Link>
                     </div>
                     <FormControl>
-                      <Input id="password" type="password" {...field} disabled={!isFirebaseConfigured || inProgress} />
+                      <Input id="password" type="password" {...field} disabled={!isFirebaseConfigured || isAuthInProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <Button type="submit" className="w-full" disabled={inProgress || !isFirebaseConfigured}>
-                {inProgress && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Button type="submit" className="w-full" disabled={isAuthInProgress || !isFirebaseConfigured}>
+                {isEmailLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Login
               </Button>
             </form>
@@ -169,8 +174,8 @@ export default function LoginPage() {
               </div>
             </div>
 
-            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={inProgress || !isFirebaseConfigured}>
-              {inProgress ? (
+            <Button variant="outline" className="w-full" onClick={handleGoogleSignIn} disabled={isAuthInProgress || !isFirebaseConfigured}>
+              {isGoogleLoading ? (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               ) : (
                 <GoogleIcon className="mr-2 h-4 w-4" />
