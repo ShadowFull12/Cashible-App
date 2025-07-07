@@ -12,7 +12,7 @@ import type { Circle, ChatMessage, UserProfile } from '@/lib/data';
 import { getChatMessagesListener, sendChatMessage, updateUserLastReadTimestamp, deleteMessageForEveryone, deleteMessageForMe } from '@/services/chatService';
 import { uploadCircleMedia } from '@/services/circleService';
 import { format } from 'date-fns';
-import { Paperclip, Send, Loader2, CornerDownLeft, Trash, X, MessagesSquare } from 'lucide-react';
+import { Paperclip, Send, Loader2, CornerDownLeft, Trash, X, MessagesSquare, Eye } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
@@ -77,7 +77,7 @@ export function ChatTab({ circle }: ChatTabProps) {
 
             if (uploadingFile) {
                 payload.mediaURL = await uploadCircleMedia(uploadingFile);
-                payload.mediaType = 'image';
+                payload.mediaType = uploadingFile.type.startsWith('image/') ? 'image' : 'file';
             }
             
             await sendChatMessage(payload);
@@ -154,18 +154,13 @@ export function ChatTab({ circle }: ChatTabProps) {
                                                     <p className="text-xs font-bold mb-1">{msg.user.displayName}</p>
                                                     {msg.replyTo && <QuotedMessage reply={msg.replyTo} />}
                                                     {msg.mediaURL && (
-                                                        <button 
-                                                            onClick={(e) => { e.stopPropagation(); setPreviewImage(msg.mediaURL); }} 
-                                                            className="block w-full"
-                                                        >
-                                                            <Image
-                                                                src={msg.mediaURL}
-                                                                alt="Chat attachment"
-                                                                width={200}
-                                                                height={200}
-                                                                className="rounded-md my-2 object-cover"
-                                                            />
-                                                        </button>
+                                                         <Image
+                                                            src={msg.mediaURL}
+                                                            alt="Chat attachment"
+                                                            width={200}
+                                                            height={200}
+                                                            className="rounded-md my-2 object-cover"
+                                                        />
                                                     )}
                                                     {msg.text && <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>}
                                                     <p className="text-xs opacity-70 mt-1 text-right">{format(msg.createdAt, "p")}</p>
@@ -175,6 +170,11 @@ export function ChatTab({ circle }: ChatTabProps) {
                                     </DropdownMenuTrigger>
                                      {!msg.isDeleted && (
                                         <DropdownMenuContent align={msg.user.uid === user.uid ? "end" : "start"}>
+                                            {msg.mediaURL && (
+                                                <DropdownMenuItem onSelect={() => setPreviewImage(msg.mediaURL)}>
+                                                    <Eye className="mr-2" /> Preview
+                                                </DropdownMenuItem>
+                                            )}
                                             <DropdownMenuItem onSelect={() => setReplyingTo(msg)}>
                                                 <CornerDownLeft className="mr-2" /> Reply
                                             </DropdownMenuItem>
