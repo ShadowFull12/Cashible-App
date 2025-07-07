@@ -110,6 +110,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setIsSettingUsername(false);
       }
       setLoading(false);
+      // This is the single source of truth for when authentication is "finished"
+      setIsAuthenticating(false);
     });
     return () => unsubscribe();
   }, [fetchUserData]);
@@ -122,9 +124,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     } catch(error) {
         console.error("Logout failed", error);
         toast.error("Logout failed.");
-    } finally {
         setIsAuthenticating(false);
     }
+    // onAuthStateChanged will set isAuthenticating to false on success
   }, []);
   
   const signInWithEmail = useCallback(async (emailOrUsername: string, password: string) => {
@@ -142,10 +144,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
       await signInWithEmailAndPassword(auth, emailToLogin, password);
     } catch(error) {
+        setIsAuthenticating(false);
         throw error;
-    } finally {
-      setIsAuthenticating(false);
     }
+    // onAuthStateChanged will set isAuthenticating to false on success
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
@@ -156,8 +158,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
         await signInWithPopup(auth, provider);
     } catch (error: any) {
+        setIsAuthenticating(false);
         if (error.code === 'auth/popup-closed-by-user') {
-            console.warn("Google sign-in popup closed.");
+            console.warn("Google sign-in popup closed by user.");
+            // Don't throw an error, just stop the process
+            return;
         } else if (error.code === 'auth/account-exists-with-different-credential') {
             setGoogleAuthError("An account already exists with this email address. Please sign in with your original method to link it.");
             toast.error("Account already exists", { description: "This email is linked to another sign-in method." });
@@ -165,12 +170,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setGoogleAuthError(error.message || "An unknown error occurred during Google sign-in.");
             toast.error("Google Sign-In Failed", { description: error.message });
         }
-        if (error.code !== 'auth/popup-closed-by-user') {
-            throw error;
-        }
-    } finally {
-        setIsAuthenticating(false);
+        throw error;
     }
+     // onAuthStateChanged will set isAuthenticating to false on success
   }, []);
 
   const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string, username: string) => {
@@ -185,12 +187,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       await user.getIdToken(true); 
-      await userService.createInitialUserDocument(user, username);
+      await userService.createInitialUserDocument(user, username, displayName);
     } catch (error: any) {
+        setIsAuthenticating(false);
         throw error;
-    } finally {
-      setIsAuthenticating(false);
     }
+    // onAuthStateChanged will set isAuthenticating to false on success
   }, []);
 
   const completeInitialSetup = useCallback(async (username: string) => {
