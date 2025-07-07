@@ -5,8 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect } from "react";
-import { Loader2 } from "lucide-react";
 import { DataProvider } from "@/hooks/use-data";
+import { SplashScreen } from "../splash-screen";
 
 export function RootLayoutClient({
   children,
@@ -39,9 +39,7 @@ export function RootLayoutClient({
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
+      <SplashScreen />
     );
   }
 

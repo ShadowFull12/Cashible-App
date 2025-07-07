@@ -19,7 +19,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "i.ibb.co", // Added for ImgBB hosting
+        hostname: "i.ibb.co",
       }
     ],
   },

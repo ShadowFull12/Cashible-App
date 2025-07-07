@@ -160,7 +160,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             </Button>
           </div>
         </header>
-        <main className="mb-16 flex-1 p-4 sm:p-6 lg:p-8 md:mb-0">
+        <main className="mb-16 flex-1 p-4 sm:p-6 lg:p-8 md:mb-0 animate-in fade-in-0 duration-500">
           {children}
         </main>
         {isMobile && (

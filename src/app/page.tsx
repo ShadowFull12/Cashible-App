@@ -69,17 +69,17 @@ export default function LoginPage() {
       <div className="absolute -top-1/4 left-0 h-1/2 w-1/2 animate-[spin_20s_linear_infinite] rounded-full bg-primary/10 blur-3xl" />
       <div className="absolute -bottom-1/4 right-0 h-1/2 w-1/2 animate-[spin_20s_linear_infinite_reverse] rounded-full bg-accent/10 blur-3xl" />
 
-      <Card className="relative w-full max-w-md border-border/20 bg-background/60 shadow-2xl backdrop-blur-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-24 duration-1000 ease-out">
+      <Card className="relative w-full max-w-md border-border/20 bg-background/60 shadow-2xl backdrop-blur-xl animate-in fade-in-0 zoom-in-95 duration-500">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 animate-in fade-in-0 slide-in-from-top-12 delay-300 duration-700">
+          <div className="mx-auto mb-4">
              <Logo />
           </div>
-          <div className="space-y-1 animate-in fade-in-0 slide-in-from-top-16 delay-500 duration-700">
+          <div className="space-y-1">
             <CardTitle className="text-3xl font-bold font-headline">Welcome Back</CardTitle>
             <CardDescription>Enter your credentials to access your dashboard.</CardDescription>
           </div>
         </CardHeader>
-        <CardContent className="animate-in fade-in-0 slide-in-from-bottom-16 delay-700 duration-700">
+        <CardContent>
           {!isFirebaseConfigured && (
             <Alert variant="destructive" className="mb-4 text-left">
               <AlertTriangle className="h-4 w-4" />
