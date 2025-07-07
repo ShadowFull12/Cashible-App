@@ -168,11 +168,32 @@ export async function logSettlementAsIncome(settlementId: string, notificationId
         await deleteDoc(notificationRef);
         throw new Error("This income has already been logged.");
     }
+
+     const settlement = {
+        id: settlementSnap.id,
+        ...settlementData,
+        createdAt: (settlementData.createdAt as Timestamp).toDate(),
+        processedAt: settlementData.processedAt ? (settlementData.processedAt as Timestamp).toDate() : new Date(),
+    } as Settlement;
     
-    // 1. Update the settlement to prevent duplicate logging
+    // 1. Create the personal income transaction for the creditor (negative amount)
+    const newTransactionRef = doc(collection(db, "transactions"));
+    batch.set(newTransactionRef, {
+        userId: settlement.toUserId,
+        description: `Payment from ${settlement.fromUser.displayName}`,
+        amount: -settlement.amount,
+        category: "Settlement",
+        date: settlement.processedAt ? Timestamp.fromDate(settlement.processedAt) : Timestamp.now(),
+        isSplit: false,
+        circleId: null,
+        recurringExpenseId: null,
+        splitDetails: null
+    });
+
+    // 2. Update the settlement to prevent duplicate logging
     batch.update(settlementRef, { creditorIncomeLogged: true });
 
-    // 2. Delete the actionable notification
+    // 3. Delete the actionable notification
     const notificationRef = doc(db, "notifications", notificationId);
     batch.delete(notificationRef);
 

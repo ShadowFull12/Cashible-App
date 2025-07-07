@@ -40,7 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export default function HistoryPage() {
-  const { transactions, categories, isLoading, refreshData, settlements } = useData();
+  const { transactions, categories, isLoading, refreshData } = useData();
   const [filterDescription, setFilterDescription] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterMonth, setFilterMonth] = useState<string>("all");
@@ -71,14 +71,13 @@ export default function HistoryPage() {
   }, [transactions, filterDescription, filterCategory, filterMonth, filterYear]);
   
   const filteredIncome = useMemo(() => {
-      return settlements.filter(s => {
-          if (s.status !== 'confirmed') return false;
-          const date = s.processedAt || s.createdAt;
-          const monthMatch = filterMonth === 'all' || date.getMonth().toString() === filterMonth;
-          const yearMatch = date.getFullYear().toString() === filterYear;
+      return transactions.filter(t => {
+          if (t.amount >= 0) return false;
+          const monthMatch = filterMonth === 'all' || t.date.getMonth().toString() === filterMonth;
+          const yearMatch = t.date.getFullYear().toString() === filterYear;
           return monthMatch && yearMatch;
       });
-  }, [settlements, filterMonth, filterYear]);
+  }, [transactions, filterMonth, filterYear]);
 
   const handleDelete = async (id: string) => {
     try {
@@ -246,19 +245,19 @@ export default function HistoryPage() {
                                 </TableRow>
                             ))
                         ) : filteredIncome.length > 0 ? (
-                            filteredIncome.map(s => (
-                                <TableRow key={s.id}>
+                            filteredIncome.map(t => (
+                                <TableRow key={t.id}>
                                     <TableCell className="font-medium">
-                                        Payment from {s.fromUser.displayName}
+                                        {t.description}
                                     </TableCell>
-                                    <TableCell>{format(s.processedAt || s.createdAt, "PPP")}</TableCell>
+                                    <TableCell>{format(t.date, "PPP")}</TableCell>
                                     <TableCell>
                                         <Badge variant="secondary" className="text-green-600">
-                                            <HandCoins className="mr-1 size-3" /> Settlement
+                                            <HandCoins className="mr-1 size-3" /> {t.category}
                                         </Badge>
                                     </TableCell>
                                     <TableCell className="text-right text-green-500 font-bold">
-                                        +₹{s.amount.toLocaleString()}
+                                        +₹{Math.abs(t.amount).toLocaleString()}
                                     </TableCell>
                                 </TableRow>
                             ))

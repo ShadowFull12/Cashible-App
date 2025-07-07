@@ -39,7 +39,7 @@ import type { Transaction } from "@/lib/data";
 
 export default function DashboardPage() {
   const { user, userData } = useAuth();
-  const { transactions, categories, isLoading, refreshData, settlements } = useData();
+  const { transactions, categories, isLoading, refreshData } = useData();
   const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
   
   const categoryColors = useMemo(() => {
@@ -62,24 +62,20 @@ export default function DashboardPage() {
   const budget = userData?.budget || 50000;
 
   const monthlyTotals = useMemo(() => {
-    if (!user) return { expenses: 0, income: 0 };
+    if (!user) return { netSpent: 0 };
     const now = new Date();
     const firstDay = startOfMonth(now);
     const lastDay = endOfMonth(now);
     const currentMonthInterval = { start: firstDay, end: lastDay };
 
-    const expenses = transactions
-        .filter(t => t.amount > 0 && isWithinInterval(t.date, currentMonthInterval))
-        .reduce((sum, t) => sum + t.amount, 0);
+    const netSpent = transactions
+      .filter(t => isWithinInterval(t.date, currentMonthInterval))
+      .reduce((sum, t) => sum + t.amount, 0);
 
-    const income = settlements
-        .filter(s => s.status === 'confirmed' && s.toUserId === user.uid && s.processedAt && isWithinInterval(s.processedAt, currentMonthInterval))
-        .reduce((sum, s) => sum + s.amount, 0);
+    return { netSpent };
+  }, [transactions, user]);
 
-    return { expenses, income };
-  }, [transactions, settlements, user]);
-
-  const spent = monthlyTotals.expenses - monthlyTotals.income;
+  const spent = monthlyTotals.netSpent;
   const remaining = budget - spent;
   const progress = budget > 0 ? (spent / budget) * 100 : 0;
   
@@ -143,7 +139,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">₹{spent.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">in total (expenses - income)</p>
+            <p className="text-xs text-muted-foreground">Your net monthly spending</p>
           </CardContent>
         </Card>
         <Card className={cn(remaining < 0 && "border-destructive/50 text-destructive")}>

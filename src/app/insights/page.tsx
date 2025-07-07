@@ -17,7 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF', '#FF5733', '#3b82f6', '#ec4899'];
 
 export default function InsightsPage() {
-  const { transactions, isLoading, settlements } = useData();
+  const { transactions, isLoading } = useData();
   const { user } = useAuth();
   const [insights, setInsights] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -63,30 +63,24 @@ export default function InsightsPage() {
   }, [positiveTransactions]);
   
   const insightMetrics = useMemo(() => {
-    if (transactions.length === 0 && settlements.length === 0) return { topCategory: 'N/A', avgDaily: 0, totalSpent: 0 };
+    if (transactions.length === 0) return { topCategory: 'N/A', avgDaily: 0, netSpent: 0 };
     
     const now = new Date();
     const firstDay = startOfMonth(now);
     const lastDay = endOfMonth(now);
     const currentMonthInterval = { start: firstDay, end: lastDay };
 
-    const thisMonthExpenses = transactions
-        .filter(t => t.amount > 0 && isWithinInterval(t.date, currentMonthInterval))
-        .reduce((sum, t) => sum + t.amount, 0);
-    
-    const thisMonthIncome = settlements
-        .filter(s => s.status === 'confirmed' && s.toUserId === user?.uid && s.processedAt && isWithinInterval(s.processedAt, currentMonthInterval))
-        .reduce((sum, s) => sum + s.amount, 0);
+    const netSpent = transactions
+      .filter(t => isWithinInterval(t.date, currentMonthInterval))
+      .reduce((sum, t) => sum + t.amount, 0);
 
-    const netSpent = thisMonthExpenses - thisMonthIncome;
-    
     const topCategory = categoryData[0]?.name || 'N/A';
     
     const daysInMonthSoFar = differenceInDays(now, firstDay) + 1;
     const avgDaily = daysInMonthSoFar > 0 ? netSpent / daysInMonthSoFar : 0;
     
-    return { topCategory, avgDaily: Math.round(avgDaily), totalSpent: netSpent };
-  }, [transactions, settlements, user?.uid, categoryData]);
+    return { topCategory, avgDaily: Math.round(avgDaily), netSpent };
+  }, [transactions, categoryData]);
 
 
   const handleGenerateInsights = async () => {
