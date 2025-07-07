@@ -27,16 +27,10 @@ const formSchema = z.object({
 });
 
 export default function SignupPage() {
-  const { user, signUpWithEmail } = useAuth();
+  const { user, signUpWithEmail, loading: authLoading } = useAuth();
   const router = useRouter();
   const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
   const [inProgress, setInProgress] = useState(false);
-
-  useEffect(() => {
-    if (user) {
-      router.push('/dashboard');
-    }
-  }, [user, router]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -63,8 +57,26 @@ export default function SignupPage() {
       } else {
         toast.error("Signup Failed", { description: error.message || "Please try again."});
       }
-      setInProgress(false);
+    } finally {
+        setInProgress(false);
     }
+  }
+
+  if (authLoading) {
+      return (
+          <div className="flex min-h-screen items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+      );
+  }
+
+  if (user) {
+      router.push('/dashboard');
+      return (
+          <div className="flex min-h-screen items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+      );
   }
 
   return (

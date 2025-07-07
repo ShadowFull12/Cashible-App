@@ -38,20 +38,11 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export default function LoginPage() {
-  const { user, signInWithEmail, signInWithGoogle, googleAuthError } = useAuth();
+  const { user, signInWithEmail, signInWithGoogle, googleAuthError, loading: authLoading } = useAuth();
   const router = useRouter();
   const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
   const [isEmailLoading, setIsEmailLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-
-  useEffect(() => {
-    // If the user is already logged in, redirect them to the dashboard.
-    // This handles the case where they visit the login page directly.
-    if (user) {
-      router.push('/dashboard');
-    }
-  }, [user, router]);
-
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -90,6 +81,23 @@ export default function LoginPage() {
         setIsGoogleLoading(false);
     }
   };
+  
+  if (authLoading) {
+      return (
+          <div className="flex min-h-screen items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+      );
+  }
+  
+  if (user) {
+      router.push('/dashboard');
+      return (
+          <div className="flex min-h-screen items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin" />
+          </div>
+      );
+  }
 
   const isAuthInProgress = isEmailLoading || isGoogleLoading;
 

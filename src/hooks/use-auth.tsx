@@ -99,7 +99,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [fetchUserData]);
 
   useEffect(() => {
-    setLoading(true);
     if (!auth) {
         setLoading(false);
         return;
@@ -120,7 +119,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = useCallback(async () => {
     if (!auth) return;
     await firebaseSignOut(auth);
-    // onAuthStateChanged will handle the rest
+    setUserData(null);
+    setUser(null);
   }, []);
   
   const signInWithEmail = useCallback(async (emailOrUsername: string, password: string) => {
@@ -134,9 +134,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           throw new Error("User not found with that username or email.");
         }
     }
-    await signInWithEmailAndPassword(auth, emailToLogin, password);
-    // onAuthStateChanged will fetch user data.
-  }, []);
+    const userCredential = await signInWithEmailAndPassword(auth, emailToLogin, password);
+    await fetchUserData(userCredential.user);
+  }, [fetchUserData]);
 
   const signInWithGoogle = useCallback(async () => {
     if (!auth || !db) throw new Error("Firebase not configured.");
@@ -145,15 +145,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const result = await signInWithPopup(auth, provider);
     const user = result.user;
 
-    // After successful sign-in, check if user data exists.
     const userDocRef = doc(db, 'users', user.uid);
     const userDoc = await getDoc(userDocRef);
     if (!userDoc.exists()) {
-        // If it's a new user via Google, create their initial doc
         await userService.createInitialUserDocForGoogle(user);
     }
-    // onAuthStateChanged will handle fetching user data.
-  }, []);
+    await fetchUserData(user);
+  }, [fetchUserData]);
 
 
   const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string, username: string) => {
@@ -165,14 +163,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     
-    // Force token refresh to ensure backend recognizes the new user's permissions
-    await user.getIdToken(true);
-
-    await userService.createInitialUserDocument(user, username, displayName);
-
     await updateProfile(user, { displayName });
-    // onAuthStateChanged will handle fetching the new data.
-  }, []);
+    await userService.createInitialUserDocument(user, username, displayName);
+    await fetchUserData(user);
+  }, [fetchUserData]);
 
   const completeInitialSetup = useCallback(async (username: string) => {
     if (!user) throw new Error("User not authenticated.");
