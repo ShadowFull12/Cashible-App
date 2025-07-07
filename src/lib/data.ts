@@ -64,6 +64,7 @@ export interface Circle {
     photoURL?: string | null;
     lastMessageAt?: Date | null;
     lastRead?: { [uid: string]: Date };
+    unreadCounts?: { [uid: string]: number };
 }
 
 export type DebtSettlementStatus = 'unsettled' | 'pending_confirmation' | 'confirmed' | 'logged';
@@ -157,11 +158,18 @@ export interface ExpenseClaim {
 }
 
 export interface ChatMessage {
-    id?: string;
+    id: string;
     circleId: string;
     user: UserProfile;
     text?: string;
-    mediaURL?: string;
+    mediaURL?: string | null;
     mediaType?: 'image' | 'receipt';
     createdAt: Date;
+    replyTo?: {
+        messageId: string;
+        authorName: string;
+        text: string;
+    } | null;
+    isDeleted?: boolean;
+    deletedFor?: string[];
 }

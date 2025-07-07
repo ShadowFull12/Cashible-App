@@ -85,11 +85,9 @@ export function CircleCard({ circle }: CircleCardProps) {
 
     }, [currentUser, circle.members, transactions, settlements]);
 
-    const hasUnreadMessages = useMemo(() => {
-        if (!currentUser || !circle.lastMessageAt) return false;
-        const lastReadTime = circle.lastRead?.[currentUser.uid];
-        if (!lastReadTime) return true; // Never read
-        return circle.lastMessageAt > lastReadTime;
+    const unreadMessagesCount = useMemo(() => {
+        if (!currentUser) return 0;
+        return circle.unreadCounts?.[currentUser.uid] || 0;
     }, [currentUser, circle]);
 
     return (
@@ -100,8 +98,10 @@ export function CircleCard({ circle }: CircleCardProps) {
                         <CardTitle>{circle.name}</CardTitle>
                         <CardDescription>{Object.keys(circle.members).length} members</CardDescription>
                     </div>
-                    {hasUnreadMessages && (
-                        <Badge variant="destructive" className="flex items-center gap-1"><MessageSquare className="size-3"/> New</Badge>
+                     {unreadMessagesCount > 0 && (
+                        <Badge variant="destructive" className="flex items-center gap-1">
+                            <MessageSquare className="size-3"/> {unreadMessagesCount}
+                        </Badge>
                     )}
                 </div>
             </CardHeader>

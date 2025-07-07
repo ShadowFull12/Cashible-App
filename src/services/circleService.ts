@@ -1,6 +1,6 @@
 
 import { db } from "@/lib/firebase";
-import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, writeBatch, onSnapshot, Unsubscribe, deleteDoc, arrayRemove, deleteField, arrayUnion } from "firebase/firestore";
+import { collection, addDoc, getDocs, query, where, Timestamp, doc, getDoc, updateDoc, writeBatch, onSnapshot, Unsubscribe, deleteDoc, arrayRemove, deleteField, arrayUnion, FieldValue } from "firebase/firestore";
 import type { UserProfile, Circle } from "@/lib/data";
 import { addCircleTransactionsDeletionsToBatch } from "./transactionService";
 import { addCircleSettlementsDeletionsToBatch } from "./debtService";
@@ -31,6 +31,7 @@ export async function createCircle({ name, owner, members }: CreateCircleInput) 
         photoURL: null,
         lastMessageAt: null,
         lastRead: {},
+        unreadCounts: {},
     });
 }
 
@@ -60,6 +61,7 @@ export function getCirclesForUserListener(userId: string, callback: (circles: Ci
                     acc[uid] = (ts as Timestamp).toDate();
                     return acc;
                 }, {} as {[uid: string]: Date}) : {},
+                unreadCounts: data.unreadCounts || {},
             } as Circle);
         });
         callback(circles.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
@@ -93,6 +95,7 @@ export function getCircleListener(circleId: string, callback: (circle: Circle | 
                     acc[uid] = (ts as Timestamp).toDate();
                     return acc;
                 }, {} as {[uid: string]: Date}) : {},
+                unreadCounts: data.unreadCounts || {},
             } as Circle);
         } else {
             callback(null);
@@ -174,6 +177,7 @@ export async function leaveCircle(circleId: string, userId: string) {
         const updates: {[key: string]: any} = {
             memberIds: arrayRemove(userId),
             [`members.${userId}`]: deleteField(),
+            [`unreadCounts.${userId}`]: deleteField(),
         };
         
         // If the leaving user was the owner, reassign ownership to the next member.
@@ -200,6 +204,7 @@ export async function addMembersToCircle(circleId: string, membersToAdd: UserPro
             email: member.email,
             photoURL: member.photoURL || null,
         };
+        acc[`unreadCounts.${member.uid}`] = 0;
         return acc;
     }, {} as { [key: string]: any });
 
