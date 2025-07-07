@@ -20,14 +20,12 @@ export function RootLayoutClient({
   const isAuthPage = pathname === "/" || pathname === "/signup";
 
   useEffect(() => {
-    if (loading) return; // Wait until all data loading is complete
+    // This effect acts as a global guard.
+    // It ensures unauthenticated users are always on an auth page.
+    if (loading) return;
 
     if (!user && !isAuthPage) {
       router.push("/");
-    }
-
-    if (user && isAuthPage) {
-      router.push("/dashboard");
     }
   }, [user, loading, isAuthPage, router]);
 
@@ -47,23 +45,21 @@ export function RootLayoutClient({
     );
   }
 
-  if (!user && !isAuthPage) {
-    return null; // or a loading spinner, prevents flicker
-  }
-  
-  if (user && isAuthPage) {
-    return null; // or a loading spinner
+  // If we are on an auth page, just render the children (login/signup form)
+  if (isAuthPage) {
+     return <>{children}</>;
   }
 
+  // If we are on a protected page but have no user, return null to avoid flicker
+  // while the guard in useEffect redirects.
+  if (!user) {
+    return null;
+  }
+
+  // If user is authenticated and not on an auth page, render the full app layout
   return (
-    <>
-      {isAuthPage ? (
-        <>{children}</>
-      ) : (
-        <DataProvider>
-          <AppLayout>{children}</AppLayout>
-        </DataProvider>
-      )}
-    </>
+    <DataProvider>
+      <AppLayout>{children}</AppLayout>
+    </DataProvider>
   );
 }

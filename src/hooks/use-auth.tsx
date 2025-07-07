@@ -70,6 +70,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         let userDoc = await getDoc(userDocRef);
         
         if (!userDoc.exists()) {
+          // This case is for when a user signs in with Google for the first time
           await userService.createInitialUserDocForGoogle(user);
           userDoc = await getDoc(userDocRef);
         }
@@ -98,6 +99,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [fetchUserData]);
 
   useEffect(() => {
+    setLoading(true);
     if (!auth) {
         setLoading(false);
         return;
@@ -133,16 +135,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     }
     await signInWithEmailAndPassword(auth, emailToLogin, password);
-    // onAuthStateChanged will handle the rest
+    // onAuthStateChanged will fetch user data.
   }, []);
 
   const signInWithGoogle = useCallback(async () => {
-    if (!auth) throw new Error("Firebase not configured.");
+    if (!auth || !db) throw new Error("Firebase not configured.");
     setGoogleAuthError(null);
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
-    // onAuthStateChanged will handle the rest
+    const result = await signInWithPopup(auth, provider);
+    const user = result.user;
+
+    // After successful sign-in, check if user data exists.
+    const userDocRef = doc(db, 'users', user.uid);
+    const userDoc = await getDoc(userDocRef);
+    if (!userDoc.exists()) {
+        // If it's a new user via Google, create their initial doc
+        await userService.createInitialUserDocForGoogle(user);
+    }
+    // onAuthStateChanged will handle fetching user data.
   }, []);
+
 
   const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string, username: string) => {
     if (!auth) throw new Error("Firebase not configured.");
@@ -159,6 +171,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await userService.createInitialUserDocument(user, username, displayName);
 
     await updateProfile(user, { displayName });
+    // onAuthStateChanged will handle fetching the new data.
   }, []);
 
   const completeInitialSetup = useCallback(async (username: string) => {

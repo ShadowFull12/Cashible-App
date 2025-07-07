@@ -7,7 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Loader2, AlertTriangle } from "lucide-react";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
@@ -26,9 +27,16 @@ const formSchema = z.object({
 });
 
 export default function SignupPage() {
-  const { signUpWithEmail } = useAuth();
+  const { user, signUpWithEmail } = useAuth();
+  const router = useRouter();
   const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
   const [inProgress, setInProgress] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      router.push('/dashboard');
+    }
+  }, [user, router]);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -44,6 +52,7 @@ export default function SignupPage() {
     setInProgress(true);
     try {
       await signUpWithEmail(values.email, values.password, values.displayName, values.username);
+      router.push('/dashboard');
     } catch (error: any) {
       if (error.code === 'auth/email-already-in-use' || error.message.includes("already in use")) {
         form.setError("email", { type: "manual", message: "This email address is already in use." });
@@ -54,7 +63,6 @@ export default function SignupPage() {
       } else {
         toast.error("Signup Failed", { description: error.message || "Please try again."});
       }
-    } finally {
       setInProgress(false);
     }
   }

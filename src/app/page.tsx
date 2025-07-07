@@ -7,7 +7,8 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
 import { Loader2, AlertTriangle } from "lucide-react";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 import { Logo } from "@/components/logo";
 import { Button } from "@/components/ui/button";
@@ -37,9 +38,19 @@ function GoogleIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export default function LoginPage() {
-  const { signInWithEmail, signInWithGoogle, googleAuthError } = useAuth();
+  const { user, signInWithEmail, signInWithGoogle, googleAuthError } = useAuth();
+  const router = useRouter();
   const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
   const [inProgress, setInProgress] = useState(false);
+
+  useEffect(() => {
+    // If the user is already logged in, redirect them to the dashboard.
+    // This handles the case where they visit the login page directly.
+    if (user) {
+      router.push('/dashboard');
+    }
+  }, [user, router]);
+
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -53,10 +64,10 @@ export default function LoginPage() {
     setInProgress(true);
     try {
       await signInWithEmail(values.email, values.password);
+      router.push('/dashboard');
     } catch (error: any) {
       toast.error("Login Failed", { description: error.message || "Please check your credentials." });
-    } finally {
-        setInProgress(false);
+      setInProgress(false);
     }
   }
 
@@ -64,7 +75,7 @@ export default function LoginPage() {
     setInProgress(true);
     try {
       await signInWithGoogle();
-      // Redirect is handled by RootLayoutClient after onAuthStateChanged fires
+      router.push('/dashboard');
     } catch (error: any) {
        if (error.code === 'auth/popup-closed-by-user') {
             toast.info("Sign-in cancelled.");
@@ -73,8 +84,7 @@ export default function LoginPage() {
         } else {
             toast.error("Google Sign-In Failed", { description: error.message });
         }
-    } finally {
-        setInProgress(false);
+       setInProgress(false);
     }
   };
 
