@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -58,21 +57,18 @@ export function ChatTab({ circle }: ChatTabProps) {
                 username: userData.username || ''
             };
 
-            let mediaURL: string | undefined;
-            let mediaType: 'image' | 'receipt' | undefined;
-
-            if (uploadingFile) {
-                mediaURL = await uploadCircleMedia(uploadingFile);
-                mediaType = 'image';
-            }
-            
-            await sendChatMessage({
+            const payload: any = {
                 circleId: circle.id,
                 user: currentUserProfile,
                 text: newMessage.trim(),
-                mediaURL,
-                mediaType,
-            });
+            };
+
+            if (uploadingFile) {
+                payload.mediaURL = await uploadCircleMedia(uploadingFile);
+                payload.mediaType = 'image';
+            }
+            
+            await sendChatMessage(payload);
             
             setNewMessage("");
             setUploadingFile(null);
