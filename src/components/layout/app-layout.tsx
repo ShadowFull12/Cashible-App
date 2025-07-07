@@ -34,6 +34,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { BottomNav } from "./bottom-nav";
 import { InitialBudgetModal } from "../initial-budget-modal";
+import { SetUsernameModal } from "../set-username-modal";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
@@ -46,7 +47,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setIsAddExpenseOpen,
     newExpenseDefaultCircleId,
    } = useData();
-  const { user, userData, loading: authLoading, logout } = useAuth();
+  const { user, userData, loading: authLoading, logout, isSettingUsername, completeInitialSetup } = useAuth();
   const isMobile = useIsMobile();
   const router = useRouter();
   const userInitial = user?.displayName
@@ -56,10 +57,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     : "U";
 
   React.useEffect(() => {
-    if (!authLoading && userData && userData.budgetIsSet === false) {
+    if (!authLoading && userData && userData.budgetIsSet === false && !isSettingUsername) {
       setIsBudgetModalOpen(true);
     }
-  }, [userData, authLoading]);
+  }, [userData, authLoading, isSettingUsername]);
 
   const handleExpenseAdded = () => {
     refreshData();
@@ -73,9 +74,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   const handleOpenChange = (isOpen: boolean) => {
     setIsAddExpenseOpen(isOpen);
     if (!isOpen) {
-      // Clear any context-specific defaults when closing the dialog
-      // The circle ID context is managed by the circle page itself (on mount/unmount)
-      // so we should not clear it here.
       setNewExpenseDefaultDate(null);
     }
   };
@@ -176,6 +174,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         transactionToEdit={null}
         defaultDate={newExpenseDefaultDate}
         defaultCircleId={newExpenseDefaultCircleId}
+      />
+       <SetUsernameModal 
+          open={isSettingUsername}
+          onUsernameSet={completeInitialSetup}
       />
       <InitialBudgetModal
         open={isBudgetModalOpen}

@@ -5,8 +5,6 @@ import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, writeBatch } from "firebase/firestore";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Loader2, AlertTriangle } from "lucide-react";
@@ -18,9 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { auth, db } from "@/lib/firebase";
-import { defaultCategories } from "@/lib/data";
-import { isUsernameAvailable } from "@/services/userService";
+import { useAuth } from "@/hooks/use-auth";
 
 const formSchema = z.object({
   displayName: z.string().min(2, { message: "Display name must be at least 2 characters." }),
@@ -31,6 +27,7 @@ const formSchema = z.object({
 
 export default function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
+  const { signUpWithEmail } = useAuth();
   const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -45,61 +42,20 @@ export default function SignupPage() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    if (!db) {
-        toast.error("Database connection not available. Please try again later.");
-        setIsLoading(false);
-        return;
-    }
-
     try {
-      const usernameAvailable = await isUsernameAvailable(values.username);
-      if (!usernameAvailable) {
-        form.setError("username", { type: "manual", message: "This username is already taken." });
-        setIsLoading(false);
-        return;
-      }
-
-      // Step 1: Create user in Firebase Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
-
-      // Step 2: Update the auth profile immediately. This doesn't require Firestore permissions.
-      await updateProfile(user, { displayName: values.displayName, photoURL: null });
-      
-      // Step 3: Force a token refresh AFTER updating profile to ensure all data is current for Firestore rules.
-      await user.getIdToken(true);
-      
-      // Step 4: Now, perform Firestore writes with the newly authenticated user.
-      const batch = writeBatch(db);
-
-      const userDocRef = doc(db, "users", user.uid);
-      batch.set(userDocRef, {
-        uid: user.uid,
-        displayName: values.displayName,
-        username: values.username.toLowerCase(),
-        email: user.email!,
-        categories: defaultCategories,
-        budget: 0,
-        budgetIsSet: false,
-        photoURL: null,
-        primaryColor: '181 95% 45%',
-      });
-
-      const usernameDocRef = doc(db, "usernames", values.username.toLowerCase());
-      batch.set(usernameDocRef, { uid: user.uid });
-
-      await batch.commit();
-
+      await signUpWithEmail(values.email, values.password, values.displayName, values.username);
       toast.success("Account created successfully! Redirecting...");
       // The redirect will be handled by the onAuthStateChanged listener in RootLayoutClient
     } catch (error: any) {
-       if (error.code === 'auth/email-already-in-use') {
+      if (error.code === 'auth/email-already-in-use' || error.message.includes("already in use")) {
         form.setError("email", { type: "manual", message: "This email address is already in use." });
         toast.error("This email address is already in use.");
+      } else if (error.message.includes("username")) {
+        form.setError("username", { type: "manual", message: error.message });
+        toast.error("Username error", { description: error.message });
       } else {
-        toast.error(error.message || "Failed to create account. Please try again.");
+        toast.error("Signup Failed", { description: error.message || "Please try again."});
       }
-      console.error("Signup error:", error);
     } finally {
       setIsLoading(false);
     }
