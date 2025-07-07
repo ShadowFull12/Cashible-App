@@ -17,15 +17,13 @@ export async function updateUser(userId: string, data: object) {
     await updateDoc(userDocRef, data);
 }
 
-export async function createInitialUserDocument(user: User, username: string, displayName: string) {
+export async function createInitialUserDocument(user: User, displayName: string) {
     if (!db) throw new Error("Firebase is not initialized.");
-    const batch = writeBatch(db);
-    
     const userDocRef = doc(db, "users", user.uid);
-    batch.set(userDocRef, {
+    await setDoc(userDocRef, {
       uid: user.uid,
       displayName: displayName,
-      username: username.toLowerCase(),
+      username: null, // To be set by the user in the next step
       email: user.email!,
       categories: defaultCategories,
       budget: 0,
@@ -33,11 +31,6 @@ export async function createInitialUserDocument(user: User, username: string, di
       photoURL: user.photoURL || null,
       primaryColor: '181 95% 45%',
     });
-
-    const usernameDocRef = doc(db, "usernames", username.toLowerCase());
-    batch.set(usernameDocRef, { uid: user.uid });
-    
-    await batch.commit();
 }
 
 export async function createInitialUserDocForGoogle(user: User) {

@@ -7,9 +7,7 @@ import {
     onAuthStateChanged, 
     signOut as firebaseSignOut, 
     updateProfile, 
-    deleteUser as firebaseDeleteUser, 
-    signInWithPopup, 
-    GoogleAuthProvider, 
+    deleteUser as firebaseDeleteUser,
     signInWithEmailAndPassword, 
     createUserWithEmailAndPassword,
     getIdTokenResult
@@ -37,7 +35,6 @@ interface AuthContextType {
   loading: boolean;
   userData: UserData | null; 
   isSettingUsername: boolean;
-  googleAuthError: string | null;
   logout: () => Promise<void>;
   refreshUserData: () => Promise<void>;
   updateUserProfile: (data: Partial<UserData>) => Promise<void>;
@@ -49,8 +46,7 @@ interface AuthContextType {
   deleteAllUserData: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   signInWithEmail: (emailOrUsername: string, password: string) => Promise<void>;
-  signInWithGoogle: () => Promise<void>;
-  signUpWithEmail: (email: string, password: string, displayName: string, username: string) => Promise<void>;
+  signUpWithEmail: (email: string, password: string, displayName: string) => Promise<void>;
   completeInitialSetup: (username: string) => Promise<void>;
 }
 
@@ -61,7 +57,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSettingUsername, setIsSettingUsername] = useState(false);
-  const [googleAuthError, setGoogleAuthError] = useState<string | null>(null);
 
   const fetchUserData = useCallback(async (user: User) => {
     if (!db) return;
@@ -69,12 +64,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         let userDocRef = doc(db, 'users', user.uid);
         let userDoc = await getDoc(userDocRef);
         
-        if (!userDoc.exists()) {
-          // This case is for when a user signs in with Google for the first time
-          await userService.createInitialUserDocForGoogle(user);
-          userDoc = await getDoc(userDocRef);
-        }
-
         if (userDoc.exists()) {
             const data = userDoc.data() as UserData;
             setUserData(data);
@@ -84,7 +73,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 setIsSettingUsername(false);
             }
         } else {
-            setUserData(null);
+             // This can happen if the user doc creation failed or is delayed
+             // For now, we assume a new Google sign-in needs a doc.
+            await userService.createInitialUserDocForGoogle(user);
+            userDoc = await getDoc(userDocRef);
+             if (userDoc.exists()) {
+                const data = userDoc.data() as UserData;
+                setUserData(data);
+                if (!data.username) setIsSettingUsername(true);
+             } else {
+                setUserData(null);
+             }
         }
     } catch (error: any) {
         console.error("Failed to fetch user data:", error);
@@ -138,34 +137,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     await fetchUserData(userCredential.user);
   }, [fetchUserData]);
 
-  const signInWithGoogle = useCallback(async () => {
-    if (!auth || !db) throw new Error("Firebase not configured.");
-    setGoogleAuthError(null);
-    const provider = new GoogleAuthProvider();
-    const result = await signInWithPopup(auth, provider);
-    const user = result.user;
-
-    const userDocRef = doc(db, 'users', user.uid);
-    const userDoc = await getDoc(userDocRef);
-    if (!userDoc.exists()) {
-        await userService.createInitialUserDocForGoogle(user);
-    }
-    await fetchUserData(user);
-  }, [fetchUserData]);
-
-
-  const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string, username: string) => {
+  const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string) => {
     if (!auth) throw new Error("Firebase not configured.");
-    const usernameAvailable = await userService.isUsernameAvailable(username);
-    if (!usernameAvailable) {
-      throw new Error(`Username "${username}" is already taken.`);
-    }
+    
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
     
     await updateProfile(user, { displayName });
-    await userService.createInitialUserDocument(user, username, displayName);
+    await userService.createInitialUserDocument(user, displayName);
     await fetchUserData(user);
+    setIsSettingUsername(true);
   }, [fetchUserData]);
 
   const completeInitialSetup = useCallback(async (username: string) => {
@@ -238,11 +219,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
   const value: AuthContextType = {
-    user, loading, userData, isSettingUsername, googleAuthError, logout, refreshUserData,
+    user, loading, userData, isSettingUsername, logout, refreshUserData,
     updateUserProfile, uploadAndSetProfileImage,
     updateUserPassword, updateUserEmail, updateUserUsername, reauthenticateWithPassword,
     deleteAllUserData, deleteAccount,
-    signInWithEmail, signInWithGoogle, signUpWithEmail,
+    signInWithEmail, signUpWithEmail,
     completeInitialSetup,
   };
 

@@ -21,7 +21,6 @@ import { useAuth } from "@/hooks/use-auth";
 
 const formSchema = z.object({
   displayName: z.string().min(2, { message: "Display name must be at least 2 characters." }),
-  username: z.string().min(3, { message: "Username must be 3-15 characters." }).regex(/^[a-zA-Z0-9_]{3,15}$/, { message: "Use only letters, numbers, and underscores." }),
   email: z.string().email({ message: "Invalid email address." }),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
 });
@@ -32,11 +31,16 @@ export default function SignupPage() {
   const isFirebaseConfigured = !!process.env.NEXT_PUBLIC_FIREBASE_API_KEY;
   const [inProgress, setInProgress] = useState(false);
 
+  useEffect(() => {
+    if (!authLoading && user) {
+        router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       displayName: "",
-      username: "",
       email: "",
       password: "",
     },
@@ -45,15 +49,12 @@ export default function SignupPage() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setInProgress(true);
     try {
-      await signUpWithEmail(values.email, values.password, values.displayName, values.username);
+      await signUpWithEmail(values.email, values.password, values.displayName);
       router.push('/dashboard');
     } catch (error: any) {
-      if (error.code === 'auth/email-already-in-use' || error.message.includes("already in use")) {
+      if (error.code === 'auth/email-already-in-use') {
         form.setError("email", { type: "manual", message: "This email address is already in use." });
         toast.error("This email address is already in use.");
-      } else if (error.message.includes("username")) {
-        form.setError("username", { type: "manual", message: error.message });
-        toast.error("Username error", { description: error.message });
       } else {
         toast.error("Signup Failed", { description: error.message || "Please try again."});
       }
@@ -62,16 +63,7 @@ export default function SignupPage() {
     }
   }
 
-  if (authLoading) {
-      return (
-          <div className="flex min-h-screen items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin" />
-          </div>
-      );
-  }
-
-  if (user) {
-      router.push('/dashboard');
+  if (authLoading || user) {
       return (
           <div className="flex min-h-screen items-center justify-center">
               <Loader2 className="h-8 w-8 animate-spin" />
@@ -115,19 +107,6 @@ export default function SignupPage() {
                     <Label htmlFor="displayName">Display Name</Label>
                     <FormControl>
                       <Input id="displayName" placeholder="Jane Doe" {...field} disabled={!isFirebaseConfigured || inProgress} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="username"
-                render={({ field }) => (
-                  <FormItem>
-                    <Label htmlFor="username">Username</Label>
-                    <FormControl>
-                      <Input id="username" placeholder="jane_doe" {...field} disabled={!isFirebaseConfigured || inProgress} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

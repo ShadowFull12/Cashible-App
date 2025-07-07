@@ -22,7 +22,7 @@ import { CircleCard } from '@/components/circle-card';
 
 
 function AddFriendTab() {
-    const { user } = useAuth();
+    const { user, userData } = useAuth();
     const { friends, friendRequests, refreshData } = useData();
     const [searchTerm, setSearchTerm] = useState("");
     const [searchResults, setSearchResults] = useState<UserProfile[]>([]);
@@ -44,13 +44,22 @@ function AddFriendTab() {
     };
 
     const handleSendRequest = async (toUser: UserProfile) => {
-        if (!user || !user.displayName || !user.email) return;
+        if (!user || !userData?.username) {
+            toast.error("Your user profile is not fully set up.");
+            return;
+        }
+
         setIsSending(prev => ({...prev, [toUser.uid]: true}));
         try {
-            const fromUser = await getUserByUsername(user.displayName); // Bit of a hack to get full profile
-            if (!fromUser) throw new Error("Could not find your user profile.");
+            const fromUserProfile: UserProfile = {
+                uid: user.uid,
+                displayName: user.displayName || 'User',
+                email: user.email || '',
+                photoURL: user.photoURL || null,
+                username: userData.username,
+            };
 
-            await sendFriendRequest(fromUser, toUser.uid);
+            await sendFriendRequest(fromUserProfile, toUser.uid);
             toast.success(`Friend request sent to ${toUser.displayName}`);
             await refreshData();
         } catch (error: any) {
