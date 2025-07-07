@@ -45,7 +45,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     isAddExpenseOpen,
     setIsAddExpenseOpen,
     newExpenseDefaultCircleId,
-    setNewExpenseDefaultCircleId,
    } = useData();
   const { user, userData, loading: authLoading, logout } = useAuth();
   const isMobile = useIsMobile();
@@ -75,8 +74,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     setIsAddExpenseOpen(isOpen);
     if (!isOpen) {
       // Clear any context-specific defaults when closing the dialog
+      // The circle ID context is managed by the circle page itself (on mount/unmount)
+      // so we should not clear it here.
       setNewExpenseDefaultDate(null);
-      setNewExpenseDefaultCircleId(null);
     }
   };
 
