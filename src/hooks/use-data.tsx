@@ -56,6 +56,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
     const [newExpenseDefaultDate, setNewExpenseDefaultDate] = useState<Date | null>(null);
     const [newExpenseDefaultCircleId, setNewExpenseDefaultCircleId] = useState<string | null>(null);
+    
+    const [hasProcessedRecurring, setHasProcessedRecurring] = useState(false);
 
     const unreadNotificationCount = useMemo(() => {
         return notifications.filter(n => !n.read).length;
@@ -104,17 +106,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (!user) return;
         if(showLoading) setIsLoading(true);
         try {
+            await refreshUserData();
             const fetchedRecurring = await getRecurringExpenses(user.uid);
             setRecurringExpenses(fetchedRecurring);
-
-            const newTransactionsAdded = await processRecurringExpenses(user.uid, fetchedRecurring);
-
-            if (newTransactionsAdded) {
-                toast.info("Recurring expenses have been automatically added.");
-            }
-
-            await refreshUserData();
-
         } catch (error: any) {
             if (error.code === 'permission-denied') {
                 toast.error("Permission Denied", {
@@ -127,10 +121,33 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         } finally {
             if(showLoading) setIsLoading(false);
         }
-    }, [user, refreshUserData, processRecurringExpenses]);
+    }, [user, refreshUserData]);
 
     useEffect(() => {
-        if(!user) {
+        if (user && userData && !hasProcessedRecurring) {
+            const runRecurringExpenseCheck = async () => {
+                try {
+                    const fetchedRecurring = await getRecurringExpenses(user.uid);
+                    setRecurringExpenses(fetchedRecurring);
+                    const newTransactionsAdded = await processRecurringExpenses(user.uid, fetchedRecurring);
+                    if (newTransactionsAdded) {
+                        toast.info("Recurring expenses for this month have been automatically added.");
+                    }
+                } catch (error) {
+                    console.error("Failed to process recurring expenses in background:", error);
+                } finally {
+                    setHasProcessedRecurring(true); 
+                }
+            };
+            runRecurringExpenseCheck();
+        }
+    }, [user, userData, hasProcessedRecurring, processRecurringExpenses]);
+
+    useEffect(() => {
+        if (user && userData) {
+            setIsLoading(false);
+        }
+        if (!user) {
             setTransactions([]);
             setCategories([]);
             setRecurringExpenses([]);
@@ -139,11 +156,10 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setCircles([]);
             setSettlements([]);
             setNotifications([]);
-            setIsLoading(false);
-        } else {
-             refreshData();
+            setIsLoading(true);
+            setHasProcessedRecurring(false);
         }
-    }, [user, refreshData]);
+    }, [user, userData]);
     
     useEffect(() => {
         if (userData?.categories) {
@@ -155,8 +171,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (user) {
             const unsubscribe = getTransactionsListener(user.uid, setTransactions);
             return () => unsubscribe();
-        } else {
-            setTransactions([]);
         }
     }, [user]);
     
@@ -164,8 +178,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (user) {
             const unsubscribe = getNotificationsForUser(user.uid, setNotifications);
             return () => unsubscribe();
-        } else {
-            setNotifications([]);
         }
     }, [user]);
 
@@ -173,8 +185,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (user) {
             const unsubscribe = getFriendRequestsListener(user.uid, setFriendRequests);
             return () => unsubscribe();
-        } else {
-            setFriendRequests([]);
         }
     }, [user]);
 
@@ -182,8 +192,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (user) {
             const unsubscribe = getFriendsListener(user.uid, setFriends);
             return () => unsubscribe();
-        } else {
-            setFriends([]);
         }
     }, [user]);
 
@@ -191,8 +199,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (user) {
             const unsubscribe = getCirclesForUserListener(user.uid, setCircles);
             return () => unsubscribe();
-        } else {
-            setCircles([]);
         }
     }, [user]);
 
@@ -200,8 +206,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (user) {
             const unsubscribe = getSettlementsForUserListener(user.uid, setSettlements);
             return () => unsubscribe();
-        } else {
-            setSettlements([]);
         }
     }, [user]);
     
