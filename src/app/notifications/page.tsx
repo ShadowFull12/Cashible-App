@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { Bell, Check, UserPlus, CircleDollarSign, BellRing, Loader2, UserCheck, UserX, X, FilePlus, CheckCircle2, XCircle, ClipboardCheck, ClipboardX, HandCoins, Wallet } from 'lucide-react';
+import { Bell, Check, UserPlus, CircleDollarSign, BellRing, Loader2, UserCheck, UserX, X, FilePlus, CheckCircle2, XCircle, ClipboardCheck, ClipboardX, HandCoins, Wallet, Trash2 } from 'lucide-react';
 import type { Notification, UserProfile } from '@/lib/data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAuth } from '@/hooks/use-auth';
@@ -18,7 +18,7 @@ import { acceptFriendRequest, rejectFriendRequest } from '@/services/friendServi
 import { deleteNotification } from '@/services/notificationService';
 import { acceptExpenseClaim, rejectExpenseClaim } from '@/services/expenseClaimService';
 import { acceptSettlement, rejectSettlement, logSettlementAsExpense, logSettlementAsIncome } from '@/services/debtService';
-
+import { deleteTransaction } from '@/services/transactionService';
 
 const iconMap: {[key: string]: React.ElementType} = {
     'friend-request': UserPlus,
@@ -30,6 +30,7 @@ const iconMap: {[key: string]: React.ElementType} = {
     'settlement-income-pending': Wallet,
     'settlement-rejected': XCircle,
     'circle-member-joined': UserCheck,
+    'circle-expense-removed-by-owner': Trash2,
     // Legacy types
     'debt-settlement-request': CircleDollarSign,
     'debt-settlement-confirmed': Check,
@@ -53,7 +54,8 @@ export default function NotificationsPage() {
                              notification.type === 'expense-claim-request' ||
                              notification.type === 'settlement-request' ||
                              notification.type === 'settlement-expense-pending' ||
-                             notification.type === 'settlement-income-pending';
+                             notification.type === 'settlement-income-pending' ||
+                             notification.type === 'circle-expense-removed-by-owner';
         
         if (isActionable) {
             return;
@@ -193,6 +195,20 @@ export default function NotificationsPage() {
         }
     }
 
+    const handleDeleteFromHistory = async (notification: Notification) => {
+        if (!notification.relatedId) return;
+        setProcessingId(notification.id);
+        try {
+            await deleteTransaction(notification.relatedId);
+            await deleteNotification(notification.id);
+            toast.success("Expense deleted from your personal history.");
+        } catch (e: any) {
+            toast.error("Failed to delete expense", { description: e.message });
+        } finally {
+            setProcessingId(null);
+        }
+    };
+
     return (
         <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -224,8 +240,9 @@ export default function NotificationsPage() {
                     const isSettlementRequest = notification.type === 'settlement-request';
                     const isSettlementExpensePending = notification.type === 'settlement-expense-pending';
                     const isSettlementIncomePending = notification.type === 'settlement-income-pending';
+                    const isExpenseRemovedByOwner = notification.type === 'circle-expense-removed-by-owner';
                     
-                    const isActionable = !!matchingFriendRequest || isClaimRequest || isSettlementRequest || isSettlementExpensePending || isSettlementIncomePending;
+                    const isActionable = !!matchingFriendRequest || isClaimRequest || isSettlementRequest || isSettlementExpensePending || isSettlementIncomePending || isExpenseRemovedByOwner;
                     const isProcessing = (matchingFriendRequest && processingId === matchingFriendRequest.id) || processingId === notification.id;
 
                     return (
@@ -302,6 +319,15 @@ export default function NotificationsPage() {
                                             </Button>
                                         </div>
                                     )}
+                                    
+                                    {isExpenseRemovedByOwner && (
+                                        <div className="flex gap-2 mt-2">
+                                            <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); handleDeleteFromHistory(notification); }} disabled={isProcessing}>
+                                                {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <Trash2 className="mr-2 size-4"/>} Delete from My History
+                                            </Button>
+                                        </div>
+                                    )}
+
                                 </div>
                             </div>
                             <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleDeleteNotification(notification); }} disabled={isProcessing} className="absolute top-1 right-1 h-7 w-7 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:text-destructive" aria-label="Dismiss notification">

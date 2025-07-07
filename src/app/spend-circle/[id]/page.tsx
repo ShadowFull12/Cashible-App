@@ -172,7 +172,7 @@ export default function CircleDetailPage() {
                     <BalancesTab circle={circle} transactions={transactions} settlements={settlements} />
                 </TabsContent>
                 <TabsContent value="history" className="mt-6">
-                    <HistoryTab circle={circle} transactions={transactions} settlements={settlements} />
+                    <HistoryTab circle={circle} transactions={transactions} settlements={settlements} isOwner={isOwner} />
                 </TabsContent>
                 <TabsContent value="manage" className="mt-6">
                     <ManageTab circle={circle} isOwner={isOwner} />

@@ -2,7 +2,8 @@
 
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, writeBatch, updateDoc, WriteBatch, getDoc, onSnapshot, Unsubscribe } from "firebase/firestore";
-import type { Transaction, SplitDetails, Settlement } from "@/lib/data";
+import type { Transaction, SplitDetails, Settlement, Circle, UserProfile } from "@/lib/data";
+import { createNotification } from "./notificationService";
 
 const transactionsRef = collection(db, "transactions");
 
@@ -252,5 +253,35 @@ export async function addCircleTransactionsDeletionsToBatch(circleId: string, ba
     const querySnapshot = await getDocs(q);
     querySnapshot.forEach((doc) => {
         batch.delete(doc.ref);
+    });
+}
+
+export async function removeTransactionFromCircle(transactionId: string, circle: Circle, owner: UserProfile) {
+    if (!db) throw new Error("Firebase not configured.");
+    if (owner.uid !== circle.ownerId) throw new Error("Only the circle owner can perform this action.");
+
+    const transactionRef = doc(db, "transactions", transactionId);
+    const transactionSnap = await getDoc(transactionRef);
+
+    if (!transactionSnap.exists()) {
+        throw new Error("Transaction not found.");
+    }
+    const transaction = transactionSnap.data() as Transaction;
+
+    // Unlink from circle
+    await updateDoc(transactionRef, {
+        isSplit: false,
+        circleId: null,
+        splitDetails: null,
+    });
+    
+    // Notify the user who added the expense
+    await createNotification({
+        userId: transaction.userId,
+        fromUser: owner,
+        type: 'circle-expense-removed-by-owner',
+        message: `${owner.displayName} removed your expense "${transaction.description}" from the circle "${circle.name}".`,
+        link: '/history',
+        relatedId: transactionId,
     });
 }

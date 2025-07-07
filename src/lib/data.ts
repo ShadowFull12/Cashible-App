@@ -125,7 +125,8 @@ export type NotificationType =
     'settlement-expense-pending' | // To Payer
     'settlement-income-pending' | // To Creditor
     'settlement-rejected' | 
-    'circle-member-joined';
+    'circle-member-joined' |
+    'circle-expense-removed-by-owner';
 
 
 export interface Notification {
