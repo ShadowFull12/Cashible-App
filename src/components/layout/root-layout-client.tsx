@@ -5,29 +5,27 @@ import { usePathname, useRouter } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
 import { useAuth } from "@/hooks/use-auth";
 import { useEffect } from "react";
-import { DataProvider } from "@/hooks/use-data";
+import { DataProvider, useData } from "@/hooks/use-data";
 import { SplashScreen } from "../splash-screen";
 
-export function RootLayoutClient({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+
+function AppBootstrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading, userData } = useAuth();
+  const { user, loading: authLoading, userData } = useAuth();
+  const { isLoading: dataLoading } = useData();
 
   const isAuthPage = pathname === "/" || pathname === "/signup";
 
   useEffect(() => {
     // This effect acts as a global guard.
     // It ensures unauthenticated users are always on an auth page.
-    if (loading) return;
+    if (authLoading) return;
 
     if (!user && !isAuthPage) {
       router.push("/");
     }
-  }, [user, loading, isAuthPage, router]);
+  }, [user, authLoading, isAuthPage, router]);
 
   useEffect(() => {
     if (userData?.primaryColor) {
@@ -36,11 +34,11 @@ export function RootLayoutClient({
     }
   }, [userData?.primaryColor]);
 
+  // Show splash screen if auth is loading, OR if we are on a protected page and data is still loading for a logged in user.
+  const showSplash = authLoading || (!isAuthPage && dataLoading && user);
 
-  if (loading) {
-    return (
-      <SplashScreen />
-    );
+  if (showSplash) {
+    return <SplashScreen />;
   }
 
   // If we are on an auth page, just render the children (login/signup form)
@@ -48,16 +46,25 @@ export function RootLayoutClient({
      return <>{children}</>;
   }
 
-  // If we are on a protected page but have no user, return null to avoid flicker
-  // while the guard in useEffect redirects.
+  // If we are on a protected page but have no user, the guard will redirect.
+  // We can show a splash screen in the meantime to avoid flicker.
   if (!user) {
-    return null;
+    return <SplashScreen />;
   }
 
   // If user is authenticated and not on an auth page, render the full app layout
+  return <AppLayout>{children}</AppLayout>;
+}
+
+
+export function RootLayoutClient({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <DataProvider>
-      <AppLayout>{children}</AppLayout>
+      <AppBootstrapper>{children}</AppBootstrapper>
     </DataProvider>
   );
 }

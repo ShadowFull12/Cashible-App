@@ -73,7 +73,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
     // Combined loading state for consumers
     const isLoading = useMemo(() => {
-        if (!user) return true;
+        if (!user) return false; // If no user, data isn't "loading", it's just not there.
         return (
             transactionsLoading ||
             categoriesLoading ||
@@ -199,6 +199,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setNotifications([]);
             resetLoadingStates();
             setHasProcessedRecurring(false);
+        } else {
+             resetLoadingStates(); // Reset loading states when a new user logs in
         }
     }, [user, resetLoadingStates]);
     
@@ -207,6 +209,8 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setCategories(userData.categories);
             setCategoriesLoading(false);
         } else if (user) {
+            // This will be true for a new user until their doc is created.
+            // We can keep it loading or assume defaults. Assuming defaults might be better UX.
             setCategoriesLoading(true);
         }
     }, [userData, user]);
@@ -215,61 +219,61 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (user) {
             const unsubscribe = getTransactionsListener(user.uid, (data) => {
                 setTransactions(data);
-                if (transactionsLoading) setTransactionsLoading(false);
+                setTransactionsLoading(false);
             });
             return () => unsubscribe();
         }
-    }, [user, transactionsLoading]);
+    }, [user]);
     
     useEffect(() => {
         if (user) {
             const unsubscribe = getNotificationsForUser(user.uid, (data) => {
                 setNotifications(data);
-                if (notificationsLoading) setNotificationsLoading(false);
+                setNotificationsLoading(false);
             });
             return () => unsubscribe();
         }
-    }, [user, notificationsLoading]);
+    }, [user]);
 
     useEffect(() => {
         if (user) {
             const unsubscribe = getFriendRequestsListener(user.uid, (data) => {
                 setFriendRequests(data);
-                if (requestsLoading) setRequestsLoading(false);
+                setRequestsLoading(false);
             });
             return () => unsubscribe();
         }
-    }, [user, requestsLoading]);
+    }, [user]);
 
     useEffect(() => {
         if (user) {
             const unsubscribe = getFriendsListener(user.uid, (data) => {
                 setFriends(data);
-                if (friendsLoading) setFriendsLoading(false);
+                setFriendsLoading(false);
             });
             return () => unsubscribe();
         }
-    }, [user, friendsLoading]);
+    }, [user]);
 
     useEffect(() => {
         if (user) {
             const unsubscribe = getCirclesForUserListener(user.uid, (data) => {
                 setCircles(data);
-                if (circlesLoading) setCirclesLoading(false);
+                setCirclesLoading(false);
             });
             return () => unsubscribe();
         }
-    }, [user, circlesLoading]);
+    }, [user]);
 
     useEffect(() => {
         if (user) {
             const unsubscribe = getSettlementsForUserListener(user.uid, (data) => {
                 setSettlements(data);
-                if (settlementsLoading) setSettlementsLoading(false);
+                setSettlementsLoading(false);
             });
             return () => unsubscribe();
         }
-    }, [user, settlementsLoading]);
+    }, [user]);
     
 
     const markAsRead = async (notificationId: string) => {
