@@ -2,9 +2,19 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { User, onAuthStateChanged, signOut as firebaseSignOut, updateProfile, deleteUser as firebaseDeleteUser, signInWithPopup, GoogleAuthProvider, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { 
+    User, 
+    onAuthStateChanged, 
+    signOut as firebaseSignOut, 
+    updateProfile, 
+    deleteUser as firebaseDeleteUser, 
+    signInWithPopup, 
+    GoogleAuthProvider, 
+    signInWithEmailAndPassword, 
+    createUserWithEmailAndPassword 
+} from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, updateDoc, arrayUnion } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { toast } from "sonner";
 import * as userService from '@/services/userService';
 import * as authService from '@/services/authService';
@@ -59,24 +69,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         let userDoc = await getDoc(userDocRef);
         
         if (!userDoc.exists()) {
-          // This handles new Google Sign-In users
           await userService.createInitialUserDocForGoogle(user);
-          userDoc = await getDoc(userDocRef); // Re-fetch the doc after creation
+          userDoc = await getDoc(userDocRef);
         }
 
         if (userDoc.exists()) {
             const data = userDoc.data() as UserData;
             setUserData(data);
+            if (!data.username) {
+                setIsSettingUsername(true);
+            }
         } else {
             setUserData(null);
         }
     } catch (error: any) {
         console.error("Failed to fetch user data:", error);
-        if (error.code === 'permission-denied') {
-            toast.error("Permission Denied", { description: "The app could not access user data." });
-        } else {
-            toast.error("An error occurred while fetching your data.");
-        }
+        toast.error("An error occurred while fetching your data.");
         setUserData(null);
     }
   }, []);
@@ -93,30 +101,77 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
-      setLoading(false); // Make UI interactive faster
       if (user) {
         await fetchUserData(user);
       } else {
         setUserData(null);
         setIsSettingUsername(false);
       }
+      setLoading(false);
     });
     return () => unsubscribe();
   }, [fetchUserData]);
 
-  useEffect(() => {
-    // Trigger username modal if user is loaded but has no username
-    if (user && userData && !userData.username && !isSettingUsername) {
-        setIsSettingUsername(true);
-    }
-  }, [user, userData, isSettingUsername]);
-
-  const logout = async () => {
+  const logout = useCallback(async () => {
     if (!auth) return;
     await firebaseSignOut(auth);
-  };
+  }, []);
   
-  const updateUserProfile_ = async (data: Partial<UserData>) => {
+  const signInWithEmail = useCallback(async (emailOrUsername: string, password: string) => {
+    if (!auth) throw new Error("Firebase not configured.");
+    let emailToLogin = emailOrUsername;
+    if (!emailOrUsername.includes('@')) {
+        const userProfile = await userService.getUserByUsername(emailOrUsername);
+        if (userProfile?.email) {
+          emailToLogin = userProfile.email;
+        } else {
+          throw new Error("User not found with that username or email.");
+        }
+    }
+    await signInWithEmailAndPassword(auth, emailToLogin, password);
+  }, []);
+
+  const signInWithGoogle = useCallback(async () => {
+    if (!auth) throw new Error("Firebase not configured.");
+    setGoogleAuthError(null);
+    const provider = new GoogleAuthProvider();
+    try {
+        await signInWithPopup(auth, provider);
+    } catch(error: any) {
+        if (error.code === 'auth/account-exists-with-different-credential') {
+            setGoogleAuthError("An account already exists with this email address. Please sign in with your original method to link your Google account.");
+            toast.error("Account already exists", { description: "Please sign in with your original method first."});
+        } else {
+             setGoogleAuthError(error.message || "An unknown error occurred during Google sign-in.");
+             toast.error("Google Sign-In Failed", { description: error.message });
+        }
+        throw error;
+    }
+  }, []);
+
+  const signUpWithEmail = useCallback(async (email: string, password: string, displayName: string, username: string) => {
+    if (!auth) throw new Error("Firebase not configured.");
+    
+    const usernameAvailable = await userService.isUsernameAvailable(username);
+    if (!usernameAvailable) {
+      throw new Error(`Username "${username}" is already taken.`);
+    }
+
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const user = userCredential.user;
+    await updateProfile(user, { displayName });
+    await user.getIdToken(true); 
+    await userService.createInitialUserDocument(user, username);
+  }, []);
+
+  const completeInitialSetup = useCallback(async (username: string) => {
+    if (!user) throw new Error("User not authenticated.");
+    await userService.setUsernameForNewUser(user.uid, username);
+    await refreshUserData();
+    setIsSettingUsername(false);
+  }, [user, refreshUserData]);
+
+  const updateUserProfile = useCallback(async (data: Partial<UserData>) => {
     if (!user) throw new Error("User not authenticated.");
     const { displayName, photoURL, ...otherData } = data;
     const profileDataToPropagate: { displayName?: string, photoURL?: string | null } = {};
@@ -135,78 +190,52 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await userService.updateUser(user.uid, otherData);
     }
     await refreshUserData();
-  };
+  }, [user, refreshUserData]);
+
+  const uploadAndSetProfileImage = useCallback(async (file: File) => {
+      await updateUserProfile({ photoURL: await userService.uploadProfileImage(file) });
+  }, [updateUserProfile]);
   
-  const completeInitialSetup_ = async (username: string) => {
-    if (!user) throw new Error("User not authenticated.");
-    await userService.setUsernameForNewUser(user.uid, username);
-    await refreshUserData();
-    setIsSettingUsername(false);
-  }
+  const updateUserPassword = useCallback(async (currentPassword: string, newPassword: string) => {
+      await authService.changePassword(currentPassword, newPassword);
+  }, []);
   
-  const signInWithEmail_ = async (emailOrUsername: string, password: string) => {
-    if (!auth) throw new Error("Firebase not configured.");
-    let emailToLogin = emailOrUsername;
-    if (!emailOrUsername.includes('@')) {
-        const userProfile = await userService.getUserByUsername(emailOrUsername);
-        if (userProfile?.email) {
-          emailToLogin = userProfile.email;
-        } else {
-          throw new Error("User not found with that username or email.");
-        }
-    }
-    await signInWithEmailAndPassword(auth, emailToLogin, password);
-  }
+  const updateUserEmail = useCallback(async (currentPassword: string, newEmail: string) => {
+      await authService.changeEmail(currentPassword, newEmail);
+      await refreshUserData();
+  }, [refreshUserData]);
 
-  const signUpWithEmail_ = async (email: string, password: string, displayName: string, username: string) => {
-    if (!auth) throw new Error("Firebase not configured.");
-    
-    const usernameAvailable = await userService.isUsernameAvailable(username);
-    if (!usernameAvailable) {
-      throw new Error(`Username "${username}" is already taken.`);
-    }
+  const updateUserUsername = useCallback(async (currentPassword: string, newUsername: string) => {
+      if (!user || !userData?.username) throw new Error("User data not found.");
+      await authService.reauthenticate(currentPassword);
+      await userService.updateUsernameAndPropagate(user.uid, userData.username, newUsername);
+      await refreshUserData();
+  }, [user, userData, refreshUserData]);
 
-    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-    const user = userCredential.user;
-    await updateProfile(user, { displayName });
-    await user.getIdToken(true); // Force token refresh
-    await userService.createInitialUserDocument(user, username);
-  }
+  const reauthenticateWithPassword = useCallback(async (password: string) => {
+      await authService.reauthenticate(password);
+  }, []);
 
-  const signInWithGoogle_ = async () => {
-    if (!auth) throw new Error("Firebase not configured.");
-    setGoogleAuthError(null);
-    const provider = new GoogleAuthProvider();
-    try {
-        await signInWithPopup(auth, provider);
-    } catch(error: any) {
-        if (error.code === 'auth/account-exists-with-different-credential') {
-            setGoogleAuthError("An account already exists with this email address. Please sign in with your original method to link your Google account.");
-            toast.error("Account already exists", { description: "Please sign in with your original method first."});
-        } else {
-             setGoogleAuthError(error.message || "An unknown error occurred during Google sign-in.");
-             toast.error("Google Sign-In Failed", { description: error.message });
-        }
-        throw error;
-    }
-  }
-
-  const uploadAndSetProfileImage_ = async (file: File) => { await updateUserProfile_({ photoURL: await userService.uploadProfileImage(file) }); };
-  const updateUserPassword_ = async (currentPassword: string, newPassword: string) => { await authService.changePassword(currentPassword, newPassword); };
-  const reauthenticateWithPassword_ = async (password: string) => { await authService.reauthenticate(password); }
-  const deleteAllUserData_ = async () => { if (!user) throw new Error("User not authenticated."); await userService.deleteAllUserData(user.uid); await updateProfile(user, { photoURL: null }); await refreshUserData(); }
-  const deleteAccount_ = async () => { if (!user) throw new Error("User not authenticated."); await userService.deleteAllUserData(user.uid); await firebaseDeleteUser(user); }
-  const updateUserEmail_ = async (currentPassword: string, newEmail: string) => { await authService.changeEmail(currentPassword, newEmail); await refreshUserData(); };
-  const updateUserUsername_ = async (currentPassword: string, newUsername: string) => { if (!user || !userData) throw new Error("User data not found."); await authService.reauthenticate(currentPassword); await userService.updateUsernameAndPropagate(user.uid, userData.username, newUsername); await refreshUserData(); };
+  const deleteAllUserData = useCallback(async () => {
+      if (!user) throw new Error("User not authenticated.");
+      await userService.deleteAllUserData(user.uid);
+      await updateProfile(user, { photoURL: null });
+      await refreshUserData();
+  }, [user, refreshUserData]);
+  
+  const deleteAccount = useCallback(async () => {
+      if (!user) throw new Error("User not authenticated.");
+      await userService.deleteAllUserData(user.uid);
+      await firebaseDeleteUser(user);
+  }, [user]);
 
   const value: AuthContextType = {
     user, loading, userData, isSettingUsername, googleAuthError, logout, refreshUserData,
-    updateUserProfile: updateUserProfile_, uploadAndSetProfileImage: uploadAndSetProfileImage_,
-    updateUserPassword: updateUserPassword_, updateUserEmail: updateUserEmail_,
-    updateUserUsername: updateUserUsername_, reauthenticateWithPassword: reauthenticateWithPassword_,
-    deleteAllUserData: deleteAllUserData_, deleteAccount: deleteAccount_,
-    signInWithEmail: signInWithEmail_, signInWithGoogle: signInWithGoogle_, signUpWithEmail: signUpWithEmail_,
-    completeInitialSetup: completeInitialSetup_,
+    updateUserProfile, uploadAndSetProfileImage,
+    updateUserPassword, updateUserEmail, updateUserUsername, reauthenticateWithPassword,
+    deleteAllUserData, deleteAccount,
+    signInWithEmail, signInWithGoogle, signUpWithEmail,
+    completeInitialSetup,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
