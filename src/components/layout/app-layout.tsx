@@ -46,15 +46,30 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     isAddExpenseOpen,
     setIsAddExpenseOpen,
     newExpenseDefaultCircleId,
+    setAudioRef,
    } = useData();
   const { user, userData, loading: authLoading, logout, isSettingUsername, completeInitialSetup } = useAuth();
   const isMobile = useIsMobile();
   const router = useRouter();
+  const audioRef = React.useRef<HTMLAudioElement>(null);
+
   const userInitial = user?.displayName
     ? user.displayName.charAt(0).toUpperCase()
     : user?.email
     ? user.email.charAt(0).toUpperCase()
     : "U";
+
+  React.useEffect(() => {
+    if (audioRef.current) {
+      setAudioRef(audioRef.current);
+    }
+  }, [setAudioRef]);
+  
+  React.useEffect(() => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
 
   React.useEffect(() => {
     if (!authLoading && userData && userData.budgetIsSet === false && !isSettingUsername) {
@@ -89,6 +104,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   return (
+    <>
+    <audio ref={audioRef} src="/assests/notification.mp3" preload="auto" />
     <SidebarProvider>
       <Sidebar>
         <SidebarHeader>
@@ -185,5 +202,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         onBudgetSet={handleBudgetSet}
       />
     </SidebarProvider>
+    </>
   );
 }

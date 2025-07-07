@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useMemo, useRef } from 'react';
 import { useAuth } from './use-auth';
 import { getTransactionsListener, addTransaction } from '@/services/transactionService';
 import { getCategories } from '@/services/categoryService';
@@ -12,6 +12,8 @@ import { getNotificationsForUser, markNotificationAsRead, markAllNotificationsAs
 import { toast } from 'sonner';
 import type { Transaction, RecurringExpense, UserProfile, FriendRequest, Circle, Notification, Settlement } from '@/lib/data';
 import { getSettlementsForUserListener } from '@/services/debtService';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Bell } from 'lucide-react';
 
 interface DataContextType {
     transactions: Transaction[];
@@ -36,6 +38,11 @@ interface DataContextType {
 
     markAsRead: (notificationId: string) => Promise<void>;
     markAllAsRead: () => Promise<void>;
+    
+    // Real-time notification system
+    setAudioRef: (el: HTMLAudioElement) => void;
+    hasNewNotification: boolean;
+    clearNewNotification: () => void;
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -51,7 +58,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const [settlements, setSettlements] = useState<Settlement[]>([]);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     
-    // Individual loading states for better perceived performance
     const [transactionsLoading, setTransactionsLoading] = useState(true);
     const [categoriesLoading, setCategoriesLoading] = useState(true);
     const [recurringLoading, setRecurringLoading] = useState(true);
@@ -67,13 +73,21 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     
     const [hasProcessedRecurring, setHasProcessedRecurring] = useState(false);
 
+    // Real-time notification system state
+    const prevNotificationsRef = useRef<Notification[]>([]);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const [hasNewNotification, setHasNewNotification] = useState(false);
+
+    const setAudioRef = useCallback((el: HTMLAudioElement) => {
+        audioRef.current = el;
+    }, []);
+
     const unreadNotificationCount = useMemo(() => {
         return notifications.filter(n => !n.read).length;
     }, [notifications]);
 
-    // Combined loading state for consumers
     const isLoading = useMemo(() => {
-        if (!user) return false; // If no user, data isn't "loading", it's just not there.
+        if (!user) return false;
         return (
             transactionsLoading ||
             categoriesLoading ||
@@ -149,7 +163,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     const refreshData = useCallback(async () => {
         if (!user) return;
         try {
-            // Re-fetch non-listener data. Listeners will update automatically.
             await refreshUserData();
             const fetchedRecurring = await getRecurringExpenses(user.uid);
             setRecurringExpenses(fetchedRecurring);
@@ -196,8 +209,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setNotifications([]);
             resetLoadingStates();
             setHasProcessedRecurring(false);
+            setHasNewNotification(false);
         } else {
-             resetLoadingStates(); // Reset loading states when a new user logs in
+             resetLoadingStates();
         }
     }, [user, resetLoadingStates]);
     
@@ -206,8 +220,6 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             setCategories(userData.categories);
             setCategoriesLoading(false);
         } else if (user) {
-            // This will be true for a new user until their doc is created.
-            // We can keep it loading or assume defaults. Assuming defaults might be better UX.
             setCategoriesLoading(true);
         }
     }, [userData, user]);
@@ -225,7 +237,46 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         if (user) {
             const unsubscribe = getNotificationsForUser(user.uid, (data) => {
+                // This check avoids firing notifications on the initial load.
+                if (prevNotificationsRef.current.length > 0) {
+                    const newUnreadNotifications = data.filter(n => !n.read && !prevNotificationsRef.current.some(pn => pn.id === n.id));
+                    
+                    if (newUnreadNotifications.length > 0) {
+                        setHasNewNotification(true);
+                        const latestNotification = newUnreadNotifications[0]; // Assuming data is sorted desc by date
+                        
+                        // Play sound
+                        audioRef.current?.play().catch(e => console.error("Audio play failed:", e));
+
+                        // Show toast
+                        toast(
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={latestNotification.fromUser.photoURL || undefined} />
+                              <AvatarFallback><Bell /></AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1">
+                              <div className="font-bold">{latestNotification.fromUser.displayName}</div>
+                              <div>{latestNotification.message}</div>
+                            </div>
+                          </div>,
+                          {
+                            duration: 5000,
+                          }
+                        );
+
+                        // Show desktop notification
+                        if ('Notification' in window && Notification.permission === 'granted') {
+                            new Notification('New SpendWise Notification', {
+                                body: latestNotification.message,
+                                icon: '/assests/logo.png',
+                            });
+                        }
+                    }
+                }
+
                 setNotifications(data);
+                prevNotificationsRef.current = data;
                 setNotificationsLoading(false);
             });
             return () => unsubscribe();
@@ -286,10 +337,15 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         if (!user) return;
         try {
             await markAllNotificationsAsRead(user.uid);
+            setHasNewNotification(false);
         } catch (error) {
             console.error("Failed to mark all notifications as read", error);
             toast.error("Failed to update notifications.");
         }
+    }
+
+    const clearNewNotification = () => {
+        setHasNewNotification(false);
     }
 
     const value = {
@@ -312,6 +368,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         setNewExpenseDefaultCircleId,
         markAsRead,
         markAllAsRead,
+        setAudioRef,
+        hasNewNotification,
+        clearNewNotification,
     };
 
     return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

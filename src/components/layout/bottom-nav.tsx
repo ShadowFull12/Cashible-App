@@ -23,13 +23,19 @@ interface BottomNavProps {
 
 export function BottomNav({ onAddExpenseClick }: BottomNavProps) {
   const pathname = usePathname();
-  const { unreadNotificationCount } = useData();
+  const { unreadNotificationCount, hasNewNotification, clearNewNotification } = useData();
+
+  const handleNavClick = (href: string) => {
+    if(href === '/notifications') {
+      clearNewNotification();
+    }
+  }
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-20 border-t bg-background/95 backdrop-blur-sm md:hidden">
       <div className="relative mx-auto grid h-16 grid-cols-7 max-w-md items-center justify-around">
         {navItems.slice(0, 3).map((item) => (
-          <Link href={item.href} key={item.href} className="flex-1 relative">
+          <Link href={item.href} key={item.href} className="flex-1 relative" onClick={() => handleNavClick(item.href)}>
             <div
               className={cn(
                 "flex h-full items-center justify-center text-sm font-medium transition-colors",
@@ -38,13 +44,15 @@ export function BottomNav({ onAddExpenseClick }: BottomNavProps) {
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <item.icon className="size-6" />
+              <div className={cn("relative rounded-full p-2", item.href === '/notifications' && hasNewNotification && "animate-notification-glow")}>
+                <item.icon className="size-6" />
+                 {item.href === '/notifications' && unreadNotificationCount > 0 && (
+                  <div className="absolute -top-1 -right-1 h-4 min-w-[1rem] px-1 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
+                      {unreadNotificationCount}
+                  </div>
+                )}
+              </div>
             </div>
-             {item.href === '/notifications' && unreadNotificationCount > 0 && (
-                <div className="absolute top-2 right-1/2 translate-x-3 h-4 min-w-[1rem] px-1 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
-                    {unreadNotificationCount}
-                </div>
-            )}
           </Link>
         ))}
         
@@ -59,7 +67,7 @@ export function BottomNav({ onAddExpenseClick }: BottomNavProps) {
         </div>
 
         {navItems.slice(3).map((item) => (
-          <Link href={item.href} key={item.href} className="flex-1 relative">
+          <Link href={item.href} key={item.href} className="flex-1 relative" onClick={() => handleNavClick(item.href)}>
             <div
               className={cn(
                 "flex h-full items-center justify-center text-sm font-medium transition-colors",
@@ -68,13 +76,15 @@ export function BottomNav({ onAddExpenseClick }: BottomNavProps) {
                   : "text-muted-foreground hover:text-foreground"
               )}
             >
-              <item.icon className="size-6" />
+              <div className={cn("relative rounded-full p-2", item.href === '/notifications' && hasNewNotification && "animate-notification-glow")}>
+                <item.icon className="size-6" />
+                 {item.href === '/notifications' && unreadNotificationCount > 0 && (
+                  <div className="absolute -top-1 -right-1 h-4 min-w-[1rem] px-1 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
+                      {unreadNotificationCount}
+                  </div>
+                )}
+              </div>
             </div>
-            {item.href === '/notifications' && unreadNotificationCount > 0 && (
-                <div className="absolute top-2 right-1/2 translate-x-3 h-4 min-w-[1rem] px-1 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center justify-center">
-                    {unreadNotificationCount}
-                </div>
-            )}
           </Link>
         ))}
       </div>
