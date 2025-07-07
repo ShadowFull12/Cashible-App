@@ -9,7 +9,7 @@ import { getCircleTransactionsListener, getCircleSettlementsListener } from '@/s
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ArrowRight, MessageSquare, AlertTriangle } from 'lucide-react';
-import { Badge } from '../ui/badge';
+import { Badge } from '@/components/ui/badge';
 
 interface CircleCardProps {
     circle: Circle;
