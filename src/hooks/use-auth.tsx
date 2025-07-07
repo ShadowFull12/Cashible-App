@@ -11,7 +11,8 @@ import {
     signInWithPopup, 
     GoogleAuthProvider, 
     signInWithEmailAndPassword, 
-    createUserWithEmailAndPassword 
+    createUserWithEmailAndPassword,
+    getIdTokenResult
 } from 'firebase/auth';
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -102,7 +103,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return;
     }
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setLoading(true);
       setUser(currentUser);
       if (currentUser) {
         await fetchUserData(currentUser);
@@ -152,8 +152,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
     const userCredential = await createUserWithEmailAndPassword(auth, email, password);
     const user = userCredential.user;
+    
+    // Force token refresh to ensure backend recognizes the new user's permissions
+    await user.getIdToken(true);
+
     await userService.createInitialUserDocument(user, username, displayName);
-    // onAuthStateChanged will handle the rest
+
+    await updateProfile(user, { displayName });
   }, []);
 
   const completeInitialSetup = useCallback(async (username: string) => {
