@@ -148,7 +148,7 @@ export default function CircleDetailPage() {
                     <TabsTrigger value="balances"><Users className="mr-2 hidden md:inline-block"/>Balances</TabsTrigger>
                     <TabsTrigger value="history"><History className="mr-2 hidden md:inline-block"/>History</TabsTrigger>
                     <TabsTrigger value="manage"><SlidersHorizontal className="mr-2 hidden md:inline-block"/>Manage</TabsTrigger>
-                    <TabsTrigger value="chat" disabled><MessageSquare className="mr-2 hidden md:inline-block"/>Chat</TabsTrigger>
+                    <TabsTrigger value="chat"><MessageSquare className="mr-2 hidden md:inline-block"/>Chat</TabsTrigger>
                 </TabsList>
                 <TabsContent value="overview" className="mt-6">
                     <OverviewTab circle={circle} transactions={transactions} settlements={settlements} />
@@ -163,7 +163,7 @@ export default function CircleDetailPage() {
                     <ManageTab circle={circle} isOwner={isOwner} />
                 </TabsContent>
                 <TabsContent value="chat" className="mt-6">
-                    <ChatTab />
+                    <ChatTab circle={circle} />
                 </TabsContent>
             </Tabs>
 

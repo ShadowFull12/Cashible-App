@@ -12,12 +12,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 import { UserProfile, FriendRequest as FriendRequestData, Circle } from '@/lib/data';
-import { searchUsers } from '@/services/userService';
+import { searchUsers, getUserByUsername } from '@/services/userService';
 import { sendFriendRequest, removeFriend } from '@/services/friendService';
-import { Loader2, UserPlus, UserCheck, UserX, Clock, Search, ArrowRight } from 'lucide-react';
+import { Loader2, UserPlus, UserCheck, UserX, Clock, Search } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { CreateCircleDialog } from '@/components/create-circle-dialog';
+import { CircleCard } from '@/components/circle-card';
 
 
 function AddFriendTab() {
@@ -43,16 +44,12 @@ function AddFriendTab() {
     };
 
     const handleSendRequest = async (toUser: UserProfile) => {
-        if (!user || !user.displayName || !user.email || !user.reloadUserInfo) return;
+        if (!user || !user.displayName || !user.email) return;
         setIsSending(prev => ({...prev, [toUser.uid]: true}));
         try {
-            const fromUser: UserProfile = {
-                uid: user.uid,
-                displayName: user.displayName,
-                email: user.email!,
-                photoURL: user.photoURL,
-                username: (await getDoc(doc(db, "users", user.uid))).data()?.username,
-            };
+            const fromUser = await getUserByUsername(user.displayName); // Bit of a hack to get full profile
+            if (!fromUser) throw new Error("Could not find your user profile.");
+
             await sendFriendRequest(fromUser, toUser.uid);
             toast.success(`Friend request sent to ${toUser.displayName}`);
             await refreshData();
@@ -197,32 +194,7 @@ function CirclesTab() {
             ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {circles.map(circle => (
-                        <Card key={circle.id} className="flex flex-col">
-                            <CardHeader>
-                                <CardTitle>{circle.name}</CardTitle>
-                                <CardDescription>{Object.keys(circle.members).length} members</CardDescription>
-                            </CardHeader>
-                            <CardContent className="flex-grow">
-                                <div className="flex -space-x-2 overflow-hidden">
-                                    {Object.values(circle.members).slice(0, 5).map(member => (
-                                        <Avatar key={member.uid} className="inline-block h-8 w-8 rounded-full ring-2 ring-background">
-                                            <AvatarImage src={member.photoURL || undefined} />
-                                            <AvatarFallback>{member.displayName.charAt(0)}</AvatarFallback>
-                                        </Avatar>
-                                    ))}
-                                    {Object.keys(circle.members).length > 5 && (
-                                        <Avatar className="inline-block h-8 w-8 rounded-full ring-2 ring-background">
-                                            <AvatarFallback>+{Object.keys(circle.members).length - 5}</AvatarFallback>
-                                        </Avatar>
-                                    )}
-                                </div>
-                            </CardContent>
-                            <CardContent>
-                                 <Link href={`/spend-circle/${circle.id}`} className="text-sm font-medium text-primary hover:underline flex items-center gap-1">
-                                    View Details <ArrowRight className="size-4" />
-                                </Link>
-                            </CardContent>
-                        </Card>
+                       <CircleCard key={circle.id} circle={circle} />
                     ))}
                 </div>
             )}

@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
 import { Loader2, Upload } from 'lucide-react';
 import type { Circle } from '@/lib/data';
-import { updateCircle, uploadCircleImage } from '@/services/circleService';
+import { updateCircle, uploadCircleMedia } from '@/services/circleService';
 
 const formSchema = z.object({
   name: z.string().min(3, { message: "Circle name must be at least 3 characters." }),
@@ -60,7 +60,7 @@ export function EditCircleDialog({ open, onOpenChange, circle }: EditCircleDialo
         try {
             let photoURL = circle.photoURL;
             if (avatarFile) {
-                photoURL = await uploadCircleImage(avatarFile);
+                photoURL = await uploadCircleMedia(avatarFile);
             }
             
             await updateCircle(circle.id, { name: values.name, photoURL: photoURL || undefined });

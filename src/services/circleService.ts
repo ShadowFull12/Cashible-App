@@ -29,6 +29,8 @@ export async function createCircle({ name, owner, members }: CreateCircleInput) 
         members: membersMap,
         createdAt: Timestamp.now(),
         photoURL: null,
+        lastMessageAt: null,
+        lastRead: {},
     });
 }
 
@@ -53,6 +55,11 @@ export function getCirclesForUserListener(userId: string, callback: (circles: Ci
                 ...data,
                 members: membersMap,
                 createdAt: (data.createdAt as Timestamp).toDate(),
+                lastMessageAt: data.lastMessageAt ? (data.lastMessageAt as Timestamp).toDate() : null,
+                lastRead: data.lastRead ? Object.entries(data.lastRead).reduce((acc, [uid, ts]) => {
+                    acc[uid] = (ts as Timestamp).toDate();
+                    return acc;
+                }, {} as {[uid: string]: Date}) : {},
             } as Circle);
         });
         callback(circles.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()));
@@ -81,6 +88,11 @@ export function getCircleListener(circleId: string, callback: (circle: Circle | 
                 ...data,
                 members: membersMap,
                 createdAt: (data.createdAt as Timestamp).toDate(),
+                lastMessageAt: data.lastMessageAt ? (data.lastMessageAt as Timestamp).toDate() : null,
+                lastRead: data.lastRead ? Object.entries(data.lastRead).reduce((acc, [uid, ts]) => {
+                    acc[uid] = (ts as Timestamp).toDate();
+                    return acc;
+                }, {} as {[uid: string]: Date}) : {},
             } as Circle);
         } else {
             callback(null);
@@ -199,7 +211,7 @@ export async function addMembersToCircle(circleId: string, membersToAdd: UserPro
     await updateDoc(circleRef, updatePayload);
 }
 
-export async function uploadCircleImage(file: File): Promise<string> {
+export async function uploadCircleMedia(file: File): Promise<string> {
     const apiKey = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
     if (!apiKey) {
         throw new Error("ImgBB API key is not configured.");
@@ -212,7 +224,7 @@ export async function uploadCircleImage(file: File): Promise<string> {
     });
     const result = await response.json();
     if (!result.success) {
-        throw new Error(result.error?.message || "Failed to upload image.");
+        throw new Error(result.error?.message || "Failed to upload media.");
     }
     return result.data.url;
 }

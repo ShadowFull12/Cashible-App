@@ -62,6 +62,8 @@ export interface Circle {
     members: { [uid: string]: UserProfile }; // For storing member details
     createdAt: Date;
     photoURL?: string | null;
+    lastMessageAt?: Date | null;
+    lastRead?: { [uid: string]: Date };
 }
 
 export type DebtSettlementStatus = 'unsettled' | 'pending_confirmation' | 'confirmed' | 'logged';
@@ -151,5 +153,15 @@ export interface ExpenseClaim {
         splitDetails: SplitDetails;
     };
     status: 'pending' | 'accepted' | 'rejected';
+    createdAt: Date;
+}
+
+export interface ChatMessage {
+    id?: string;
+    circleId: string;
+    user: UserProfile;
+    text?: string;
+    mediaURL?: string;
+    mediaType?: 'image' | 'receipt';
     createdAt: Date;
 }
