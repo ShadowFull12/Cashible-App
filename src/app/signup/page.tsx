@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { doc, setDoc, writeBatch } from "firebase/firestore";
+import { doc, setDoc } from "firebase/firestore";
 import { toast } from "sonner";
 import { useState } from "react";
 import { Loader2, AlertTriangle } from "lucide-react";
@@ -58,11 +58,9 @@ export default function SignupPage() {
       
       await updateProfile(user, { displayName: values.displayName, photoURL: null });
       
-      // Create user documents in Firestore using a batch write for atomicity
-      const batch = writeBatch(db);
-      
+      // Create user documents in Firestore
       const userDocRef = doc(db, "users", user.uid);
-      batch.set(userDocRef, {
+      await setDoc(userDocRef, {
         uid: user.uid,
         displayName: values.displayName,
         username: values.username.toLowerCase(),
@@ -75,9 +73,7 @@ export default function SignupPage() {
       });
 
       const usernameDocRef = doc(db, "usernames", values.username.toLowerCase());
-      batch.set(usernameDocRef, { uid: user.uid });
-
-      await batch.commit();
+      await setDoc(usernameDocRef, { uid: user.uid });
 
       toast.success("Account created successfully!");
       // Redirect is handled by RootLayoutClient

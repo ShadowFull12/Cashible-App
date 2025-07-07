@@ -214,7 +214,7 @@ export default function SpendCirclePage() {
                     <CardDescription>Add friends, create circles, and prepare for splitting expenses.</CardDescription>
                 </CardHeader>
                 <CardContent>
-                     <Tabs defaultValue="friends">
+                     <Tabs defaultValue="circles">
                         <TabsList className="grid w-full grid-cols-3">
                             <TabsTrigger value="friends">My Friends</TabsTrigger>
                             <TabsTrigger value="circles">My Circles</TabsTrigger>

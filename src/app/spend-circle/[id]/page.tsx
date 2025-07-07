@@ -143,12 +143,27 @@ export default function CircleDetailPage() {
             </div>
 
             <Tabs defaultValue="overview" className="w-full">
-                <TabsList className="w-full grid grid-cols-3 md:w-max md:grid-cols-5">
-                    <TabsTrigger value="overview"><VenetianMask className="mr-2 hidden md:inline-block"/>Overview</TabsTrigger>
-                    <TabsTrigger value="balances"><Users className="mr-2 hidden md:inline-block"/>Balances</TabsTrigger>
-                    <TabsTrigger value="history"><History className="mr-2 hidden md:inline-block"/>History</TabsTrigger>
-                    <TabsTrigger value="manage"><SlidersHorizontal className="mr-2 hidden md:inline-block"/>Manage</TabsTrigger>
-                    <TabsTrigger value="chat"><MessageSquare className="mr-2 hidden md:inline-block"/>Chat</TabsTrigger>
+                <TabsList className="grid w-full grid-cols-5">
+                    <TabsTrigger value="overview">
+                        <VenetianMask className="h-5 w-5 md:mr-2" />
+                        <span className="hidden md:inline">Overview</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="balances">
+                        <Users className="h-5 w-5 md:mr-2" />
+                        <span className="hidden md:inline">Balances</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="history">
+                        <History className="h-5 w-5 md:mr-2" />
+                        <span className="hidden md:inline">History</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="manage">
+                        <SlidersHorizontal className="h-5 w-5 md:mr-2" />
+                        <span className="hidden md:inline">Manage</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="chat">
+                        <MessageSquare className="h-5 w-5 md:mr-2" />
+                        <span className="hidden md:inline">Chat</span>
+                    </TabsTrigger>
                 </TabsList>
                 <TabsContent value="overview" className="mt-6">
                     <OverviewTab circle={circle} transactions={transactions} settlements={settlements} />
