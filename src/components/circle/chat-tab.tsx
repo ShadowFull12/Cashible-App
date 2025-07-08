@@ -35,8 +35,7 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, currentUser,
     const isCurrentUser = message.user.uid === currentUser.uid;
 
     return (
-        <div className={cn("flex max-w-full items-start gap-2", isCurrentUser ? "self-end" : "self-start")}>
-            {/* Left-side Avatar */}
+        <div className={cn("flex w-full items-start gap-2", isCurrentUser ? "justify-end" : "justify-start")}>
             {!isCurrentUser && (
                 <Avatar className="h-8 w-8 self-end flex-shrink-0">
                     <AvatarImage src={message.user.photoURL || undefined} />
@@ -50,7 +49,7 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, currentUser,
                     <DropdownMenuTrigger asChild>
                         <div
                             className={cn(
-                                "relative rounded-lg px-3 py-2 cursor-pointer max-w-xs sm:max-w-sm md:max-w-md",
+                                "relative rounded-lg px-3 py-2 cursor-pointer max-w-xs sm:max-w-sm md:max-w-md overflow-hidden",
                                 isCurrentUser ? "bg-primary text-primary-foreground" : "bg-muted"
                             )}
                         >
@@ -66,7 +65,7 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, currentUser,
                                             alt="Chat attachment"
                                             width={200}
                                             height={200}
-                                            className="rounded-md my-2 object-cover"
+                                            className="rounded-md my-2 object-cover cursor-pointer"
                                             onClick={(e) => { e.stopPropagation(); onPreview(message.mediaURL!); }}
                                         />
                                     )}
@@ -94,7 +93,6 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, currentUser,
                 </DropdownMenu>
             </div>
 
-            {/* Right-side Avatar */}
             {isCurrentUser && (
                 <Avatar className="h-8 w-8 self-end flex-shrink-0">
                     <AvatarImage src={message.user.photoURL || undefined} />
