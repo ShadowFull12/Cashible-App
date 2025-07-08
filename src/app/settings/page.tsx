@@ -474,8 +474,8 @@ export default function SettingsPage() {
                             <div className="space-y-2">
                                 <Label htmlFor="budget">Monthly Budget (₹)</Label>
                                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                                    <Input id="budget" type="number" value={budget} onChange={e => setBudget(Number(e.target.value))} className="max-w-xs" />
-                                    <Button onClick={handleSaveBudget} disabled={isSavingBudget}>{isSavingBudget && <Loader2 className="mr-2 animate-spin" />}Save Budget</Button>
+                                    <Input id="budget" type="number" value={budget} onChange={e => setBudget(Number(e.target.value))} className="w-full max-w-xs" />
+                                    <Button onClick={handleSaveBudget} disabled={isSavingBudget} className="w-full sm:w-auto">{isSavingBudget && <Loader2 className="mr-2 animate-spin" />}Save Budget</Button>
                                 </div>
                             </div>
                         </CardContent>
@@ -565,7 +565,7 @@ export default function SettingsPage() {
                             <div>
                                 <h3 className="text-lg font-medium mb-4">Change Username</h3>
                                 <Form {...usernameForm}>
-                                    <form onSubmit={usernameForm.handleSubmit(onUsernameChange)} className="space-y-4 max-w-sm">
+                                    <form onSubmit={usernameForm.handleSubmit(onUsernameChange)} className="space-y-4 w-full max-w-sm">
                                         <FormField control={usernameForm.control} name="newUsername" render={({ field }) => (<FormItem><FormLabel>New Username</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>)} />
                                         <FormField control={usernameForm.control} name="password" render={({ field }) => (<FormItem><FormLabel>Current Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                         <Button type="submit" disabled={usernameForm.formState.isSubmitting}>{usernameForm.formState.isSubmitting && <Loader2 className="mr-2 animate-spin" />} Change Username</Button>
@@ -576,7 +576,7 @@ export default function SettingsPage() {
                             <div>
                                 <h3 className="text-lg font-medium mb-4">Change Email</h3>
                                 <Form {...emailForm}>
-                                    <form onSubmit={emailForm.handleSubmit(onEmailChange)} className="space-y-4 max-w-sm">
+                                    <form onSubmit={emailForm.handleSubmit(onEmailChange)} className="space-y-4 w-full max-w-sm">
                                         <FormField control={emailForm.control} name="newEmail" render={({ field }) => (<FormItem><FormLabel>New Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                         <FormField control={emailForm.control} name="password" render={({ field }) => (<FormItem><FormLabel>Current Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                         <Button type="submit" disabled={emailForm.formState.isSubmitting}>{emailForm.formState.isSubmitting && <Loader2 className="mr-2 animate-spin" />} Change Email</Button>
@@ -587,7 +587,7 @@ export default function SettingsPage() {
                             <div>
                                 <h3 className="text-lg font-medium mb-4">Change Password</h3>
                                 <Form {...passwordForm}>
-                                    <form onSubmit={passwordForm.handleSubmit(onPasswordChange)} className="space-y-4 max-w-sm">
+                                    <form onSubmit={passwordForm.handleSubmit(onPasswordChange)} className="space-y-4 w-full max-w-sm">
                                         <FormField control={passwordForm.control} name="currentPassword" render={({ field }) => (<FormItem><FormLabel>Current Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                         <FormField control={passwordForm.control} name="newPassword" render={({ field }) => (<FormItem><FormLabel>New Password</FormLabel><FormControl><Input type="password" {...field} /></FormControl><FormMessage /></FormItem>)} />
                                         <Button type="submit" disabled={passwordForm.formState.isSubmitting}>{passwordForm.formState.isSubmitting && <Loader2 className="mr-2 animate-spin" />} Change Password</Button>
