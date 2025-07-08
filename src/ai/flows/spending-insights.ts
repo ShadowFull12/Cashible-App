@@ -20,6 +20,7 @@ const SpendingInsightsInputSchema = z.object({
   topCategory: z.string().describe('The name of the category with the highest spending.'),
   averageDailySpending: z.number().describe('The average amount spent per day during the current period.'),
   transactionCount: z.number().describe('The total number of transactions in the current period.'),
+  timePeriod: z.string().describe('The time period being analyzed, e.g., "for this month", "of all time", or "for June 2024".'),
 });
 export type SpendingInsightsInput = z.infer<typeof SpendingInsightsInputSchema>;
 
@@ -36,25 +37,25 @@ const prompt = ai.definePrompt({
   name: 'spendingInsightsPrompt',
   input: {schema: SpendingInsightsInputSchema},
   output: {schema: SpendingInsightsOutputSchema},
-  prompt: `You are a friendly and professional personal finance advisor named "WiseBot". Your goal is to provide a high-quality, actionable analysis of a user's spending habits. The user is from India, so use the Rupee symbol (₹) where appropriate.
+  prompt: `You are a friendly and professional personal finance advisor named "WiseBot". Your goal is to provide a high-quality, actionable analysis of a user's spending habits for the period: {{{timePeriod}}}. The user is from India, so use the Rupee symbol (₹) where appropriate.
 
 Analyze the following financial data and generate a report. The report must be well-structured using markdown. Use headings (#, ##), bullet points (*), and bold text to make it easy to read.
 
 Start with a friendly greeting. Then, break down the analysis into sections:
-1.  **Spending Overview**: Briefly summarize the key spending patterns.
+1.  **Spending Overview**: Briefly summarize the key spending patterns for {{{timePeriod}}}.
 2.  **Deep Dive**:
     *   Talk about the spending distribution across categories. Highlight the **Top Spending Category: {{{topCategory}}}**.
     *   Analyze the **Spending by Day of the Week** data. Are there specific days with unusually high spending? Why might that be?
-    *   Mention the **Average Daily Spending** of **₹{{averageDailySpending}}** and put it into context.
-3.  **Historical Trends**: Comment on the **Monthly Spending Trend**. Is spending increasing or decreasing?
+    *   Mention the **Average Daily Spending** of **₹{{averageDailySpending}}** and put it into context for the period.
+3.  **Historical Trends**: Comment on the **Spending Trend** data provided. Is spending increasing or decreasing over the months shown?
 4.  **Actionable Advice**: Provide 2-3 clear, practical, and encouraging suggestions for how the user can improve their financial habits based on YOUR analysis of the data provided.
 
 Maintain a positive and empowering tone.
 
-**User's Financial Data:**
+**User's Financial Data for {{{timePeriod}}}:**
 
 *   **Spending by Category:** {{{spendingData}}}
-*   **Monthly Spending Trend (Last 6 Months):** {{{monthlySpending}}}
+*   **Spending Trend (Last few months):** {{{monthlySpending}}}
 *   **Spending by Day of the Week:** {{{spendingByDay}}}
 *   **Top Spending Category:** {{{topCategory}}}
 *   **Average Daily Spending:** ₹{{averageDailySpending}}
