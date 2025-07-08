@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -146,7 +145,7 @@ export function ChatTab({ circle }: ChatTabProps) {
                                 )}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <div className={cn("max-w-[85%] rounded-lg px-3 py-2 cursor-pointer", msg.user.uid === user.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
+                                        <div className={cn("max-w-3/4 rounded-lg px-3 py-2 cursor-pointer", msg.user.uid === user.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
                                              {msg.isDeleted ? (
                                                 <p className="text-sm italic opacity-70">This message was deleted</p>
                                              ) : (
