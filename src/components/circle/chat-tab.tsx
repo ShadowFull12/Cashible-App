@@ -19,7 +19,96 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ImagePreviewDialog } from './image-preview-dialog';
 import { QuotedMessage } from './quoted-message';
 
+// =====================================================================
+// New, dedicated component for rendering a single chat message.
+// This is built from the ground up to be responsive and prevent overflow.
+// =====================================================================
+interface ChatMessageItemProps {
+    message: ChatMessage;
+    currentUser: UserProfile;
+    onReply: (message: ChatMessage) => void;
+    onDelete: (message: ChatMessage) => void;
+    onPreview: (imageUrl: string) => void;
+}
 
+const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, currentUser, onReply, onDelete, onPreview }) => {
+    const isCurrentUser = message.user.uid === currentUser.uid;
+
+    return (
+        <div className={cn("flex w-full items-start gap-2", isCurrentUser ? "justify-end" : "justify-start")}>
+            {/* Left-side Avatar */}
+            {!isCurrentUser && (
+                <Avatar className="h-8 w-8 self-end flex-shrink-0">
+                    <AvatarImage src={message.user.photoURL || undefined} />
+                    <AvatarFallback>{message.user.displayName.charAt(0)}</AvatarFallback>
+                </Avatar>
+            )}
+
+            {/* Message Bubble and Content */}
+            <div className={cn("flex flex-col group", isCurrentUser ? "items-end" : "items-start")}>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <div
+                            className={cn(
+                                "relative rounded-lg px-3 py-2 cursor-pointer max-w-xs sm:max-w-sm md:max-w-md",
+                                isCurrentUser ? "bg-primary text-primary-foreground" : "bg-muted"
+                            )}
+                        >
+                            {message.isDeleted ? (
+                                <p className="text-sm italic opacity-70">This message was deleted</p>
+                            ) : (
+                                <>
+                                    <p className="text-xs font-bold mb-1">{message.user.displayName}</p>
+                                    {message.replyTo && <QuotedMessage reply={message.replyTo} />}
+                                    {message.mediaURL && (
+                                        <Image
+                                            src={message.mediaURL}
+                                            alt="Chat attachment"
+                                            width={200}
+                                            height={200}
+                                            className="rounded-md my-2 object-cover"
+                                            onClick={(e) => { e.stopPropagation(); onPreview(message.mediaURL!); }}
+                                        />
+                                    )}
+                                    {message.text && <p className="text-sm whitespace-pre-wrap break-words">{message.text}</p>}
+                                    <p className="text-xs opacity-70 mt-1 text-right">{format(message.createdAt, "p")}</p>
+                                </>
+                            )}
+                        </div>
+                    </DropdownMenuTrigger>
+                    {!message.isDeleted && (
+                        <DropdownMenuContent align={isCurrentUser ? "end" : "start"}>
+                            {message.mediaURL && (
+                                <DropdownMenuItem onSelect={() => onPreview(message.mediaURL!)}>
+                                    <Eye className="mr-2" /> Preview
+                                </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem onSelect={() => onReply(message)}>
+                                <CornerDownLeft className="mr-2" /> Reply
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => onDelete(message)} className="text-destructive">
+                                <Trash className="mr-2" /> {isCurrentUser ? 'Delete for Everyone' : 'Delete for Me'}
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    )}
+                </DropdownMenu>
+            </div>
+
+            {/* Right-side Avatar */}
+            {isCurrentUser && (
+                <Avatar className="h-8 w-8 self-end flex-shrink-0">
+                    <AvatarImage src={message.user.photoURL || undefined} />
+                    <AvatarFallback>{message.user.displayName.charAt(0)}</AvatarFallback>
+                </Avatar>
+            )}
+        </div>
+    );
+};
+
+
+// =====================================================================
+// Main ChatTab Component
+// =====================================================================
 interface ChatTabProps {
     circle: Circle;
 }
@@ -115,7 +204,11 @@ export function ChatTab({ circle }: ChatTabProps) {
         }
     }
     
-    if (!user) return null;
+    if (!user || !userData) return null;
+
+    const currentUserProfile: UserProfile = {
+        uid: user.uid, displayName: user.displayName || 'User', email: user.email || '', photoURL: user.photoURL || null, username: userData.username || '',
+    };
 
     return (
         <>
@@ -128,6 +221,7 @@ export function ChatTab({ circle }: ChatTabProps) {
             </CardHeader>
             <CardContent>
                 <div className="flex flex-col h-[60vh]">
+                    {/* Main chat area with overflow controls */}
                     <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
                         {messages.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
@@ -137,67 +231,23 @@ export function ChatTab({ circle }: ChatTabProps) {
                             </div>
                         )}
                         {messages.map(msg => (
-                            <div key={msg.id} className={cn("flex w-full items-end gap-2 group", msg.user.uid === user.uid ? "justify-end" : "justify-start")}>
-                                {msg.user.uid !== user.uid && (
-                                    <Avatar className="h-8 w-8 self-end">
-                                        <AvatarImage src={msg.user.photoURL || undefined} />
-                                        <AvatarFallback>{msg.user.displayName.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                )}
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <div className={cn("max-w-[70%] overflow-hidden rounded-lg px-3 py-2 cursor-pointer", msg.user.uid === user.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
-                                             {msg.isDeleted ? (
-                                                <p className="text-sm italic opacity-70">This message was deleted</p>
-                                             ) : (
-                                                <>
-                                                    <p className="text-xs font-bold mb-1">{msg.user.displayName}</p>
-                                                    {msg.replyTo && <QuotedMessage reply={msg.replyTo} />}
-                                                    {msg.mediaURL && (
-                                                         <Image
-                                                            src={msg.mediaURL}
-                                                            alt="Chat attachment"
-                                                            width={200}
-                                                            height={200}
-                                                            className="rounded-md my-2 object-cover"
-                                                        />
-                                                    )}
-                                                    {msg.text && <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>}
-                                                    <p className="text-xs opacity-70 mt-1 text-right">{format(msg.createdAt, "p")}</p>
-                                                </>
-                                             )}
-                                        </div>
-                                    </DropdownMenuTrigger>
-                                     {!msg.isDeleted && (
-                                        <DropdownMenuContent align={msg.user.uid === user.uid ? "end" : "start"}>
-                                            {msg.mediaURL && (
-                                                <DropdownMenuItem onSelect={() => setPreviewImage(msg.mediaURL)}>
-                                                    <Eye className="mr-2" /> Preview
-                                                </DropdownMenuItem>
-                                            )}
-                                            <DropdownMenuItem onSelect={() => setReplyingTo(msg)}>
-                                                <CornerDownLeft className="mr-2" /> Reply
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem onSelect={() => handleDelete(msg)} className="text-destructive">
-                                                <Trash className="mr-2" /> {msg.user.uid === user.uid ? 'Delete for Everyone' : 'Delete for Me'}
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                     )}
-                                </DropdownMenu>
-                                 {msg.user.uid === user.uid && (
-                                    <Avatar className="h-8 w-8 self-end">
-                                        <AvatarImage src={msg.user.photoURL || undefined} />
-                                        <AvatarFallback>{msg.user.displayName.charAt(0)}</AvatarFallback>
-                                    </Avatar>
-                                )}
-                            </div>
+                            <ChatMessageItem
+                                key={msg.id}
+                                message={msg}
+                                currentUser={currentUserProfile}
+                                onReply={setReplyingTo}
+                                onDelete={handleDelete}
+                                onPreview={setPreviewImage}
+                            />
                         ))}
                          <div ref={messagesEndRef} />
                     </div>
+
+                    {/* Replying-to banner */}
                     {replyingTo && (
                         <div className="p-2 border-t bg-muted/50">
                             <div className="flex justify-between items-center text-sm">
-                                <div className="flex-1">
+                                <div className="flex-1 overflow-hidden">
                                     <p className="text-muted-foreground">Replying to <span className="font-bold">{replyingTo.user.displayName}</span></p>
                                     <p className="truncate text-foreground">{replyingTo.text || "Image"}</p>
                                 </div>
@@ -207,6 +257,8 @@ export function ChatTab({ circle }: ChatTabProps) {
                             </div>
                         </div>
                     )}
+
+                    {/* Message input form */}
                     <form onSubmit={handleSendMessage} className="p-4 border-t flex items-center gap-2">
                         <Button type="button" size="icon" variant="ghost" onClick={() => fileInputRef.current?.click()}>
                             <Paperclip />
