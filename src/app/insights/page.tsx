@@ -30,7 +30,6 @@ export default function InsightsPage() {
   const categoryChartRef = useRef<HTMLDivElement>(null);
   const dailySpendChartRef = useRef<HTMLDivElement>(null);
   const monthlyTrendChartRef = useRef<HTMLDivElement>(null);
-  const insightsReportRef = useRef<HTMLDivElement>(null);
 
   const positiveTransactions = useMemo(() => transactions.filter(t => t.amount > 0), [transactions]);
 
@@ -145,7 +144,6 @@ export default function InsightsPage() {
       .replace(/^## (.*$)/gim, '<h3 class="text-lg font-semibold text-primary mt-4 mb-2">$1</h3>')
       .replace(/^# (.*$)/gim, '<h2 class="text-xl font-bold text-primary mt-6 mb-2">$1</h2>')
       .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
-      // Process bullet points into a single <ul> block
       .replace(/(?:^\* (.*$)\n?)+/gim, (match) => {
         const listItems = match.trim().split('\n').map(item =>
           `<li class="ml-5 list-disc">${item.substring(2).trim()}</li>`
@@ -153,7 +151,7 @@ export default function InsightsPage() {
         return `<ul class="space-y-1 mt-2">${listItems}</ul>`;
       })
       .replace(/\n/g, '<br />')
-      .replace(/<br \s*\/?>\s*<br \s*\/?>/g, '<br />'); // Prevent double line breaks
+      .replace(/<br \s*\/?>\s*<br \s*\/?>/g, '<br />');
 
     return html;
   };
@@ -178,12 +176,12 @@ export default function InsightsPage() {
         return currentY;
     };
     
-    const addImageToPdf = async (doc: jsPDF, element: HTMLElement | null, yPos: number, title: string, widthPercent = 0.8) => {
+    const addImageToPdf = async (doc: jsPDF, element: HTMLElement | null, yPos: number, title: string) => {
       if (!element) return yPos;
       
       const titleHeight = 10;
       yPos = checkPageBreak(yPos, titleHeight);
-      doc.setFontSize(16);
+      doc.setFontSize(14);
       doc.setFont('helvetica', 'bold');
       doc.text(title, 14, yPos);
       yPos += titleHeight;
@@ -192,19 +190,17 @@ export default function InsightsPage() {
           const canvas = await html2canvas(element, { backgroundColor: '#ffffff', scale: 2 });
           const imgData = canvas.toDataURL('image/png');
           const imgProps = doc.getImageProperties(imgData);
-          const pdfWidth = (doc.internal.pageSize.getWidth() - 28) * widthPercent;
+          const pdfWidth = (doc.internal.pageSize.getWidth() - 28) * 0.45; // 45% width for side-by-side
           const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
           
           yPos = checkPageBreak(yPos, pdfHeight);
 
-          const xOffset = (doc.internal.pageSize.getWidth() - pdfWidth) / 2;
-          doc.addImage(imgData, 'PNG', xOffset, yPos, pdfWidth, pdfHeight);
-          return yPos + pdfHeight + 10;
+          return { yPos: yPos + pdfHeight + 10, imgData, pdfWidth, pdfHeight };
       } catch(e) {
           console.error("Error capturing chart for PDF:", e);
           yPos = checkPageBreak(yPos, 10);
           doc.setFont('helvetica', 'normal').setFontSize(10).text("Could not render chart.", 14, yPos);
-          return yPos + 10;
+          return { yPos: yPos + 10, imgData: null, pdfWidth: 0, pdfHeight: 0 };
       }
     };
 
@@ -228,8 +224,8 @@ export default function InsightsPage() {
     (doc as any).autoTable({
       startY: y,
       body: [
-        ['Total Expenses:', `₹${totalMonthlyExpenses.toLocaleString()}`],
-        ['Total Income:', `₹${totalMonthlyIncome.toLocaleString()}`],
+        ['Total Expenses:', `Rs. ${totalMonthlyExpenses.toFixed(2)}`],
+        ['Total Income:', `Rs. ${totalMonthlyIncome.toFixed(2)}`],
       ],
       theme: 'plain',
       styles: { font: 'helvetica', fontSize: 11 },
@@ -244,12 +240,12 @@ export default function InsightsPage() {
     y += 8;
     (doc as any).autoTable({
         startY: y,
-        head: [['Date', 'Description', 'Category', 'Amount (₹)']],
+        head: [['Date', 'Description', 'Category', 'Amount (Rs.)']],
         body: currentMonthTransactions.map(t => [
             format(t.date, 'dd MMM, yyyy'),
             t.description,
             t.category,
-            t.amount.toLocaleString()
+            t.amount.toFixed(2)
         ]),
         theme: 'grid',
         headStyles: { fillColor: [34, 197, 94] },
@@ -259,17 +255,28 @@ export default function InsightsPage() {
     y = (doc as any).lastAutoTable.finalY + 15;
 
     // Charts & Graphs
-    y = checkPageBreak(y, 15);
+    doc.addPage();
+    y = PAGE_MARGIN;
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     doc.text('Visual Analysis', 14, y);
     y += 10;
     
     // Add charts, potentially adding new pages as needed
-    y = await addImageToPdf(doc, categoryChartRef.current, y, 'Spending by Category', 0.85);
-    y = await addImageToPdf(doc, dailySpendChartRef.current, y, 'Spending by Day of Week', 0.85);
-    y = await addImageToPdf(doc, monthlyTrendChartRef.current, y, 'Monthly Spending Trend', 0.85);
+    const chart1 = await addImageToPdf(doc, categoryChartRef.current, y, 'Spending by Category');
+    const chart2 = await addImageToPdf(doc, dailySpendChartRef.current, y, 'Spending by Day of Week');
     
+    const chartHeight = Math.max(chart1.pdfHeight, chart2.pdfHeight);
+    y = checkPageBreak(y, chartHeight);
+    
+    if(chart1.imgData) doc.addImage(chart1.imgData, 'PNG', 14, chart1.yPos, chart1.pdfWidth, chart1.pdfHeight);
+    if(chart2.imgData) doc.addImage(chart2.imgData, 'PNG', doc.internal.pageSize.getWidth()/2 + 7, chart2.yPos, chart2.pdfWidth, chart2.pdfHeight);
+    y += chartHeight + 15;
+
+    const chart3 = await addImageToPdf(doc, monthlyTrendChartRef.current, y, 'Monthly Spending Trend');
+     if(chart3.imgData) doc.addImage(chart3.imgData, 'PNG', 14, chart3.yPos, chart3.pdfWidth, chart3.pdfHeight);
+    y = chart3.yPos + chart3.pdfHeight + 15;
+
     // Final Calculation
     y = checkPageBreak(y, 20);
     doc.setLineWidth(0.5);
@@ -279,9 +286,9 @@ export default function InsightsPage() {
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
     
-    const finalLabel = netSpending >= 0 ? 'Net Monthly Expenses' : 'Net Monthly Savings';
-    const finalAmount = `₹${Math.abs(netSpending).toLocaleString()}`;
-    const finalColor = netSpending >= 0 ? [220, 38, 38] : [22, 163, 74]; // red for expense, green for savings
+    const finalLabel = 'Net Monthly Expenses';
+    const finalAmount = `Rs. ${netSpending.toFixed(2)}`;
+    const finalColor = netSpending >= 0 ? [220, 38, 38] : [22, 163, 74];
 
     doc.text(finalLabel, 14, y);
     doc.setTextColor(finalColor[0], finalColor[1], finalColor[2]);
@@ -420,7 +427,6 @@ export default function InsightsPage() {
                 </Alert>
             )}
             {insights && (
-              <div ref={insightsReportRef}>
                 <Alert className="mt-4 w-full">
                   <AlertTitle>Your Financial Analysis</AlertTitle>
                   <AlertDescription>
@@ -430,7 +436,6 @@ export default function InsightsPage() {
                     />
                   </AlertDescription>
                 </Alert>
-              </div>
             )}
           </div>
         </CardContent>

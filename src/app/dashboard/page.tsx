@@ -37,19 +37,61 @@ import { AddExpenseDialog } from "@/components/add-expense-dialog";
 import type { Transaction } from "@/lib/data";
 
 
+function TransactionActions({ transaction, onDelete, onUpdate }: { transaction: Transaction, onDelete: () => void, onUpdate: () => void }) {
+    const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+
+    const handleDelete = async () => {
+        try {
+            await deleteTransaction(transaction.id!);
+            toast.success("Transaction deleted successfully");
+            onDelete();
+        } catch (error) {
+            toast.error("Failed to delete transaction");
+        }
+    };
+    
+    return (
+        <>
+        <AlertDialog>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                        <MoreHorizontal className="size-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>Edit</DropdownMenuItem>
+                    <AlertDialogTrigger asChild>
+                        <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
+                    </AlertDialogTrigger>
+                </DropdownMenuContent>
+            </DropdownMenu>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete this transaction from your records.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+         <AddExpenseDialog
+                open={isEditDialogOpen}
+                onOpenChange={setIsEditDialogOpen}
+                onExpenseAdded={onUpdate}
+                transactionToEdit={transaction}
+            />
+        </>
+    );
+}
+
 export default function DashboardPage() {
   const { user, userData } = useAuth();
   const { transactions, categories, isLoading, refreshData } = useData();
-  const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
-
-  const handleDialogClose = useCallback(() => {
-    setEditingTransaction(null);
-  }, []);
-  
-  const handleExpenseUpdated = useCallback(() => {
-    refreshData();
-    setEditingTransaction(null);
-  }, [refreshData]);
 
   const categoryColors = useMemo(() => {
     return categories.reduce((acc, cat) => {
@@ -57,16 +99,6 @@ export default function DashboardPage() {
         return acc;
     }, {} as {[key: string]: string});
   }, [categories]);
-
-  const handleDelete = async (id: string) => {
-    try {
-        await deleteTransaction(id);
-        toast.success("Transaction deleted successfully");
-        await refreshData();
-    } catch (error) {
-        toast.error("Failed to delete transaction");
-    }
-  };
 
   const budget = userData?.budget || 50000;
 
@@ -230,33 +262,7 @@ export default function DashboardPage() {
                     </TableCell>
                     <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
                     <TableCell>
-                      <AlertDialog>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8">
-                              <MoreHorizontal className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setEditingTransaction(t)}>Edit</DropdownMenuItem>
-                            <AlertDialogTrigger asChild>
-                              <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
-                            </AlertDialogTrigger>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              This action cannot be undone. This will permanently delete this transaction from your records.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction onClick={() => handleDelete(t.id!)}>Delete</AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                      <TransactionActions transaction={t} onDelete={refreshData} onUpdate={refreshData} />
                     </TableCell>
                   </TableRow>
                 ))}
@@ -266,14 +272,6 @@ export default function DashboardPage() {
         </Card>
       </div>
     </div>
-    {editingTransaction && (
-         <AddExpenseDialog
-                open={!!editingTransaction}
-                onOpenChange={handleDialogClose}
-                onExpenseAdded={handleExpenseUpdated}
-                transactionToEdit={editingTransaction}
-            />
-    )}
     </>
   );
 }

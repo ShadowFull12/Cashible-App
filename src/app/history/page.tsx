@@ -69,6 +69,57 @@ const SortableHeader = ({ children, columnKey, sortConfig, requestSort, classNam
   );
 };
 
+function TransactionActions({ transaction, onDelete, onUpdate }: { transaction: Transaction, onDelete: () => void, onUpdate: () => void }) {
+    const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+
+    const handleDelete = async () => {
+        try {
+            await deleteTransaction(transaction.id!);
+            toast.success("Transaction deleted");
+            onDelete();
+        } catch (error) {
+            toast.error("Failed to delete transaction");
+        }
+    };
+    
+    return (
+        <>
+            <AlertDialog>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreHorizontal className="size-4" />
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>Edit</DropdownMenuItem>
+                        <AlertDialogTrigger asChild>
+                            <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
+                        </AlertDialogTrigger>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This action cannot be undone. This will permanently delete this transaction.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+            <AddExpenseDialog
+                open={isEditDialogOpen}
+                onOpenChange={setIsEditDialogOpen}
+                onExpenseAdded={onUpdate}
+                transactionToEdit={transaction}
+            />
+        </>
+    );
+}
 
 export default function HistoryPage() {
   const { transactions, categories, isLoading, refreshData } = useData();
@@ -76,7 +127,6 @@ export default function HistoryPage() {
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterMonth, setFilterMonth] = useState<string>("all");
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
-  const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
 
   const availableYears = useMemo(() => {
@@ -142,29 +192,6 @@ export default function HistoryPage() {
           return monthMatch && yearMatch;
       });
   }, [transactions, filterMonth, filterYear]);
-
-  const handleDelete = async (id: string) => {
-    try {
-      await deleteTransaction(id);
-      toast.success("Transaction deleted");
-      await refreshData();
-    } catch (error) {
-      toast.error("Failed to delete transaction");
-    }
-  };
-  
-  const handleEdit = (transaction: Transaction) => {
-    setEditingTransaction(transaction);
-  }
-
-  const handleUpdate = useCallback(() => {
-      refreshData();
-      setEditingTransaction(null);
-  }, [refreshData])
-
-  const handleDialogClose = useCallback(() => {
-    setEditingTransaction(null);
-  }, []);
 
   return (
     <>
@@ -253,33 +280,7 @@ export default function HistoryPage() {
                         <TableCell>{format(t.date, "PPP")}</TableCell>
                         <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
                         <TableCell>
-                            <AlertDialog>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                                        <MoreHorizontal className="size-4" />
-                                    </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                    <DropdownMenuItem onClick={() => handleEdit(t)}>Edit</DropdownMenuItem>
-                                    <AlertDialogTrigger asChild>
-                                        <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
-                                    </AlertDialogTrigger>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                                <AlertDialogContent>
-                                    <AlertDialogHeader>
-                                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                        This action cannot be undone. This will permanently delete this transaction.
-                                    </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction onClick={() => handleDelete(t.id!)}>Delete</AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
+                           <TransactionActions transaction={t} onDelete={refreshData} onUpdate={refreshData} />
                         </TableCell>
                         </TableRow>
                     ))
@@ -343,14 +344,6 @@ export default function HistoryPage() {
         </Tabs>
       </CardContent>
     </Card>
-     {editingTransaction && (
-         <AddExpenseDialog
-                open={!!editingTransaction}
-                onOpenChange={handleDialogClose}
-                onExpenseAdded={handleUpdate}
-                transactionToEdit={editingTransaction}
-            />
-    )}
     </>
   );
 }
