@@ -1,93 +1,21 @@
 
 "use client";
 
-import { AlertTriangle, IndianRupee, MoreHorizontal, Wallet, Loader2 } from "lucide-react";
+import { AlertTriangle, IndianRupee, Wallet } from "lucide-react";
 import { Line, LineChart, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
-import React, { useMemo, useCallback } from "react";
-import { deleteTransaction } from "@/services/transactionService";
-import { toast } from "sonner";
+import React, { useMemo } from "react";
 import { format, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import { cn } from "@/lib/utils";
-import { AddExpenseDialog } from "@/components/add-expense-dialog";
-import type { Transaction } from "@/lib/data";
+import { TransactionActions } from "@/components/transaction-actions";
 
-
-function TransactionActions({ transaction, onDelete, onUpdate }: { transaction: Transaction, onDelete: () => void, onUpdate: () => void }) {
-    const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
-
-    const handleDelete = async () => {
-        try {
-            await deleteTransaction(transaction.id!);
-            toast.success("Transaction deleted successfully");
-            onDelete();
-        } catch (error) {
-            toast.error("Failed to delete transaction");
-        }
-    };
-    
-    return (
-        <>
-        <AlertDialog>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="size-4" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>Edit</DropdownMenuItem>
-                    <AlertDialogTrigger asChild>
-                        <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
-                    </AlertDialogTrigger>
-                </DropdownMenuContent>
-            </DropdownMenu>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete this transaction from your records.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-         <AddExpenseDialog
-                open={isEditDialogOpen}
-                onOpenChange={setIsEditDialogOpen}
-                onExpenseAdded={onUpdate}
-                transactionToEdit={transaction}
-            />
-        </>
-    );
-}
 
 export default function DashboardPage() {
   const { user, userData } = useAuth();

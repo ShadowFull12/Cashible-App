@@ -10,66 +10,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge"
 import { format } from "date-fns"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { MoreHorizontal } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
-import { deleteTransaction } from "@/services/transactionService"
-import { toast } from "sonner"
-import { AddExpenseDialog } from "@/components/add-expense-dialog"
+import { TransactionActions } from "@/components/transaction-actions"
 
-
-function TransactionActions({ transaction, onDelete, onUpdate }: { transaction: Transaction, onDelete: () => void, onUpdate: () => void }) {
-    const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
-
-    const handleDelete = async () => {
-        try {
-            await deleteTransaction(transaction.id!);
-            toast.success("Transaction deleted");
-            onDelete();
-        } catch (error) {
-            toast.error("Failed to delete transaction");
-        }
-    };
-    
-    return (
-        <>
-        <AlertDialog>
-            <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreHorizontal className="size-4" />
-                    </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>Edit</DropdownMenuItem>
-                    <AlertDialogTrigger asChild>
-                        <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
-                    </AlertDialogTrigger>
-                </DropdownMenuContent>
-            </DropdownMenu>
-            <AlertDialogContent>
-                <AlertDialogHeader>
-                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        This action cannot be undone. This will permanently delete this transaction.
-                    </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-         <AddExpenseDialog
-                open={isEditDialogOpen}
-                onOpenChange={setIsEditDialogOpen}
-                onExpenseAdded={onUpdate}
-                transactionToEdit={transaction}
-            />
-        </>
-    );
-}
 
 export default function CalendarPage() {
   const { transactions, categories, setNewExpenseDefaultDate, refreshData } = useData();

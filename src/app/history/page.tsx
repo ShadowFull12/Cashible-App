@@ -1,42 +1,24 @@
 
 "use client";
 
-import { useState, useMemo, useCallback, ReactNode } from "react";
-import { HandCoins, MoreHorizontal, ArrowUp, ArrowDown } from "lucide-react";
-import { toast } from "sonner";
+import { useState, useMemo, useEffect, ReactNode } from "react";
+import { HandCoins, ArrowUp, ArrowDown } from "lucide-react";
 import { format } from "date-fns";
 import React from "react";
 
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useData } from "@/hooks/use-data";
-import { deleteTransaction } from "@/services/transactionService";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Transaction } from "@/lib/data";
-import { AddExpenseDialog } from "@/components/add-expense-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { TransactionActions } from "@/components/transaction-actions";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -69,58 +51,6 @@ const SortableHeader = ({ children, columnKey, sortConfig, requestSort, classNam
   );
 };
 
-function TransactionActions({ transaction, onDelete, onUpdate }: { transaction: Transaction, onDelete: () => void, onUpdate: () => void }) {
-    const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
-
-    const handleDelete = async () => {
-        try {
-            await deleteTransaction(transaction.id!);
-            toast.success("Transaction deleted");
-            onDelete();
-        } catch (error) {
-            toast.error("Failed to delete transaction");
-        }
-    };
-    
-    return (
-        <>
-            <AlertDialog>
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                            <MoreHorizontal className="size-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => setIsEditDialogOpen(true)}>Edit</DropdownMenuItem>
-                        <AlertDialogTrigger asChild>
-                            <DropdownMenuItem className="text-red-500">Delete</DropdownMenuItem>
-                        </AlertDialogTrigger>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-                <AlertDialogContent>
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete this transaction.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
-            <AddExpenseDialog
-                open={isEditDialogOpen}
-                onOpenChange={setIsEditDialogOpen}
-                onExpenseAdded={onUpdate}
-                transactionToEdit={transaction}
-            />
-        </>
-    );
-}
-
 export default function HistoryPage() {
   const { transactions, categories, isLoading, refreshData } = useData();
   const [filterDescription, setFilterDescription] = useState("");
@@ -128,6 +58,12 @@ export default function HistoryPage() {
   const [filterMonth, setFilterMonth] = useState<string>("all");
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
   const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+
+  const [isClient, setIsClient] = useState(false);
+  const isMobile = useIsMobile();
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const availableYears = useMemo(() => {
     const years = new Set(transactions.map(t => t.date.getFullYear()));
@@ -193,6 +129,88 @@ export default function HistoryPage() {
       });
   }, [transactions, filterMonth, filterYear]);
 
+  const renderDesktopExpenses = () => (
+    <div className="relative w-full overflow-x-auto">
+        <Table>
+            <TableHeader>
+            <TableRow>
+                <SortableHeader columnKey="description" sortConfig={sortConfig} requestSort={requestSort}>Transaction</SortableHeader>
+                <SortableHeader columnKey="category" sortConfig={sortConfig} requestSort={requestSort}>Category</SortableHeader>
+                <SortableHeader columnKey="date" sortConfig={sortConfig} requestSort={requestSort}>Date</SortableHeader>
+                <SortableHeader columnKey="amount" sortConfig={sortConfig} requestSort={requestSort} className="text-right">Amount</SortableHeader>
+                <TableHead className="w-[10px]"></TableHead>
+            </TableRow>
+            </TableHeader>
+            <TableBody>
+            {isLoading ? (
+                Array.from({length: 5}).map((_, i) => (
+                <TableRow key={i}>
+                    <TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell>
+                </TableRow>
+                ))
+            ) : filteredExpenses.length > 0 ? (
+                filteredExpenses.map((t) => (
+                <TableRow key={t.id}>
+                <TableCell>
+                    <div className="font-medium">{t.description}</div>
+                </TableCell>
+                <TableCell>
+                    <Badge variant="outline" className="flex items-center gap-2" style={{borderColor: categoryColors[t.category]}}>
+                    <span className={`inline-block h-2 w-2 rounded-full`} style={{backgroundColor: categoryColors[t.category]}}></span>
+                    {t.category}
+                    </Badge>
+                </TableCell>
+                <TableCell>{format(t.date, "PPP")}</TableCell>
+                <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
+                <TableCell>
+                    <TransactionActions transaction={t} onDelete={refreshData} onUpdate={refreshData} />
+                </TableCell>
+                </TableRow>
+            ))
+            ) : (
+                <TableRow>
+                    <TableCell colSpan={5} className="text-center h-24">
+                        No expenses found for the selected filters.
+                    </TableCell>
+                </TableRow>
+            )}
+            </TableBody>
+        </Table>
+    </div>
+  );
+
+  const renderMobileExpenses = () => (
+    <div className="space-y-3">
+        {isLoading ? (
+             Array.from({length: 5}).map((_, i) => <Skeleton key={i} className="h-24 w-full" />)
+        ) : filteredExpenses.length > 0 ? (
+            filteredExpenses.map(t => (
+                <Card key={t.id} className="p-4">
+                    <div className="flex justify-between items-start">
+                        <div className="flex-grow space-y-1">
+                            <p className="font-medium">{t.description}</p>
+                            <div className="flex items-center gap-2">
+                                <Badge variant="outline" style={{borderColor: categoryColors[t.category]}}>
+                                    {t.category}
+                                </Badge>
+                                <p className="text-xs text-muted-foreground">{format(t.date, "P")}</p>
+                            </div>
+                        </div>
+                        <div className="flex flex-col items-end">
+                            <p className="font-bold text-lg">₹{t.amount.toLocaleString()}</p>
+                            <TransactionActions transaction={t} onDelete={refreshData} onUpdate={refreshData} />
+                        </div>
+                    </div>
+                </Card>
+            ))
+        ) : (
+            <div className="text-center h-24 flex items-center justify-center">
+                <p>No expenses found for the selected filters.</p>
+            </div>
+        )}
+    </div>
+  );
+
   return (
     <>
     <Card>
@@ -247,56 +265,10 @@ export default function HistoryPage() {
                 <TabsTrigger value="income">Income</TabsTrigger>
             </TabsList>
             <TabsContent value="expenses" className="mt-4">
-                <div className="relative w-full">
-                <Table>
-                    <TableHeader>
-                    <TableRow>
-                        <SortableHeader columnKey="description" sortConfig={sortConfig} requestSort={requestSort}>Transaction</SortableHeader>
-                        <SortableHeader columnKey="category" sortConfig={sortConfig} requestSort={requestSort}>Category</SortableHeader>
-                        <SortableHeader columnKey="date" sortConfig={sortConfig} requestSort={requestSort}>Date</SortableHeader>
-                        <SortableHeader columnKey="amount" sortConfig={sortConfig} requestSort={requestSort} className="text-right">Amount</SortableHeader>
-                        <TableHead className="w-[10px]"></TableHead>
-                    </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                    {isLoading ? (
-                        Array.from({length: 5}).map((_, i) => (
-                        <TableRow key={i}>
-                            <TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell>
-                        </TableRow>
-                        ))
-                    ) : filteredExpenses.length > 0 ? (
-                        filteredExpenses.map((t) => (
-                        <TableRow key={t.id}>
-                        <TableCell>
-                            <div className="font-medium">{t.description}</div>
-                        </TableCell>
-                        <TableCell>
-                            <Badge variant="outline" className="flex items-center gap-2" style={{borderColor: categoryColors[t.category]}}>
-                            <span className={`inline-block h-2 w-2 rounded-full`} style={{backgroundColor: categoryColors[t.category]}}></span>
-                            {t.category}
-                            </Badge>
-                        </TableCell>
-                        <TableCell>{format(t.date, "PPP")}</TableCell>
-                        <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
-                        <TableCell>
-                           <TransactionActions transaction={t} onDelete={refreshData} onUpdate={refreshData} />
-                        </TableCell>
-                        </TableRow>
-                    ))
-                    ) : (
-                        <TableRow>
-                            <TableCell colSpan={5} className="text-center h-24">
-                                No expenses found for the selected filters.
-                            </TableCell>
-                        </TableRow>
-                    )}
-                    </TableBody>
-                </Table>
-                </div>
+               {isClient ? (isMobile ? renderMobileExpenses() : renderDesktopExpenses()) : <Skeleton className="h-64 w-full" />}
             </TabsContent>
             <TabsContent value="income" className="mt-4">
-                 <div className="relative w-full">
+                 <div className="relative w-full overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow>
