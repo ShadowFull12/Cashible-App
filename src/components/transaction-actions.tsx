@@ -25,6 +25,12 @@ export function TransactionActions({ transaction, onDelete, onUpdate }: { transa
         }
     };
     
+    // This handler ensures the dialog is closed BEFORE the data is refreshed, preventing re-render loops.
+    const handleUpdateSuccess = () => {
+        setIsEditDialogOpen(false);
+        onUpdate();
+    }
+
     return (
         <>
             <AlertDialog>
@@ -65,7 +71,7 @@ export function TransactionActions({ transaction, onDelete, onUpdate }: { transa
             <AddExpenseDialog
                 open={isEditDialogOpen}
                 onOpenChange={setIsEditDialogOpen}
-                onExpenseAdded={onUpdate}
+                onExpenseAdded={handleUpdateSuccess}
                 transactionToEdit={transaction}
             />
         </>

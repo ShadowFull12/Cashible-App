@@ -312,7 +312,6 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
         toast.success("Expense added successfully!");
       }
       onExpenseAdded();
-      onOpenChange(false);
     } catch (error: any) {
       toast.error(`Failed to ${isEditing ? 'update' : 'add'} expense.`, { description: error.message });
       console.error(error);
