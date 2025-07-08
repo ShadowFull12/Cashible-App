@@ -7,12 +7,12 @@ import type { UserProfile, FriendRequest } from "@/lib/data";
 import type { User } from 'firebase/auth';
 import { createNotification, deleteNotificationByRelatedId } from './notificationService';
 
-const friendRequestsRef = collection(db, "friend-requests");
-const friendshipsRef = collection(db, "friendships");
 
 // 1. Send a friend request
 export async function sendFriendRequest(fromUser: UserProfile, toUserId: string) {
     if (!db) throw new Error("Firebase is not configured.");
+    const friendRequestsRef = collection(db, "friend-requests");
+    const friendshipsRef = collection(db, "friendships");
 
     const q = query(friendRequestsRef, 
         and(
@@ -70,6 +70,7 @@ export async function sendFriendRequest(fromUser: UserProfile, toUserId: string)
 // 2. Get friend requests for the current user (real-time listener)
 export function getFriendRequestsListener(userId: string, callback: (requests: FriendRequest[]) => void): Unsubscribe {
     if (!db) return () => {};
+    const friendRequestsRef = collection(db, "friend-requests");
     
     const q = query(friendRequestsRef, 
         where("status", "==", "pending"),
@@ -148,6 +149,7 @@ export async function rejectFriendRequest(requestId: string) {
 // 5. Get a user's friends via a real-time listener
 export function getFriendsListener(userId: string, callback: (friends: UserProfile[]) => void): Unsubscribe {
     if (!db) return () => {};
+    const friendshipsRef = collection(db, "friendships");
     
     const q = query(friendshipsRef, where('userIds', 'array-contains', userId));
     
@@ -179,6 +181,8 @@ export function getFriendsListener(userId: string, callback: (friends: UserProfi
 // 6. Remove a friend
 export async function removeFriend(currentUserId: string, friendId: string) {
     if (!db) throw new Error("Firebase is not configured.");
+    const friendshipsRef = collection(db, "friendships");
+    const friendRequestsRef = collection(db, "friend-requests");
 
     const q = query(
         friendshipsRef, 
@@ -214,6 +218,7 @@ export async function removeFriend(currentUserId: string, friendId: string) {
 // 7. Add friend request deletions to a batch
 export async function addFriendRequestsDeletionsToBatch(userId: string, batch: WriteBatch) {
     if (!db) return;
+    const friendRequestsRef = collection(db, "friend-requests");
 
     // Create two separate queries for requests sent and received
     const toUserQuery = query(friendRequestsRef, where("toUserId", "==", userId));

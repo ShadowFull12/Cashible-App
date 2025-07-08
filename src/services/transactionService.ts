@@ -5,10 +5,10 @@ import { collection, addDoc, getDocs, query, where, deleteDoc, doc, Timestamp, w
 import type { Transaction, SplitDetails, Settlement, Circle, UserProfile } from "@/lib/data";
 import { createNotification } from "./notificationService";
 
-const transactionsRef = collection(db, "transactions");
 
 export async function addTransaction(transaction: Omit<Transaction, 'id' | 'date'> & { date: Date | Timestamp }) {
     if (!db) throw new Error("Firebase is not configured.");
+    const transactionsRef = collection(db, "transactions");
     try {
         const docRef = await addDoc(transactionsRef, {
             ...transaction,
@@ -26,6 +26,7 @@ export async function addSplitTransaction(
     splitDetails: SplitDetails
 ) {
     if (!db) throw new Error("Firebase is not configured.");
+    const transactionsRef = collection(db, "transactions");
     
     try {
         // A split transaction is a single document that contains all the details needed for balance calculation.
@@ -72,6 +73,7 @@ export async function getTransactionById(transactionId: string): Promise<Transac
 
 export async function getTransactions(userId: string): Promise<Transaction[]> {
     if (!db) return [];
+    const transactionsRef = collection(db, "transactions");
     try {
         const q = query(transactionsRef, where("userId", "==", userId));
         const querySnapshot = await getDocs(q);
@@ -93,6 +95,7 @@ export async function getTransactions(userId: string): Promise<Transaction[]> {
 
 export function getTransactionsListener(userId: string, callback: (transactions: Transaction[]) => void): Unsubscribe {
     if (!db) return () => {};
+    const transactionsRef = collection(db, "transactions");
     try {
         const q = query(transactionsRef, where("userId", "==", userId));
         const unsubscribe = onSnapshot(q, (querySnapshot) => {
@@ -116,6 +119,7 @@ export function getTransactionsListener(userId: string, callback: (transactions:
 
 export async function getCircleTransactions(circleId: string): Promise<Transaction[]> {
     if (!db) return [];
+    const transactionsRef = collection(db, "transactions");
     const q = query(transactionsRef, where("circleId", "==", circleId));
     const querySnapshot = await getDocs(q);
     const transactions: Transaction[] = [];
@@ -132,6 +136,7 @@ export async function getCircleTransactions(circleId: string): Promise<Transacti
 
 export function getCircleTransactionsListener(circleId: string, callback: (transactions: Transaction[]) => void): Unsubscribe {
     if (!db) return () => {};
+    const transactionsRef = collection(db, "transactions");
     const q = query(transactionsRef, where("circleId", "==", circleId));
     
     const unsubscribe = onSnapshot(q, (querySnapshot) => {

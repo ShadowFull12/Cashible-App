@@ -5,10 +5,10 @@ import type { Debt, SplitDetails, Transaction, UserProfile, Settlement } from "@
 import { getTransactionById, addTransaction, updateTransaction } from "./transactionService";
 import { createNotification, deleteNotificationByRelatedId } from "./notificationService";
 
-const settlementsRef = collection(db, "settlements");
 
 export async function initiateSettlement(fromUser: UserProfile, toUser: UserProfile, amount: number, circleId: string, circleName: string) {
     if (!db) throw new Error("Firebase is not configured.");
+    const settlementsRef = collection(db, "settlements");
     
     const settlementDocRef = await addDoc(settlementsRef, {
         circleId,

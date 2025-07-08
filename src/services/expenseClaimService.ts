@@ -4,7 +4,6 @@ import { collection, addDoc, doc, getDoc, Timestamp, writeBatch, updateDoc } fro
 import type { ExpenseClaim, SplitDetails, UserProfile } from "@/lib/data";
 import { createNotification, deleteNotificationByRelatedId } from "./notificationService";
 
-const claimsRef = collection(db, "expense-claims");
 
 interface CreateClaimInput {
     claimerProfile: UserProfile;
@@ -21,6 +20,7 @@ interface CreateClaimInput {
 
 export async function createExpenseClaim(data: CreateClaimInput) {
     if (!db) throw new Error("Firebase is not configured.");
+    const claimsRef = collection(db, "expense-claims");
 
     const claimDocRef = await addDoc(claimsRef, {
         claimerId: data.claimerProfile.uid,

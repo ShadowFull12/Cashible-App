@@ -3,7 +3,6 @@ import { db } from "@/lib/firebase";
 import { collection, addDoc, query, where, onSnapshot, Unsubscribe, Timestamp, updateDoc, doc, getDocs, writeBatch, deleteDoc, WriteBatch } from "firebase/firestore";
 import type { Notification, NotificationType, UserProfile } from "@/lib/data";
 
-const notificationsRef = collection(db, "notifications");
 
 interface CreateNotificationInput {
     userId: string;
@@ -16,6 +15,7 @@ interface CreateNotificationInput {
 
 export async function createNotification(data: CreateNotificationInput) {
     if (!db) throw new Error("Firebase is not configured.");
+    const notificationsRef = collection(db, "notifications");
     
     await addDoc(notificationsRef, {
         ...data,
@@ -26,6 +26,7 @@ export async function createNotification(data: CreateNotificationInput) {
 
 export function getNotificationsForUser(userId: string, callback: (notifications: Notification[]) => void): Unsubscribe {
     if (!db) return () => {};
+    const notificationsRef = collection(db, "notifications");
     
     const q = query(
         notificationsRef, 
@@ -70,6 +71,7 @@ export async function markNotificationAsRead(notificationId: string) {
 
 export async function markAllNotificationsAsRead(userId: string) {
     if (!db) throw new Error("Firebase is not configured.");
+    const notificationsRef = collection(db, "notifications");
     const q = query(notificationsRef, where("userId", "==", userId), where("read", "==", false));
     const snapshot = await getDocs(q);
     
@@ -90,6 +92,7 @@ export async function deleteNotification(notificationId: string) {
 
 export async function deleteNotificationByRelatedId(relatedId: string, batch?: WriteBatch) {
     if (!db) throw new Error("Firebase is not configured.");
+    const notificationsRef = collection(db, "notifications");
     const q = query(notificationsRef, where("relatedId", "==", relatedId));
     const snapshot = await getDocs(q);
     
@@ -110,6 +113,7 @@ export async function deleteNotificationByRelatedId(relatedId: string, batch?: W
 
 export async function addNotificationsDeletionsToBatch(userId: string, batch: WriteBatch) {
     if (!db) return;
+    const notificationsRef = collection(db, "notifications");
     const q = query(notificationsRef, where("userId", "==", userId));
     const querySnapshot = await getDocs(q);
     querySnapshot.forEach((doc) => {

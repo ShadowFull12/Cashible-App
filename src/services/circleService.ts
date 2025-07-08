@@ -5,7 +5,6 @@ import type { UserProfile, Circle } from "@/lib/data";
 import { addCircleTransactionsDeletionsToBatch } from "./transactionService";
 import { addCircleSettlementsDeletionsToBatch } from "./debtService";
 
-const circlesRef = collection(db, "circles");
 
 interface CreateCircleInput {
     name: string;
@@ -15,6 +14,7 @@ interface CreateCircleInput {
 
 export async function createCircle({ name, owner, members }: CreateCircleInput) {
     if (!db) throw new Error("Firebase is not configured.");
+    const circlesRef = collection(db, "circles");
     
     const memberIds = members.map(m => m.uid);
     const membersMap = members.reduce((acc, member) => {
@@ -37,6 +37,7 @@ export async function createCircle({ name, owner, members }: CreateCircleInput) 
 
 export function getCirclesForUserListener(userId: string, callback: (circles: Circle[]) => void): Unsubscribe {
     if (!db) return () => {};
+    const circlesRef = collection(db, "circles");
     
     const q = query(circlesRef, where("memberIds", "array-contains", userId));
     
