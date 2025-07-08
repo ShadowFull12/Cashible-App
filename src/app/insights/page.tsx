@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo, useRef, Fragment } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { spendingInsights, SpendingInsightsInput } from "@/ai/flows/spending-insights";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,10 +30,6 @@ function InsightSection({ transactions, timePeriodLabel }: { transactions: Trans
   const { isLoading: dataIsLoading } = useData();
 
   const isLoading = dataIsLoading || isGenerating;
-  
-  const categoryChartRef = useRef<HTMLDivElement>(null);
-  const dailySpendChartRef = useRef<HTMLDivElement>(null);
-  const monthlyTrendChartRef = useRef<HTMLDivElement>(null);
 
   const positiveTransactions = useMemo(() => transactions.filter(t => t.amount > 0), [transactions]);
 
@@ -132,7 +128,7 @@ function InsightSection({ transactions, timePeriodLabel }: { transactions: Trans
   return (
     <div className="grid gap-6 md:gap-8">
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="lg:col-span-2" ref={categoryChartRef}>
+        <Card className="lg:col-span-2" data-chart-ref="true" data-chart-title="Spending by Category">
           <CardHeader>
             <CardTitle>Spending by Category</CardTitle>
             <CardDescription>A breakdown of your expenses for the selected period.</CardDescription>
@@ -178,7 +174,7 @@ function InsightSection({ transactions, timePeriodLabel }: { transactions: Trans
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <Card ref={dailySpendChartRef}>
+        <Card data-chart-ref="true" data-chart-title="Spending by Day of Week">
           <CardHeader>
             <CardTitle>Spending by Day of Week</CardTitle>
             <CardDescription>See which days you typically spend the most.</CardDescription>
@@ -197,7 +193,7 @@ function InsightSection({ transactions, timePeriodLabel }: { transactions: Trans
             ) : (<div className="h-[300px] flex items-center justify-center text-muted-foreground">Not enough data to display.</div>)}
           </CardContent>
         </Card>
-         <Card ref={monthlyTrendChartRef}>
+         <Card data-chart-ref="true" data-chart-title="Spending Trend">
           <CardHeader>
             <CardTitle>Spending Trend</CardTitle>
             <CardDescription>Your total spending over time.</CardDescription>
@@ -392,23 +388,43 @@ export default function InsightsPage() {
     }
 
     // Charts & Graphs
-    const chartElements = document.querySelectorAll('[data-chart-ref]');
+    const activeTabContent = document.querySelector('[role="tabpanel"][data-state="active"]');
+    if (!activeTabContent) {
+        toast.error("Could not find report content. Please ensure you are on the correct tab.");
+        setIsDownloading(false);
+        return;
+    }
+
+    const chartElements = activeTabContent.querySelectorAll('[data-chart-ref]');
     if (chartElements.length > 0) {
-        doc.addPage(); y = PAGE_MARGIN;
-        doc.setFontSize(18); doc.setFont('helvetica', 'bold');
-        doc.text('Visual Analysis', 14, y);
-        y += 10;
+        y = checkPageBreak(y, 20); // check space for header
+        if (y === PAGE_MARGIN) { // if new page was added
+             doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+             doc.text('Visual Analysis', 14, y);
+             y += 10;
+        } else {
+            doc.addPage(); y = PAGE_MARGIN;
+            doc.setFontSize(18); doc.setFont('helvetica', 'bold');
+            doc.text('Visual Analysis', 14, y);
+            y += 10;
+        }
         
         let xPos = 14;
         let maxHeightInRow = 0;
+        let initialYForRow = y;
 
         for (let i = 0; i < chartElements.length; i++) {
             const element = chartElements[i] as HTMLElement;
             const title = element.getAttribute('data-chart-title') || 'Chart';
             
-            y = checkPageBreak(y, 10); // Check for title space
-            doc.setFontSize(14).setFont('helvetica', 'bold').text(title, xPos, y);
-            y += 8;
+            let currentY = initialYForRow;
+            currentY = checkPageBreak(currentY, 10);
+            if (currentY === PAGE_MARGIN && i > 0) { // New page was added mid-row
+                initialYForRow = PAGE_MARGIN;
+                xPos = 14;
+            }
+
+            doc.setFontSize(14).setFont('helvetica', 'bold').text(title, xPos, currentY);
 
             const canvas = await html2canvas(element, { backgroundColor: '#ffffff', scale: 2 });
             const imgData = canvas.toDataURL('image/png');
@@ -418,25 +434,23 @@ export default function InsightsPage() {
 
             maxHeightInRow = Math.max(maxHeightInRow, pdfHeight);
 
-            y = checkPageBreak(y, pdfHeight);
-            doc.addImage(imgData, 'PNG', xPos, y, pdfWidth, pdfHeight);
+            currentY = checkPageBreak(currentY, pdfHeight + 10); // +10 for title
+            doc.addImage(imgData, 'PNG', xPos, currentY + 10, pdfWidth, pdfHeight);
 
             if ((i + 1) % 2 === 0) { // After every second chart
                 xPos = 14; // Reset x for next row
-                y += maxHeightInRow + 15; // Move y down
+                initialYForRow += maxHeightInRow + 25; // Move y down for next row
                 maxHeightInRow = 0; // Reset max height
             } else {
                 xPos += pdfWidth + 10; // Move x for next chart in row
             }
         }
-        if (chartElements.length % 2 !== 0) {
-            y += maxHeightInRow + 15;
-        }
+        y = initialYForRow + (chartElements.length % 2 !== 0 ? maxHeightInRow + 15 : 0);
     }
 
 
     // Final Calculation
-    doc.addPage(); y = PAGE_MARGIN;
+    y = checkPageBreak(y, 30); // check space for final calculation
     doc.setLineWidth(0.5);
     doc.line(14, y, doc.internal.pageSize.getWidth() - 14, y);
     y += 15;
@@ -463,11 +477,6 @@ export default function InsightsPage() {
     setIsDownloading(false);
   };
   
-  const getChartRefProps = (title: string) => ({
-    "data-chart-ref": "true",
-    "data-chart-title": title,
-  });
-
   return (
     <div className="grid gap-6">
         <Tabs value={view} onValueChange={(v) => setView(v as any)} className="w-full">
