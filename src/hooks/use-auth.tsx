@@ -87,6 +87,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      if (!auth) {
+        console.error("Firebase Auth is not initialized. This is likely due to missing environment variables on your deployment platform.");
+        setLoading(false);
+        return;
+      }
       const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         setUser(currentUser);
         if (currentUser) {
@@ -203,7 +208,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const deleteAccount = useCallback(async () => {
       if (!user) throw new Error("User not authenticated.");
       await userService.deleteAllUserData(user.uid);
-      await firebaseDelete_user(user);
+      await firebaseDeleteUser(user);
   }, [user]);
 
   const value: AuthContextType = {
