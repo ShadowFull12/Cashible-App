@@ -1,3 +1,4 @@
+
 import { db } from "@/lib/firebase";
 import { collection, addDoc, getDocs, query, where, deleteDoc, doc, updateDoc, Timestamp, writeBatch, WriteBatch } from "firebase/firestore";
 import type { RecurringExpense } from "@/lib/data";
@@ -8,7 +9,7 @@ export async function addRecurringExpense(expense: Omit<RecurringExpense, 'id'>)
     try {
         const docRef = await addDoc(collection(db, "recurring-expenses"), {
             ...expense,
-            lastProcessed: expense.lastProcessed ? Timestamp.fromDate(expense.lastProcessed) : null,
+            nextDueDate: Timestamp.fromDate(expense.nextDueDate),
         });
         return docRef.id;
     } catch (error) {
@@ -28,7 +29,7 @@ export async function getRecurringExpenses(userId: string): Promise<RecurringExp
             expenses.push({
                 id: doc.id,
                 ...data,
-                lastProcessed: data.lastProcessed ? (data.lastProcessed as Timestamp).toDate() : null,
+                nextDueDate: (data.nextDueDate as Timestamp).toDate(),
             } as RecurringExpense);
         });
         return expenses;
@@ -42,8 +43,8 @@ export async function updateRecurringExpense(id: string, data: Partial<Recurring
     if (!db) throw new Error("Firebase is not configured.");
     const docRef = doc(db, "recurring-expenses", id);
     const updateData: any = { ...data };
-    if (data.lastProcessed) {
-        updateData.lastProcessed = Timestamp.fromDate(data.lastProcessed);
+    if (data.nextDueDate) {
+        updateData.nextDueDate = Timestamp.fromDate(data.nextDueDate);
     }
     await updateDoc(docRef, updateData);
 }

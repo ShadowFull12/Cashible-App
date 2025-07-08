@@ -14,6 +14,7 @@ import type { Transaction, RecurringExpense, UserProfile, FriendRequest, Circle,
 import { getSettlementsForUserListener } from '@/services/debtService';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Bell } from 'lucide-react';
+import { addDays, addWeeks, addMonths, addYears, startOfDay } from 'date-fns';
 
 interface DataContextType {
     transactions: Transaction[];
@@ -111,41 +112,41 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     ]);
     
     const processRecurringExpenses = useCallback(async (userId: string, expenses: RecurringExpense[]) => {
-        const today = new Date();
-        const processingPromises: Promise<any>[] = [];
+        const today = startOfDay(new Date());
         let newTransactionsAdded = false;
 
         for (const expense of expenses) {
             if (!expense.isActive || !expense.id) continue;
+            
+            if (today >= startOfDay(expense.nextDueDate)) {
+                
+                await addTransaction({
+                    userId: userId,
+                    description: expense.description,
+                    amount: expense.amount,
+                    category: expense.category,
+                    date: expense.nextDueDate, // Log transaction on the day it was due
+                    recurringExpenseId: expense.id,
+                    isSplit: false,
+                    splitDetails: null,
+                    circleId: null,
+                });
+                
+                let newNextDueDate;
+                switch(expense.frequency) {
+                    case 'daily': newNextDueDate = addDays(expense.nextDueDate, 1); break;
+                    case 'weekly': newNextDueDate = addWeeks(expense.nextDueDate, 1); break;
+                    case 'monthly': newNextDueDate = addMonths(expense.nextDueDate, 1); break;
+                    case 'yearly': newNextDueDate = addYears(expense.nextDueDate, 1); break;
+                    default: newNextDueDate = expense.nextDueDate;
+                }
+                
+                await updateRecurringExpense(expense.id!, { nextDueDate: newNextDueDate });
 
-            const lastProcessed = expense.lastProcessed;
-            const isSameMonth = lastProcessed 
-                ? today.getFullYear() === lastProcessed.getFullYear() && today.getMonth() === lastProcessed.getMonth()
-                : false;
-            
-            const paymentIsDue = today.getDate() >= expense.dayOfMonth;
-            
-            if (paymentIsDue && !isSameMonth) {
-                processingPromises.push(
-                    addTransaction({
-                        userId: userId,
-                        description: expense.description,
-                        amount: expense.amount,
-                        category: expense.category,
-                        date: new Date(today.getFullYear(), today.getMonth(), expense.dayOfMonth),
-                        recurringExpenseId: expense.id,
-                        isSplit: false,
-                        splitDetails: null,
-                        circleId: null,
-                    }).then(() => {
-                        return updateRecurringExpense(expense.id!, { lastProcessed: today });
-                    })
-                );
                 newTransactionsAdded = true;
             }
         }
         
-        await Promise.all(processingPromises);
         return newTransactionsAdded;
     }, []);
 
@@ -179,12 +180,14 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         if (user && userData && !hasProcessedRecurring) {
             const runRecurringExpenseCheck = async () => {
+                setRecurringLoading(true);
                 try {
                     const fetchedRecurring = await getRecurringExpenses(user.uid);
                     setRecurringExpenses(fetchedRecurring);
                     const newTransactionsAdded = await processRecurringExpenses(user.uid, fetchedRecurring);
                     if (newTransactionsAdded) {
-                        toast.info("Recurring expenses for this month have been automatically added.");
+                        await refreshData(); // Refresh all data to reflect new state
+                        toast.info("Recurring expenses for this period have been automatically added.");
                     }
                 } catch (error) {
                     console.error("Failed to process recurring expenses in background:", error);
@@ -195,7 +198,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             };
             runRecurringExpenseCheck();
         }
-    }, [user, userData, hasProcessedRecurring, processRecurringExpenses]);
+    }, [user, userData, hasProcessedRecurring, processRecurringExpenses, refreshData]);
 
     useEffect(() => {
         if (!user) {
@@ -234,6 +237,17 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user]);
     
+    useEffect(() => {
+        if (user) {
+            const unsubscribe = getRecurringExpenses(user.uid).then(data => {
+                setRecurringExpenses(data);
+                setRecurringLoading(false);
+            });
+            // This is not a listener, so no unsubscribe function to return.
+            // It's fetched once at the start. Refreshes happen via refreshData.
+        }
+    }, [user]);
+
     useEffect(() => {
         if (user) {
             const unsubscribe = getNotificationsForUser(user.uid, (data) => {

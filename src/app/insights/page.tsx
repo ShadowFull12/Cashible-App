@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { spendingInsights, SpendingInsightsInput } from "@/ai/flows/spending-insights";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import jsPDF from "jspdf";
 import "jspdf-autotable";
+import html2canvas from 'html2canvas';
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#AF19FF', '#FF5733', '#3b82f6', '#ec4899'];
 
@@ -23,8 +24,13 @@ export default function InsightsPage() {
   const { user } = useAuth();
   const [insights, setInsights] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  const categoryChartRef = useRef<HTMLDivElement>(null);
+  const dailySpendChartRef = useRef<HTMLDivElement>(null);
+  const monthlyTrendChartRef = useRef<HTMLDivElement>(null);
+
   const positiveTransactions = useMemo(() => transactions.filter(t => t.amount > 0), [transactions]);
 
   const categoryData = useMemo(() => {
@@ -84,9 +90,9 @@ export default function InsightsPage() {
     return { topCategory, avgDaily: Math.round(avgDaily), netSpent };
   }, [transactions, categoryData]);
 
-  const { totalMonthlyExpenses, totalMonthlyIncome, netMonthlySpending, currentMonthTransactions } = useMemo(() => {
+  const { totalMonthlyExpenses, totalMonthlyIncome, netMonthlySaving, currentMonthTransactions } = useMemo(() => {
     if (transactions.length === 0) {
-      return { totalMonthlyExpenses: 0, totalMonthlyIncome: 0, netMonthlySpending: 0, currentMonthTransactions: [] };
+      return { totalMonthlyExpenses: 0, totalMonthlyIncome: 0, netMonthlySaving: 0, currentMonthTransactions: [] };
     }
     const now = new Date();
     const firstDay = startOfMonth(now);
@@ -104,7 +110,7 @@ export default function InsightsPage() {
     return {
       totalMonthlyExpenses: totalExpenses,
       totalMonthlyIncome: totalIncome,
-      netMonthlySpending: totalExpenses - totalIncome,
+      netMonthlySaving: totalIncome - totalExpenses,
       currentMonthTransactions: expenses.sort((a, b) => a.date.getTime() - b.date.getTime())
     };
   }, [transactions]);
@@ -133,8 +139,33 @@ export default function InsightsPage() {
     }
   };
 
-  const handleDownloadPDF = () => {
-    const doc = new jsPDF();
+  const addImageToPdf = async (doc: jsPDF, element: HTMLElement | null, y: number, title: string) => {
+    if (!element) return y;
+    
+    doc.setFontSize(16);
+    doc.text(title, 14, y);
+    y += 10;
+    
+    try {
+        const canvas = await html2canvas(element, { backgroundColor: null });
+        const imgData = canvas.toDataURL('image/png');
+        const imgProps = doc.getImageProperties(imgData);
+        const pdfWidth = doc.internal.pageSize.getWidth() - 28;
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        doc.addImage(imgData, 'PNG', 14, y, pdfWidth, pdfHeight);
+        return y + pdfHeight + 15;
+    } catch(e) {
+        console.error("Error capturing chart for PDF:", e);
+        doc.setFontSize(10).text("Could not render chart.", 14, y);
+        return y + 10;
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    if(isDownloading) return;
+    setIsDownloading(true);
+
+    const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
     const monthName = format(new Date(), 'MMMM yyyy');
     const userDisplayName = user?.displayName || 'User';
 
@@ -147,24 +178,30 @@ export default function InsightsPage() {
     doc.text(`${monthName} for ${userDisplayName}`, 105, 28, { align: 'center' });
 
     // Summary Section
-    doc.setFontSize(11);
-    doc.text(`Total Expenses:`, 14, 45);
-    doc.text(`₹${totalMonthlyExpenses.toLocaleString()}`, 60, 45);
-    
-    doc.text(`Total Income:`, 14, 52);
-    doc.text(`₹${totalMonthlyIncome.toLocaleString()}`, 60, 52);
-
-    doc.setLineWidth(0.5);
-    doc.line(14, 56, 196, 56);
-
+    doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text(`Net Spending:`, 14, 63);
-    doc.text(`₹${netMonthlySpending.toLocaleString()}`, 60, 63);
+    doc.text('Monthly Summary', 14, 45);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    doc.text(`Total Expenses:`, 14, 55);
+    doc.text(`₹${totalMonthlyExpenses.toLocaleString()}`, 60, 55);
+    doc.text(`Total Income:`, 14, 62);
+    doc.text(`₹${totalMonthlyIncome.toLocaleString()}`, 60, 62);
+    doc.setLineWidth(0.5);
+    doc.line(14, 66, 196, 66);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Net Saving:`, 14, 73);
+    doc.setTextColor(netMonthlySaving >= 0 ? '#10b981' : '#ef4444');
+    doc.text(`₹${netMonthlySaving.toLocaleString()}`, 60, 73);
+    doc.setTextColor(0);
     doc.setFont('helvetica', 'normal');
 
     // Transactions Table
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Expense Transactions', 14, 88);
     (doc as any).autoTable({
-        startY: 75,
+        startY: 95,
         head: [['Date', 'Description', 'Category', 'Amount (₹)']],
         body: currentMonthTransactions.map(t => [
             format(t.date, 'dd MMM, yyyy'),
@@ -173,18 +210,31 @@ export default function InsightsPage() {
             t.amount.toLocaleString()
         ]),
         theme: 'striped',
-        headStyles: {
-            fillColor: '#10b981', // Emerald 500
-            textColor: 255,
-        },
-        styles: {
-            font: 'helvetica',
-            fontSize: 10
-        },
-        columnStyles: {
-            3: { halign: 'right' }
-        }
+        headStyles: { fillColor: '#10b981' },
+        styles: { font: 'helvetica', fontSize: 10 },
+        columnStyles: { 3: { halign: 'right' } }
     });
+
+    let finalY = (doc as any).lastAutoTable.finalY || 100;
+    
+    // Add Charts
+    doc.addPage();
+    let chartY = 20;
+    chartY = await addImageToPdf(doc, categoryChartRef.current, chartY, 'Spending by Category');
+    chartY = await addImageToPdf(doc, dailySpendChartRef.current, chartY, 'Spending by Day of Week');
+    chartY = await addImageToPdf(doc, monthlyTrendChartRef.current, chartY, 'Monthly Spending Trend');
+
+    // Add Insights
+    if (insights) {
+        doc.addPage();
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('AI-Powered Insights', 14, 20);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(11);
+        const splitInsights = doc.splitTextToSize(insights.replace(/#/g, '').replace(/\*/g, ''), 180);
+        doc.text(splitInsights, 14, 30);
+    }
     
     // Footer
     const pageCount = (doc as any).internal.getNumberOfPages();
@@ -197,12 +247,13 @@ export default function InsightsPage() {
     }
 
     doc.save(`SpendWise-Report-${format(new Date(), 'yyyy-MM')}.pdf`);
+    setIsDownloading(false);
   };
 
   return (
     <div className="grid gap-6 md:gap-8">
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2" ref={categoryChartRef}>
           <CardHeader>
             <CardTitle>Spending by Category</CardTitle>
             <CardDescription>A breakdown of your expenses for the current period.</CardDescription>
@@ -248,7 +299,7 @@ export default function InsightsPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        <Card>
+        <Card ref={dailySpendChartRef}>
           <CardHeader>
             <CardTitle>Spending by Day of Week</CardTitle>
             <CardDescription>See which days you typically spend the most.</CardDescription>
@@ -266,7 +317,7 @@ export default function InsightsPage() {
             ) : (<div className="h-[300px] flex items-center justify-center text-muted-foreground">Not enough data to display.</div>)}
           </CardContent>
         </Card>
-         <Card>
+         <Card ref={monthlyTrendChartRef}>
           <CardHeader>
             <CardTitle>Monthly Spending Trend</CardTitle>
             <CardDescription>Your total spending over the last 6 months.</CardDescription>
@@ -338,9 +389,9 @@ export default function InsightsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={handleDownloadPDF} disabled={isLoading || transactions.length === 0}>
-            <Download className="mr-2 h-4 w-4" />
-            Download Report as PDF
+          <Button onClick={handleDownloadPDF} disabled={isLoading || isDownloading || transactions.length === 0}>
+            {isDownloading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Download className="mr-2 h-4 w-4" />}
+            {isDownloading ? 'Generating PDF...' : 'Download Report as PDF'}
           </Button>
         </CardContent>
       </Card>

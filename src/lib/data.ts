@@ -27,15 +27,17 @@ export interface Transaction {
     splitDetails?: SplitDetails | null;
 }
 
+export type RecurringExpenseFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
+
 export interface RecurringExpense {
     id?: string;
     userId: string;
     description: string;
     amount: number;
     category: string;
-    dayOfMonth: number;
+    frequency: RecurringExpenseFrequency;
+    nextDueDate: Date;
     isActive: boolean;
-    lastProcessed: Date | null;
 }
 
 export interface UserProfile {

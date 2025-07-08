@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Palette, Trash2, Loader2, Sun, Moon, Laptop, Upload, CheckCircle2, Repeat, PauseCircle, PlayCircle, AlertTriangle, ShieldAlert } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { addCategory, deleteCategory, updateCategory } from "@/services/categoryService";
 import { deleteRecurringExpense, deleteRecurringExpenseAndHistory } from "@/services/recurringExpenseService";
 import { toast } from "sonner";
@@ -27,6 +27,7 @@ import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useRouter } from "next/navigation";
+import { format } from "date-fns";
 
 
 const passwordSchema = z.object({
@@ -146,6 +147,81 @@ function DangerZone() {
     );
 }
 
+function RecurringExpenseItem({ expense }: { expense: RecurringExpense }) {
+    const { user } = useAuth();
+    const { refreshData } = useData();
+    const [deletingExpense, setDeletingExpense] = useState<RecurringExpense | null>(null);
+
+    const handleDeleteFuturePayments = async (expenseId: string) => {
+        try {
+            await deleteRecurringExpense(expenseId);
+            await refreshData();
+            toast.success("Recurring expense has been stopped.");
+        } catch (error) {
+            toast.error("Failed to stop recurring expense.");
+        } finally {
+            setDeletingExpense(null);
+        }
+    }
+    
+    const handleDeleteAndEraseHistory = async (expenseId: string) => {
+        if (!user) {
+            toast.error("You must be logged in to perform this action.");
+            return;
+        }
+        try {
+            await deleteRecurringExpenseAndHistory(user.uid, expenseId);
+            await refreshData();
+            toast.success("Recurring expense and its history deleted.");
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to delete recurring expense permanently.");
+        } finally {
+            setDeletingExpense(null);
+        }
+    }
+
+    return (
+        <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="flex-grow">
+                <p className="font-medium">{expense.description}</p>
+                <p className="text-sm text-muted-foreground">
+                    ₹{expense.amount.toLocaleString()} | Next on: {format(expense.nextDueDate, "PPP")}
+                </p>
+                <Badge variant="outline">{expense.category}</Badge>
+            </div>
+            <div className="flex items-center gap-4">
+                <Badge variant={expense.isActive ? 'default' : 'secondary'} className={cn(expense.isActive ? 'bg-green-500/20 text-green-700 border-green-500/30' : 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30')}>
+                    {expense.isActive ? <PlayCircle className="mr-2"/> : <PauseCircle className="mr-2"/>}
+                    {expense.isActive ? 'Active' : 'Paused'}
+                </Badge>
+
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" onClick={() => setDeletingExpense(expense)}><Trash2 className="size-4 text-red-500" /></Button>
+                    </AlertDialogTrigger>
+                    {deletingExpense && deletingExpense.id === expense.id && (
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Recurring Expense?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    Choose how to handle this recurring expense. This action cannot be fully undone.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <div className="flex flex-col gap-4 py-4">
+                                <Button variant="outline" onClick={() => handleDeleteFuturePayments(deletingExpense.id!)}>Just Stop Future Payments</Button>
+                                <Button variant="destructive" onClick={() => handleDeleteAndEraseHistory(deletingExpense.id!)}>Delete Permanently & Erase History</Button>
+                            </div>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel onClick={() => setDeletingExpense(null)}>Cancel</AlertDialogCancel>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    )}
+                </AlertDialog>
+            </div>
+        </div>
+    );
+}
 
 export default function SettingsPage() {
     const { user, userData, updateUserProfile, uploadAndSetProfileImage, updateUserPassword, updateUserEmail, updateUserUsername } = useAuth();
@@ -166,9 +242,19 @@ export default function SettingsPage() {
     const [categoryColors, setCategoryColors] = useState<{[key: string]: string}>({});
     const [originalCategoryColors, setOriginalCategoryColors] = useState<{[key: string]: string}>({});
     const [savingColor, setSavingColor] = useState<string | null>(null);
-    const [deletingExpense, setDeletingExpense] = useState<RecurringExpense | null>(null);
     
     const isImgBbConfigured = !!process.env.NEXT_PUBLIC_IMGBB_API_KEY;
+
+    const groupedRecurringExpenses = useMemo(() => {
+        return recurringExpenses.reduce((acc, expense) => {
+            const group = expense.frequency;
+            if (!acc[group]) {
+                acc[group] = [];
+            }
+            acc[group].push(expense);
+            return acc;
+        }, {} as Record<string, RecurringExpense[]>);
+    }, [recurringExpenses]);
 
     const passwordForm = useForm<z.infer<typeof passwordSchema>>({
         resolver: zodResolver(passwordSchema),
@@ -346,35 +432,6 @@ export default function SettingsPage() {
             toast.error("Username change failed.", { description: error.message });
         }
     }
-    
-    const handleDeleteFuturePayments = async (expenseId: string) => {
-        try {
-            await deleteRecurringExpense(expenseId);
-            await refreshData();
-            toast.success("Recurring expense has been stopped.");
-        } catch (error) {
-            toast.error("Failed to stop recurring expense.");
-        } finally {
-            setDeletingExpense(null);
-        }
-    }
-    
-    const handleDeleteAndEraseHistory = async (expenseId: string) => {
-        if (!user) {
-            toast.error("You must be logged in to perform this action.");
-            return;
-        }
-        try {
-            await deleteRecurringExpenseAndHistory(user.uid, expenseId);
-            await refreshData();
-            toast.success("Recurring expense and its history deleted.");
-        } catch (error) {
-            console.error(error);
-            toast.error("Failed to delete recurring expense permanently.");
-        } finally {
-            setDeletingExpense(null);
-        }
-    }
 
     return (
         <div className="grid gap-6">
@@ -460,48 +517,27 @@ export default function SettingsPage() {
                     
                     <TabsContent value="recurring" className="mt-6">
                         <Card>
-                            <CardHeader><CardTitle>Recurring Payments</CardTitle><CardDescription>Manage your automated monthly expenses.</CardDescription></CardHeader>
-                            <CardContent className="space-y-4">
-                                {isLoading ? <Loader2 className="animate-spin" /> : recurringExpenses.length > 0 ? recurringExpenses.map(expense => (
-                                    <div key={expense.id} className="flex items-center justify-between rounded-lg border p-3">
-                                        <div className="flex-grow">
-                                            <p className="font-medium">{expense.description}</p>
-                                            <p className="text-sm text-muted-foreground">
-                                                ₹{expense.amount.toLocaleString()} on day {expense.dayOfMonth} of each month
-                                            </p>
-                                            <Badge variant="outline">{expense.category}</Badge>
-                                        </div>
-                                        <div className="flex items-center gap-4">
-                                            <Badge variant={expense.isActive ? 'default' : 'secondary'} className={cn(expense.isActive ? 'bg-green-500/20 text-green-700 border-green-500/30' : 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30')}>
-                                                {expense.isActive ? <PlayCircle className="mr-2"/> : <PauseCircle className="mr-2"/>}
-                                                {expense.isActive ? 'Active' : 'Paused'}
-                                            </Badge>
-
-                                            <AlertDialog>
-                                                <AlertDialogTrigger asChild>
-                                                    <Button variant="ghost" size="icon" onClick={() => setDeletingExpense(expense)}><Trash2 className="size-4 text-red-500" /></Button>
-                                                </AlertDialogTrigger>
-                                                {deletingExpense && deletingExpense.id === expense.id && (
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Delete Recurring Expense?</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                Choose how to handle this recurring expense. This action cannot be fully undone.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <div className="flex flex-col gap-4 py-4">
-                                                            <Button variant="outline" onClick={() => handleDeleteFuturePayments(deletingExpense.id!)}>Just Stop Future Payments</Button>
-                                                            <Button variant="destructive" onClick={() => handleDeleteAndEraseHistory(deletingExpense.id!)}>Delete Permanently & Erase History</Button>
-                                                        </div>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel onClick={() => setDeletingExpense(null)}>Cancel</AlertDialogCancel>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                )}
-                                            </AlertDialog>
+                            <CardHeader>
+                                <CardTitle>Recurring Payments</CardTitle>
+                                <CardDescription>Manage your automated daily, weekly, monthly, and yearly expenses.</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-6">
+                                {isLoading ? (
+                                <Loader2 className="animate-spin" />
+                                ) : recurringExpenses.length > 0 ? (
+                                Object.entries(groupedRecurringExpenses).map(([frequency, expenses]) => (
+                                    <div key={frequency}>
+                                        <h3 className="text-lg font-semibold capitalize mb-2">{frequency}</h3>
+                                        <div className="space-y-3">
+                                            {expenses.map(expense => (
+                                                <RecurringExpenseItem key={expense.id} expense={expense} />
+                                            ))}
                                         </div>
                                     </div>
-                                )) : <p className="text-muted-foreground text-center">No recurring expenses found. You can add one from the "Add Expense" dialog.</p>}
+                                ))
+                                ) : (
+                                <p className="text-muted-foreground text-center">No recurring expenses found. You can add one from the "Add Expense" dialog.</p>
+                                )}
                             </CardContent>
                         </Card>
                     </TabsContent>

@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { CalendarIcon, Loader2, Lightbulb, ChevronDown, Info, AlertTriangle } from "lucide-react";
-import { format } from "date-fns";
+import { format, addDays, addWeeks, addMonths, addYears } from "date-fns";
 import { toast } from "sonner";
 import { useState, useEffect, useMemo } from "react";
 import { cn } from "@/lib/utils";
@@ -47,7 +47,7 @@ import { addRecurringExpense } from "@/services/recurringExpenseService";
 import { createExpenseClaim } from "@/services/expenseClaimService";
 import { suggestCategory } from "@/ai/flows/suggest-category";
 import { Switch } from "./ui/switch";
-import type { Transaction, UserProfile, SplitDetails, SplitType } from "@/lib/data";
+import type { Transaction, UserProfile, SplitDetails, SplitType, RecurringExpenseFrequency } from "@/lib/data";
 import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "./ui/collapsible";
 import { Checkbox } from "./ui/checkbox";
@@ -63,6 +63,7 @@ const formSchema = z.object({
   category: z.string().min(1, { message: "Please select a category." }),
   date: z.date(),
   isRecurring: z.boolean().default(false),
+  recurringFrequency: z.string().optional(),
   isSplit: z.boolean().default(false),
   splitTarget: z.string().optional(),
   splitMembers: z.array(z.string()).optional(),
@@ -90,12 +91,13 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      description: "", amount: undefined, category: "", date: new Date(), isRecurring: false, isSplit: false, payerId: user?.uid || "",
+      description: "", amount: undefined, category: "", date: new Date(), isRecurring: false, recurringFrequency: "monthly", isSplit: false, payerId: user?.uid || "",
     },
   });
 
   const { watch, setValue, control, getValues } = form;
   const isSplit = watch('isSplit');
+  const isRecurring = watch('isRecurring');
   const amount = watch('amount');
   const splitTarget = watch('splitTarget');
   const payerId = watch('payerId');
@@ -134,12 +136,12 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
       } else if (defaultCircleId) {
         form.reset({
             description: "", amount: undefined, category: "", date: defaultDate || new Date(),
-            isRecurring: false, isSplit: true, splitTarget: `circle-${defaultCircleId}`,
+            isRecurring: false, recurringFrequency: 'monthly', isSplit: true, splitTarget: `circle-${defaultCircleId}`,
             splitMembers: [], payerId: user?.uid
         });
       } else {
         form.reset({
-          description: "", amount: undefined, category: "", date: defaultDate || new Date(), isRecurring: false, isSplit: false, splitMembers: [], splitTarget: undefined, payerId: user?.uid
+          description: "", amount: undefined, category: "", date: defaultDate || new Date(), isRecurring: false, isSplit: false, recurringFrequency: 'monthly', splitMembers: [], splitTarget: undefined, payerId: user?.uid
         });
       }
       setSplitMethod('equally');
@@ -193,6 +195,16 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
   }, [customShares]);
 
   const isCustomSplitInvalid = splitMethod === 'unequally' && Math.abs(totalCustomShare - (amount || 0)) > 0.01 && selectedSplitMembers.length > 0;
+
+  const calculateNextDueDate = (startDate: Date, frequency: RecurringExpenseFrequency): Date => {
+      switch (frequency) {
+          case 'daily': return addDays(startDate, 1);
+          case 'weekly': return addWeeks(startDate, 1);
+          case 'monthly': return addMonths(startDate, 1);
+          case 'yearly': return addYears(startDate, 1);
+          default: return startDate;
+      }
+  };
 
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
@@ -272,14 +284,17 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
       } else {
         let recurringId: string | null = null;
         if (values.isRecurring) {
+          const frequency = values.recurringFrequency as RecurringExpenseFrequency;
+          const nextDueDate = calculateNextDueDate(values.date, frequency);
+
           recurringId = await addRecurringExpense({
             userId: user.uid,
             description: values.description,
             amount: values.amount,
             category: values.category,
-            dayOfMonth: values.date.getDate(),
+            frequency: frequency,
+            nextDueDate: nextDueDate,
             isActive: true,
-            lastProcessed: null,
           });
           toast.success("Recurring expense schedule created!");
         }
@@ -332,7 +347,24 @@ export function AddExpenseDialog({ open, onOpenChange, onExpenseAdded, defaultDa
             
             {!isEditing && (
               <div className="space-y-4">
-                <FormField control={form.control} name="isRecurring" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Recurring Expense</FormLabel><p className="text-xs text-muted-foreground">Repeats monthly on the selected day.</p></div><FormControl><Switch checked={field.value} onCheckedChange={(val) => { field.onChange(val); if(val) setValue('isSplit', false); }} disabled={isEditing || isSplit}/></FormControl></FormItem>)} />
+                <FormField control={form.control} name="isRecurring" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Recurring Expense</FormLabel><p className="text-xs text-muted-foreground">Set up an automatic recurring payment.</p></div><FormControl><Switch checked={field.value} onCheckedChange={(val) => { field.onChange(val); if(val) setValue('isSplit', false); }} disabled={isEditing || isSplit}/></FormControl></FormItem>)} />
+                {isRecurring && (
+                    <FormField control={control} name="recurringFrequency" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Frequency</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Select frequency..." /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                    <SelectItem value="daily">Daily</SelectItem>
+                                    <SelectItem value="weekly">Weekly</SelectItem>
+                                    <SelectItem value="monthly">Monthly</SelectItem>
+                                    <SelectItem value="yearly">Yearly</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                )}
                 <FormField control={form.control} name="isSplit" render={({ field }) => (<FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"><div className="space-y-0.5"><FormLabel>Split Expense</FormLabel><p className="text-xs text-muted-foreground">Split this bill with others.</p></div><FormControl><Switch checked={field.value} onCheckedChange={(val) => { field.onChange(val); if(val) setValue('isRecurring', false); }} disabled={isEditing} /></FormControl></FormItem>)} />
               </div>
             )}

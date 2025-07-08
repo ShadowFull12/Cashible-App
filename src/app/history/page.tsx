@@ -1,8 +1,8 @@
 
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
-import { HandCoins, MoreHorizontal } from "lucide-react";
+import { useState, useMemo, useCallback, ReactNode } from "react";
+import { HandCoins, MoreHorizontal, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import React from "react";
@@ -36,8 +36,39 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { Transaction } from "@/lib/data";
 import { AddExpenseDialog } from "@/components/add-expense-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+type SortableKeys = keyof Pick<Transaction, 'description' | 'category' | 'date' | 'amount'>;
+
+type SortConfig = {
+  key: SortableKeys;
+  direction: 'ascending' | 'descending';
+} | null;
+
+interface SortableHeaderProps {
+  children: ReactNode;
+  columnKey: SortableKeys;
+  sortConfig: SortConfig;
+  requestSort: (key: SortableKeys) => void;
+  className?: string;
+}
+
+const SortableHeader = ({ children, columnKey, sortConfig, requestSort, className }: SortableHeaderProps) => {
+  const isSorted = sortConfig?.key === columnKey;
+  const icon = isSorted ? (sortConfig?.direction === 'ascending' ? <ArrowUp className="size-4" /> : <ArrowDown className="size-4" />) : null;
+
+  return (
+    <TableHead className={cn("cursor-pointer hover:bg-muted/50 transition-colors", className)} onClick={() => requestSort(columnKey)}>
+      <div className="flex items-center gap-2">
+        {children}
+        {icon}
+      </div>
+    </TableHead>
+  );
+};
+
 
 export default function HistoryPage() {
   const { transactions, categories, isLoading, refreshData } = useData();
@@ -46,6 +77,7 @@ export default function HistoryPage() {
   const [filterMonth, setFilterMonth] = useState<string>("all");
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
   const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
+  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
 
   const availableYears = useMemo(() => {
     const years = new Set(transactions.map(t => t.date.getFullYear()));
@@ -58,9 +90,24 @@ export default function HistoryPage() {
         return acc;
     }, {} as {[key: string]: string});
   }, [categories]);
+  
+  const requestSort = (key: SortableKeys) => {
+    let direction: 'ascending' | 'descending' = 'ascending';
+    if (sortConfig && sortConfig.key === key) {
+        if(sortConfig.direction === 'ascending') {
+            direction = 'descending';
+        } else {
+            // Cycle to off
+            setSortConfig(null);
+            return;
+        }
+    }
+    setSortConfig({ key, direction });
+  };
+
 
   const filteredExpenses = useMemo(() => {
-    return transactions.filter(t => {
+    let sortableItems = transactions.filter(t => {
       if (t.amount <= 0) return false;
       const descriptionMatch = (t.description || "").toLowerCase().includes(filterDescription.toLowerCase());
       const categoryMatch = filterCategory === 'all' || t.category === filterCategory;
@@ -68,7 +115,24 @@ export default function HistoryPage() {
       const yearMatch = t.date.getFullYear().toString() === filterYear;
       return descriptionMatch && categoryMatch && monthMatch && yearMatch;
     });
-  }, [transactions, filterDescription, filterCategory, filterMonth, filterYear]);
+
+    if (sortConfig !== null) {
+        sortableItems.sort((a, b) => {
+            if (a[sortConfig.key] < b[sortConfig.key]) {
+                return sortConfig.direction === 'ascending' ? -1 : 1;
+            }
+            if (a[sortConfig.key] > b[sortConfig.key]) {
+                return sortConfig.direction === 'ascending' ? 1 : -1;
+            }
+            return 0;
+        });
+    } else {
+        // Default sort by date descending
+        sortableItems.sort((a,b) => b.date.getTime() - a.date.getTime());
+    }
+
+    return sortableItems;
+  }, [transactions, filterDescription, filterCategory, filterMonth, filterYear, sortConfig]);
   
   const filteredIncome = useMemo(() => {
       return transactions.filter(t => {
@@ -156,10 +220,10 @@ export default function HistoryPage() {
                 <Table>
                     <TableHeader>
                     <TableRow>
-                        <TableHead>Transaction</TableHead>
-                        <TableHead>Category</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
+                        <SortableHeader columnKey="description" sortConfig={sortConfig} requestSort={requestSort}>Transaction</SortableHeader>
+                        <SortableHeader columnKey="category" sortConfig={sortConfig} requestSort={requestSort}>Category</SortableHeader>
+                        <SortableHeader columnKey="date" sortConfig={sortConfig} requestSort={requestSort}>Date</SortableHeader>
+                        <SortableHeader columnKey="amount" sortConfig={sortConfig} requestSort={requestSort} className="text-right">Amount</SortableHeader>
                         <TableHead className="w-[10px]"></TableHead>
                     </TableRow>
                     </TableHeader>
