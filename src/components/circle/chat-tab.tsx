@@ -35,7 +35,7 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({ message, currentUser,
     const isCurrentUser = message.user.uid === currentUser.uid;
 
     return (
-        <div className={cn("flex w-full items-start gap-2", isCurrentUser ? "justify-end" : "justify-start")}>
+        <div className={cn("flex max-w-full items-start gap-2", isCurrentUser ? "self-end" : "self-start")}>
             {/* Left-side Avatar */}
             {!isCurrentUser && (
                 <Avatar className="h-8 w-8 self-end flex-shrink-0">
@@ -222,7 +222,7 @@ export function ChatTab({ circle }: ChatTabProps) {
             <CardContent>
                 <div className="flex flex-col h-[60vh]">
                     {/* Main chat area with overflow controls */}
-                    <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
+                    <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 flex flex-col gap-4">
                         {messages.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                                 <MessagesSquare className="size-16 mb-4"/>
