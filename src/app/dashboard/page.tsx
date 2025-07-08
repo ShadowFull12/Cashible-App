@@ -28,7 +28,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
-import React, { useMemo } from "react";
+import React, { useMemo, useCallback } from "react";
 import { deleteTransaction } from "@/services/transactionService";
 import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
@@ -41,6 +41,10 @@ export default function DashboardPage() {
   const { user, userData } = useAuth();
   const { transactions, categories, isLoading, refreshData } = useData();
   const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
+
+  const handleDialogClose = useCallback(() => {
+    setEditingTransaction(null);
+  }, []);
   
   const categoryColors = useMemo(() => {
     return categories.reduce((acc, cat) => {
@@ -260,7 +264,7 @@ export default function DashboardPage() {
     {editingTransaction && (
          <AddExpenseDialog
                 open={!!editingTransaction}
-                onOpenChange={() => setEditingTransaction(null)}
+                onOpenChange={handleDialogClose}
                 onExpenseAdded={refreshData}
                 transactionToEdit={editingTransaction}
             />

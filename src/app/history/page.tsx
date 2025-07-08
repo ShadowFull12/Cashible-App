@@ -162,6 +162,10 @@ export default function HistoryPage() {
       setEditingTransaction(null);
   }, [refreshData])
 
+  const handleDialogClose = useCallback(() => {
+    setEditingTransaction(null);
+  }, []);
+
   return (
     <>
     <Card>
@@ -342,7 +346,7 @@ export default function HistoryPage() {
      {editingTransaction && (
          <AddExpenseDialog
                 open={!!editingTransaction}
-                onOpenChange={() => setEditingTransaction(null)}
+                onOpenChange={handleDialogClose}
                 onExpenseAdded={handleUpdate}
                 transactionToEdit={editingTransaction}
             />
