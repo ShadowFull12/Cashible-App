@@ -30,6 +30,7 @@ export default function InsightsPage() {
   const categoryChartRef = useRef<HTMLDivElement>(null);
   const dailySpendChartRef = useRef<HTMLDivElement>(null);
   const monthlyTrendChartRef = useRef<HTMLDivElement>(null);
+  const insightsReportRef = useRef<HTMLDivElement>(null);
 
   const positiveTransactions = useMemo(() => transactions.filter(t => t.amount > 0), [transactions]);
 
@@ -90,9 +91,9 @@ export default function InsightsPage() {
     return { topCategory, avgDaily: Math.round(avgDaily), netSpent };
   }, [transactions, categoryData]);
 
-  const { totalMonthlyExpenses, totalMonthlyIncome, netMonthlySaving, currentMonthTransactions } = useMemo(() => {
+  const { totalMonthlyExpenses, totalMonthlyIncome, netSpending, currentMonthTransactions } = useMemo(() => {
     if (transactions.length === 0) {
-      return { totalMonthlyExpenses: 0, totalMonthlyIncome: 0, netMonthlySaving: 0, currentMonthTransactions: [] };
+      return { totalMonthlyExpenses: 0, totalMonthlyIncome: 0, netSpending: 0, currentMonthTransactions: [] };
     }
     const now = new Date();
     const firstDay = startOfMonth(now);
@@ -110,7 +111,7 @@ export default function InsightsPage() {
     return {
       totalMonthlyExpenses: totalExpenses,
       totalMonthlyIncome: totalIncome,
-      netMonthlySaving: totalIncome - totalExpenses,
+      netSpending: totalExpenses - totalIncome,
       currentMonthTransactions: expenses.sort((a, b) => a.date.getTime() - b.date.getTime())
     };
   }, [transactions]);
@@ -139,28 +140,6 @@ export default function InsightsPage() {
     }
   };
 
-  const addImageToPdf = async (doc: jsPDF, element: HTMLElement | null, y: number, title: string) => {
-    if (!element) return y;
-    
-    doc.setFontSize(16);
-    doc.text(title, 14, y);
-    y += 10;
-    
-    try {
-        const canvas = await html2canvas(element, { backgroundColor: null });
-        const imgData = canvas.toDataURL('image/png');
-        const imgProps = doc.getImageProperties(imgData);
-        const pdfWidth = doc.internal.pageSize.getWidth() - 28;
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-        doc.addImage(imgData, 'PNG', 14, y, pdfWidth, pdfHeight);
-        return y + pdfHeight + 15;
-    } catch(e) {
-        console.error("Error capturing chart for PDF:", e);
-        doc.setFontSize(10).text("Could not render chart.", 14, y);
-        return y + 10;
-    }
-  };
-
   const handleDownloadPDF = async () => {
     if(isDownloading) return;
     setIsDownloading(true);
@@ -169,39 +148,83 @@ export default function InsightsPage() {
     const monthName = format(new Date(), 'MMMM yyyy');
     const userDisplayName = user?.displayName || 'User';
 
+    let y = 20;
+    const PAGE_HEIGHT = doc.internal.pageSize.getHeight();
+    const PAGE_MARGIN = 20;
+
+    const checkPageBreak = (currentY: number, elementHeight: number) => {
+        if (currentY + elementHeight > PAGE_HEIGHT - PAGE_MARGIN) {
+            doc.addPage();
+            return PAGE_MARGIN;
+        }
+        return currentY;
+    };
+    
+    const addImageToPdf = async (doc: jsPDF, element: HTMLElement | null, yPos: number, title: string, widthPercent = 0.8) => {
+      if (!element) return yPos;
+      
+      const titleHeight = 10;
+      yPos = checkPageBreak(yPos, titleHeight);
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.text(title, 14, yPos);
+      yPos += titleHeight;
+      
+      try {
+          const canvas = await html2canvas(element, { backgroundColor: null, scale: 2 });
+          const imgData = canvas.toDataURL('image/png');
+          const imgProps = doc.getImageProperties(imgData);
+          const pdfWidth = (doc.internal.pageSize.getWidth() - 28) * widthPercent;
+          const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+          
+          yPos = checkPageBreak(yPos, pdfHeight);
+
+          const xOffset = (doc.internal.pageSize.getWidth() - pdfWidth) / 2;
+          doc.addImage(imgData, 'PNG', xOffset, yPos, pdfWidth, pdfHeight);
+          return yPos + pdfHeight + 15;
+      } catch(e) {
+          console.error("Error capturing chart for PDF:", e);
+          yPos = checkPageBreak(yPos, 10);
+          doc.setFont('helvetica', 'normal').setFontSize(10).text("Could not render chart.", 14, yPos);
+          return yPos + 10;
+      }
+    };
+
+    // --- PDF CONTENT ---
     // Header
     doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
-    doc.text('SpendWise Monthly Report', 105, 20, { align: 'center' });
+    doc.text('SpendWise Monthly Report', doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
+    y += 8;
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
-    doc.text(`${monthName} for ${userDisplayName}`, 105, 28, { align: 'center' });
+    doc.text(`${monthName} for ${userDisplayName}`, doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
+    y += 15;
 
     // Summary Section
-    doc.setFontSize(18);
+    doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('Monthly Summary', 14, 45);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
-    doc.text(`Total Expenses:`, 14, 55);
-    doc.text(`₹${totalMonthlyExpenses.toLocaleString()}`, 60, 55);
-    doc.text(`Total Income:`, 14, 62);
-    doc.text(`₹${totalMonthlyIncome.toLocaleString()}`, 60, 62);
-    doc.setLineWidth(0.5);
-    doc.line(14, 66, 196, 66);
-    doc.setFont('helvetica', 'bold');
-    doc.text(`Net Saving:`, 14, 73);
-    doc.setTextColor(netMonthlySaving >= 0 ? '#10b981' : '#ef4444');
-    doc.text(`₹${netMonthlySaving.toLocaleString()}`, 60, 73);
-    doc.setTextColor(0);
-    doc.setFont('helvetica', 'normal');
+    doc.text('Monthly Summary', 14, y);
+    y += 8;
+    (doc as any).autoTable({
+      startY: y,
+      body: [
+        ['Total Expenses:', `₹${totalMonthlyExpenses.toLocaleString()}`],
+        ['Total Income:', `₹${totalMonthlyIncome.toLocaleString()}`],
+      ],
+      theme: 'plain',
+      styles: { font: 'helvetica', fontSize: 11 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 10;
 
     // Transactions Table
-    doc.setFontSize(18);
+    y = checkPageBreak(y, 15);
+    doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
-    doc.text('Expense Transactions', 14, 88);
+    doc.text('Expense Transactions', 14, y);
+    y += 8;
     (doc as any).autoTable({
-        startY: 95,
+        startY: y,
         head: [['Date', 'Description', 'Category', 'Amount (₹)']],
         body: currentMonthTransactions.map(t => [
             format(t.date, 'dd MMM, yyyy'),
@@ -214,27 +237,47 @@ export default function InsightsPage() {
         styles: { font: 'helvetica', fontSize: 10 },
         columnStyles: { 3: { halign: 'right' } }
     });
+    y = (doc as any).lastAutoTable.finalY + 15;
 
-    let finalY = (doc as any).lastAutoTable.finalY || 100;
+    // Charts & Graphs
+    y = checkPageBreak(y, 15);
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Visual Analysis', 14, y);
+    y += 10;
     
-    // Add Charts
-    doc.addPage();
-    let chartY = 20;
-    chartY = await addImageToPdf(doc, categoryChartRef.current, chartY, 'Spending by Category');
-    chartY = await addImageToPdf(doc, dailySpendChartRef.current, chartY, 'Spending by Day of Week');
-    chartY = await addImageToPdf(doc, monthlyTrendChartRef.current, chartY, 'Monthly Spending Trend');
+    // Add charts, potentially adding new pages as needed
+    y = await addImageToPdf(doc, categoryChartRef.current, y, 'Spending by Category', 0.9);
+    y = await addImageToPdf(doc, dailySpendChartRef.current, y, 'Spending by Day of Week', 0.9);
+    y = await addImageToPdf(doc, monthlyTrendChartRef.current, y, 'Monthly Spending Trend', 0.9);
 
-    // Add Insights
-    if (insights) {
-        doc.addPage();
-        doc.setFontSize(18);
-        doc.setFont('helvetica', 'bold');
-        doc.text('AI-Powered Insights', 14, 20);
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(11);
-        const splitInsights = doc.splitTextToSize(insights.replace(/#/g, '').replace(/\*/g, ''), 180);
-        doc.text(splitInsights, 14, 30);
+    // AI Insights
+    if (insights && insightsReportRef.current) {
+        y = checkPageBreak(y, 15);
+        const insightsElement = insightsReportRef.current;
+        const canvas = await html2canvas(insightsElement, { backgroundColor: null, scale: 2 });
+        const imgData = canvas.toDataURL('image/png');
+        const imgProps = doc.getImageProperties(imgData);
+        const pdfWidth = doc.internal.pageSize.getWidth() - 28;
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        
+        y = checkPageBreak(y, pdfHeight);
+        doc.addImage(imgData, 'PNG', 14, y, pdfWidth, pdfHeight);
+        y += pdfHeight + 15;
     }
+    
+    // Final Calculation
+    y = checkPageBreak(y, 20);
+    doc.setLineWidth(0.5);
+    doc.line(14, y, doc.internal.pageSize.getWidth() - 14, y);
+    y += 15;
+    
+    doc.setFontSize(18);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Net Monthly Expenses', 14, y);
+    doc.setFontSize(22);
+    doc.text(`₹${netSpending.toLocaleString()}`, doc.internal.pageSize.getWidth() - 14, y, { align: 'right' });
+    y += 10;
     
     // Footer
     const pageCount = (doc as any).internal.getNumberOfPages();
@@ -367,12 +410,14 @@ export default function InsightsPage() {
                 </Alert>
             )}
             {insights && (
-              <Alert className="mt-4 w-full">
-                <AlertTitle>Your Financial Analysis</AlertTitle>
-                <AlertDescription>
-                  <div className="prose prose-sm dark:prose-invert" dangerouslySetInnerHTML={{ __html: insights.replace(/\n/g, '<br />') }} />
-                </AlertDescription>
-              </Alert>
+              <div ref={insightsReportRef}>
+                <Alert className="mt-4 w-full">
+                  <AlertTitle>Your Financial Analysis</AlertTitle>
+                  <AlertDescription>
+                    <div className="prose prose-sm dark:prose-invert" dangerouslySetInnerHTML={{ __html: insights.replace(/\n/g, '<br />') }} />
+                  </AlertDescription>
+                </Alert>
+              </div>
             )}
           </div>
         </CardContent>

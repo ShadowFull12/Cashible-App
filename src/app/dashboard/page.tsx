@@ -46,6 +46,11 @@ export default function DashboardPage() {
     setEditingTransaction(null);
   }, []);
   
+  const handleExpenseUpdated = useCallback(() => {
+    refreshData();
+    setEditingTransaction(null);
+  }, [refreshData]);
+
   const categoryColors = useMemo(() => {
     return categories.reduce((acc, cat) => {
         acc[cat.name] = cat.color;
@@ -265,7 +270,7 @@ export default function DashboardPage() {
          <AddExpenseDialog
                 open={!!editingTransaction}
                 onOpenChange={handleDialogClose}
-                onExpenseAdded={refreshData}
+                onExpenseAdded={handleExpenseUpdated}
                 transactionToEdit={editingTransaction}
             />
     )}
