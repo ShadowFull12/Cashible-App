@@ -178,7 +178,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [user, refreshUserData]);
 
     useEffect(() => {
-        if (user && userData && !hasProcessedRecurring) {
+        if (typeof window !== 'undefined' && user && userData && !hasProcessedRecurring) {
             const runRecurringExpenseCheck = async () => {
                 setRecurringLoading(true);
                 try {
@@ -201,7 +201,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [user, userData, hasProcessedRecurring, processRecurringExpenses, refreshData]);
 
     useEffect(() => {
-        if (!user) {
+        if (typeof window !== 'undefined' && !user) {
             setTransactions([]);
             setCategories([]);
             setRecurringExpenses([]);
@@ -213,22 +213,22 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             resetLoadingStates();
             setHasProcessedRecurring(false);
             setHasNewNotification(false);
-        } else {
+        } else if (typeof window !== 'undefined') {
              resetLoadingStates();
         }
     }, [user, resetLoadingStates]);
     
     useEffect(() => {
-        if (userData?.categories) {
+        if (typeof window !== 'undefined' && userData?.categories) {
             setCategories(userData.categories);
             setCategoriesLoading(false);
-        } else if (user) {
+        } else if (typeof window !== 'undefined' && user) {
             setCategoriesLoading(true);
         }
     }, [userData, user]);
     
     useEffect(() => {
-        if (user) {
+        if (typeof window !== 'undefined' && user) {
             const unsubscribe = getTransactionsListener(user.uid, (data) => {
                 setTransactions(data);
                 setTransactionsLoading(false);
@@ -238,7 +238,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [user]);
     
     useEffect(() => {
-        if (user) {
+        if (typeof window !== 'undefined' && user) {
             const unsubscribe = getRecurringExpenses(user.uid).then(data => {
                 setRecurringExpenses(data);
                 setRecurringLoading(false);
@@ -249,7 +249,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [user]);
 
     useEffect(() => {
-        if (user) {
+        if (typeof window !== 'undefined' && user) {
             const unsubscribe = getNotificationsForUser(user.uid, (data) => {
                 // This check avoids firing notifications on the initial load.
                 if (prevNotificationsRef.current.length > 0) {
@@ -298,7 +298,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [user]);
 
     useEffect(() => {
-        if (user) {
+        if (typeof window !== 'undefined' && user) {
             const unsubscribe = getFriendRequestsListener(user.uid, (data) => {
                 setFriendRequests(data);
                 setRequestsLoading(false);
@@ -308,7 +308,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [user]);
 
     useEffect(() => {
-        if (user) {
+        if (typeof window !== 'undefined' && user) {
             const unsubscribe = getFriendsListener(user.uid, (data) => {
                 setFriends(data);
                 setFriendsLoading(false);
@@ -318,7 +318,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [user]);
 
     useEffect(() => {
-        if (user) {
+        if (typeof window !== 'undefined' && user) {
             const unsubscribe = getCirclesForUserListener(user.uid, (data) => {
                 setCircles(data);
                 setCirclesLoading(false);
@@ -328,7 +328,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
     }, [user]);
 
     useEffect(() => {
-        if (user) {
+        if (typeof window !== 'undefined' && user) {
             const unsubscribe = getSettlementsForUserListener(user.uid, (data) => {
                 setSettlements(data);
                 setSettlementsLoading(false);
@@ -353,7 +353,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
             await markAllNotificationsAsRead(user.uid);
             setHasNewNotification(false);
         } catch (error) {
-            console.error("Failed to mark all notifications as read", error);
+            console.error("Failed to mark all notifications as read", Error);
             toast.error("Failed to update notifications.");
         }
     }
