@@ -1,7 +1,7 @@
 
 "use client";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { Download } from 'lucide-react';
@@ -32,6 +32,7 @@ export function ImagePreviewDialog({ isOpen, onClose, imageUrl }: ImagePreviewDi
             <DialogContent className="max-w-4xl p-2">
                 <DialogHeader>
                     <DialogTitle className="sr-only">Image Preview</DialogTitle>
+                    <DialogDescription className="sr-only">A larger preview of the selected image from the chat.</DialogDescription>
                 </DialogHeader>
                 <div className="relative w-full h-[80vh]">
                     <Image 
