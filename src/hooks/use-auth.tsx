@@ -86,21 +86,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [fetchUserData]);
 
   useEffect(() => {
-    if (!auth) {
+    if (typeof window !== 'undefined') {
+      const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        setUser(currentUser);
+        if (currentUser) {
+          await fetchUserData(currentUser);
+        } else {
+          setUserData(null);
+          setIsSettingUsername(false);
+        }
         setLoading(false);
-        return;
-    }
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser);
-      if (currentUser) {
-        await fetchUserData(currentUser);
-      } else {
-        setUserData(null);
-        setIsSettingUsername(false);
-      }
+      });
+      return () => unsubscribe();
+    } else {
       setLoading(false);
-    });
-    return () => unsubscribe();
+    }
   }, [fetchUserData]);
 
   const logout = useCallback(async () => {
@@ -203,7 +203,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const deleteAccount = useCallback(async () => {
       if (!user) throw new Error("User not authenticated.");
       await userService.deleteAllUserData(user.uid);
-      await firebaseDeleteUser(user);
+      await firebaseDelete_user(user);
   }, [user]);
 
   const value: AuthContextType = {
