@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -136,7 +137,7 @@ export function ChatTab({ circle }: ChatTabProps) {
                             </div>
                         )}
                         {messages.map(msg => (
-                            <div key={msg.id} className={cn("flex items-end gap-2 group", msg.user.uid === user.uid ? "justify-end" : "justify-start")}>
+                            <div key={msg.id} className={cn("flex w-full items-end gap-2 group", msg.user.uid === user.uid ? "justify-end" : "justify-start")}>
                                 {msg.user.uid !== user.uid && (
                                     <Avatar className="h-8 w-8 self-end">
                                         <AvatarImage src={msg.user.photoURL || undefined} />
@@ -145,7 +146,7 @@ export function ChatTab({ circle }: ChatTabProps) {
                                 )}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <div className={cn("max-w-3/4 rounded-lg px-3 py-2 cursor-pointer", msg.user.uid === user.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
+                                        <div className={cn("max-w-[70%] rounded-lg px-3 py-2 cursor-pointer", msg.user.uid === user.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
                                              {msg.isDeleted ? (
                                                 <p className="text-sm italic opacity-70">This message was deleted</p>
                                              ) : (
@@ -161,7 +162,7 @@ export function ChatTab({ circle }: ChatTabProps) {
                                                             className="rounded-md my-2 object-cover"
                                                         />
                                                     )}
-                                                    {msg.text && <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>}
+                                                    {msg.text && <p className="text-sm whitespace-pre-wrap break-all">{msg.text}</p>}
                                                     <p className="text-xs opacity-70 mt-1 text-right">{format(msg.createdAt, "p")}</p>
                                                 </>
                                              )}
