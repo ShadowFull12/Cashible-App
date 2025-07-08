@@ -128,7 +128,7 @@ export function ChatTab({ circle }: ChatTabProps) {
             </CardHeader>
             <CardContent>
                 <div className="flex flex-col h-[60vh]">
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                    <div className="flex-1 overflow-y-auto overflow-x-hidden p-4 space-y-4">
                         {messages.length === 0 && (
                             <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
                                 <MessagesSquare className="size-16 mb-4"/>
@@ -146,7 +146,7 @@ export function ChatTab({ circle }: ChatTabProps) {
                                 )}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <div className={cn("max-w-[70%] rounded-lg px-3 py-2 cursor-pointer", msg.user.uid === user.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
+                                        <div className={cn("max-w-[70%] overflow-hidden rounded-lg px-3 py-2 cursor-pointer", msg.user.uid === user.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
                                              {msg.isDeleted ? (
                                                 <p className="text-sm italic opacity-70">This message was deleted</p>
                                              ) : (
@@ -162,7 +162,7 @@ export function ChatTab({ circle }: ChatTabProps) {
                                                             className="rounded-md my-2 object-cover"
                                                         />
                                                     )}
-                                                    {msg.text && <p className="text-sm whitespace-pre-wrap break-all">{msg.text}</p>}
+                                                    {msg.text && <p className="text-sm whitespace-pre-wrap break-words">{msg.text}</p>}
                                                     <p className="text-xs opacity-70 mt-1 text-right">{format(msg.createdAt, "p")}</p>
                                                 </>
                                              )}
