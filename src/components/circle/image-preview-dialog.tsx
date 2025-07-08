@@ -29,12 +29,12 @@ export function ImagePreviewDialog({ isOpen, onClose, imageUrl }: ImagePreviewDi
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl p-2">
+            <DialogContent className="w-[95vw] max-w-4xl h-auto p-2">
                 <DialogHeader>
                     <DialogTitle className="sr-only">Image Preview</DialogTitle>
                     <DialogDescription className="sr-only">A larger preview of the selected image from the chat.</DialogDescription>
                 </DialogHeader>
-                <div className="relative w-full h-[80vh]">
+                <div className="relative w-full h-[85vh]">
                     <Image 
                         src={imageUrl} 
                         alt="Image Preview" 
@@ -42,7 +42,7 @@ export function ImagePreviewDialog({ isOpen, onClose, imageUrl }: ImagePreviewDi
                         objectFit="contain"
                     />
                 </div>
-                <DialogFooter>
+                <DialogFooter className="sm:justify-end">
                     <Button onClick={handleDownload}>
                         <Download className="mr-2" /> Download
                     </Button>

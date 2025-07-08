@@ -92,35 +92,37 @@ export function HistoryTab({ circle, transactions, settlements, isOwner }: Histo
                         if (!payer) return null;
 
                         return (
-                            <div key={item.id} className="flex items-start gap-4 p-3 border rounded-lg">
-                                <Avatar className="h-10 w-10">
-                                    <AvatarImage src={payer.photoURL || undefined} />
-                                    <AvatarFallback>{payer.displayName.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                                <div className="flex-grow">
-                                    {item.type === 'transaction' ? (
-                                        <>
-                                            <p className="text-sm">
-                                                <span className="font-bold">{payer.displayName}</span> paid for <span className="font-bold">"{item.description}"</span>
-                                            </p>
-                                            <div className="text-xs text-muted-foreground flex items-center gap-4 mt-1">
-                                                <span>{format(item.date, 'PPP')}</span>
-                                                <Badge variant="outline"><Receipt className="mr-1 size-3"/> {item.category}</Badge>
-                                            </div>
-                                        </>
-                                    ) : (
-                                         <>
-                                            <p className="text-sm">
-                                                <span className="font-bold">{payer.displayName}</span> paid back <span className="font-bold">{item.toUser.displayName}</span>
-                                            </p>
-                                             <div className="text-xs text-muted-foreground flex items-center gap-4 mt-1">
-                                                <span>{format(item.createdAt, 'PPP')}</span>
-                                                <Badge variant="outline" className="text-green-600 border-green-600/50"><HandCoins className="mr-1 size-3"/> Settlement</Badge>
-                                            </div>
-                                        </>
-                                    )}
+                            <div key={item.id} className="flex flex-col sm:flex-row items-start justify-between gap-2 p-3 border rounded-lg">
+                                <div className="flex items-start gap-4 flex-grow">
+                                    <Avatar className="h-10 w-10">
+                                        <AvatarImage src={payer.photoURL || undefined} />
+                                        <AvatarFallback>{payer.displayName.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-grow">
+                                        {item.type === 'transaction' ? (
+                                            <>
+                                                <p className="text-sm">
+                                                    <span className="font-bold">{payer.displayName}</span> paid for <span className="font-bold">"{item.description}"</span>
+                                                </p>
+                                                <div className="text-xs text-muted-foreground flex items-center flex-wrap gap-x-4 gap-y-1 mt-1">
+                                                    <span>{format(item.date, 'PPP')}</span>
+                                                    <Badge variant="outline"><Receipt className="mr-1 size-3"/> {item.category}</Badge>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <p className="text-sm">
+                                                    <span className="font-bold">{payer.displayName}</span> paid back <span className="font-bold">{item.toUser.displayName}</span>
+                                                </p>
+                                                <div className="text-xs text-muted-foreground flex items-center flex-wrap gap-x-4 gap-y-1 mt-1">
+                                                    <span>{format(item.createdAt, 'PPP')}</span>
+                                                    <Badge variant="outline" className="text-green-600 border-green-600/50"><HandCoins className="mr-1 size-3"/> Settlement</Badge>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="flex items-center">
+                                <div className="flex items-center self-end sm:self-center">
                                     {item.type === 'transaction' ? (
                                         <p className="font-bold text-lg">₹{item.amount.toFixed(2)}</p>
                                     ) : (

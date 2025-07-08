@@ -146,7 +146,7 @@ export function ChatTab({ circle }: ChatTabProps) {
                                 )}
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <div className={cn("max-w-xs sm:max-w-md rounded-lg px-3 py-2 cursor-pointer", msg.user.uid === user.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
+                                        <div className={cn("max-w-[85%] rounded-lg px-3 py-2 cursor-pointer", msg.user.uid === user.uid ? "bg-primary text-primary-foreground" : "bg-muted")}>
                                              {msg.isDeleted ? (
                                                 <p className="text-sm italic opacity-70">This message was deleted</p>
                                              ) : (
@@ -213,7 +213,7 @@ export function ChatTab({ circle }: ChatTabProps) {
                             <span className="sr-only">Attach file</span>
                         </Button>
                         <input type="file" accept="image/*" ref={fileInputRef} onChange={handleFileChange} className="hidden"/>
-                         {uploadingFile && <span className="text-sm text-muted-foreground truncate max-w-xs">{uploadingFile.name}</span>}
+                         {uploadingFile && <span className="text-sm text-muted-foreground truncate max-w-[10rem]">{uploadingFile.name}</span>}
                         <Input 
                             placeholder="Type a message..." 
                             value={newMessage}
