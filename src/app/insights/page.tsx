@@ -5,7 +5,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import { spendingInsights, SpendingInsightsInput } from "@/ai/flows/spending-insights";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Lightbulb, Loader2, TrendingUp, Trophy, CalendarDays, Download } from "lucide-react";
+import { Lightbulb, Loader2, Trophy, CalendarDays, Download } from "lucide-react";
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip, BarChart, XAxis, YAxis, Bar, CartesianGrid, LineChart, Line } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -389,63 +389,51 @@ export default function InsightsPage() {
 
     // Charts & Graphs
     const activeTabContent = document.querySelector('[role="tabpanel"][data-state="active"]');
-    if (!activeTabContent) {
-        toast.error("Could not find report content. Please ensure you are on the correct tab.");
-        setIsDownloading(false);
-        return;
-    }
-
-    const chartElements = activeTabContent.querySelectorAll('[data-chart-ref]');
-    if (chartElements.length > 0) {
-        y = checkPageBreak(y, 20); // check space for header
-        if (y === PAGE_MARGIN) { // if new page was added
-             doc.setFontSize(18); doc.setFont('helvetica', 'bold');
-             doc.text('Visual Analysis', 14, y);
-             y += 10;
-        } else {
+    if (activeTabContent) {
+        const chartElements = activeTabContent.querySelectorAll('[data-chart-ref]');
+        if (chartElements.length > 0) {
+            y = checkPageBreak(y, 20); // check space for header
             doc.addPage(); y = PAGE_MARGIN;
             doc.setFontSize(18); doc.setFont('helvetica', 'bold');
             doc.text('Visual Analysis', 14, y);
             y += 10;
-        }
-        
-        let xPos = 14;
-        let maxHeightInRow = 0;
-        let initialYForRow = y;
-
-        for (let i = 0; i < chartElements.length; i++) {
-            const element = chartElements[i] as HTMLElement;
-            const title = element.getAttribute('data-chart-title') || 'Chart';
             
-            let currentY = initialYForRow;
-            currentY = checkPageBreak(currentY, 10);
-            if (currentY === PAGE_MARGIN && i > 0) { // New page was added mid-row
-                initialYForRow = PAGE_MARGIN;
-                xPos = 14;
+            let xPos = 14;
+            let maxHeightInRow = 0;
+            let initialYForRow = y;
+
+            for (let i = 0; i < chartElements.length; i++) {
+                const element = chartElements[i] as HTMLElement;
+                const title = element.getAttribute('data-chart-title') || 'Chart';
+                
+                let currentY = initialYForRow;
+                
+                const canvas = await html2canvas(element, { backgroundColor: '#ffffff', scale: 2 });
+                const imgData = canvas.toDataURL('image/png');
+                const imgProps = doc.getImageProperties(imgData);
+                const pdfWidth = 85; // Fixed width for side-by-side charts
+                const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+                currentY = checkPageBreak(currentY, pdfHeight + 15); // +15 for title + margin
+                if(currentY === PAGE_MARGIN && i > 0) { // New page was added
+                    initialYForRow = PAGE_MARGIN;
+                    xPos = 14;
+                }
+                
+                doc.setFontSize(14).setFont('helvetica', 'bold').text(title, xPos, currentY);
+                doc.addImage(imgData, 'PNG', xPos, currentY + 10, pdfWidth, pdfHeight);
+
+                if ((i + 1) % 2 === 0) { // After every second chart
+                    xPos = 14; // Reset x for next row
+                    initialYForRow += Math.max(maxHeightInRow, pdfHeight) + 25;
+                    maxHeightInRow = 0; // Reset max height
+                } else {
+                    maxHeightInRow = Math.max(maxHeightInRow, pdfHeight);
+                    xPos += pdfWidth + 10; // Move x for next chart in row
+                }
             }
-
-            doc.setFontSize(14).setFont('helvetica', 'bold').text(title, xPos, currentY);
-
-            const canvas = await html2canvas(element, { backgroundColor: '#ffffff', scale: 2 });
-            const imgData = canvas.toDataURL('image/png');
-            const imgProps = doc.getImageProperties(imgData);
-            const pdfWidth = 85; // Fixed width for side-by-side charts
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-
-            maxHeightInRow = Math.max(maxHeightInRow, pdfHeight);
-
-            currentY = checkPageBreak(currentY, pdfHeight + 10); // +10 for title
-            doc.addImage(imgData, 'PNG', xPos, currentY + 10, pdfWidth, pdfHeight);
-
-            if ((i + 1) % 2 === 0) { // After every second chart
-                xPos = 14; // Reset x for next row
-                initialYForRow += maxHeightInRow + 25; // Move y down for next row
-                maxHeightInRow = 0; // Reset max height
-            } else {
-                xPos += pdfWidth + 10; // Move x for next chart in row
-            }
+            y = initialYForRow + (chartElements.length % 2 !== 0 ? maxHeightInRow + 15 : 0);
         }
-        y = initialYForRow + (chartElements.length % 2 !== 0 ? maxHeightInRow + 15 : 0);
     }
 
 
@@ -487,15 +475,15 @@ export default function InsightsPage() {
                     <TabsTrigger value="custom">By Month</TabsTrigger>
                 </TabsList>
                 {view === 'custom' && (
-                    <div className="flex gap-2">
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
                         <Select value={String(customMonth)} onValueChange={(v) => setCustomMonth(Number(v))}>
-                            <SelectTrigger className="w-[180px]"> <SelectValue placeholder="Select month" /> </SelectTrigger>
+                            <SelectTrigger className="w-full sm:w-[180px]"> <SelectValue placeholder="Select month" /> </SelectTrigger>
                             <SelectContent>
                                 {MONTHS.map((m, i) => <SelectItem key={i} value={String(i)}>{m}</SelectItem>)}
                             </SelectContent>
                         </Select>
                         <Select value={String(customYear)} onValueChange={(v) => setCustomYear(Number(v))}>
-                             <SelectTrigger className="w-[120px]"> <SelectValue placeholder="Select year" /> </SelectTrigger>
+                             <SelectTrigger className="w-full sm:w-[120px]"> <SelectValue placeholder="Select year" /> </SelectTrigger>
                              <SelectContent>
                                 {availableYears.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
                              </SelectContent>
@@ -503,7 +491,7 @@ export default function InsightsPage() {
                     </div>
                 )}
             </div>
-            <TabsContent value="current"><InsightSection transactions={periodTransactions} timePeriodLabel={periodLabel}/></TabsContent>
+            <TabsContent value="current" data-state="active"><InsightSection transactions={periodTransactions} timePeriodLabel={periodLabel}/></TabsContent>
             <TabsContent value="all"><InsightSection transactions={periodTransactions} timePeriodLabel={periodLabel}/></TabsContent>
             <TabsContent value="custom"><InsightSection transactions={periodTransactions} timePeriodLabel={periodLabel}/></TabsContent>
         </Tabs>

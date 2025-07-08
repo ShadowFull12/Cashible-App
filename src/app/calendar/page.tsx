@@ -11,11 +11,19 @@ import { Badge } from "@/components/ui/badge"
 import { format } from "date-fns"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { TransactionActions } from "@/components/transaction-actions"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { Skeleton } from "@/components/ui/skeleton"
 
 
 export default function CalendarPage() {
   const { transactions, categories, setNewExpenseDefaultDate, refreshData } = useData();
   const [date, setDate] = React.useState<Date | undefined>(new Date());
+
+  const [isClient, setIsClient] = React.useState(false);
+  const isMobile = useIsMobile();
+  React.useEffect(() => {
+    setIsClient(true);
+  }, []);
   
   React.useEffect(() => {
     // Set default date for new expenses when a date is selected
@@ -62,6 +70,56 @@ export default function CalendarPage() {
       );
       return dayMatch ? dayMatch.transactions : [];
   }, [date, expenseDays]);
+
+  const renderDesktopTable = () => (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Description</TableHead>
+          <TableHead>Category</TableHead>
+          <TableHead className="text-right">Amount</TableHead>
+          <TableHead className="w-[10px]"></TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {selectedDayExpenses.map(t => (
+          <TableRow key={t.id}>
+            <TableCell className="font-medium">{t.description}</TableCell>
+            <TableCell>
+              <Badge variant="outline" style={{borderColor: categoryColors[t.category]}}>
+                {t.category}
+              </Badge>
+            </TableCell>
+            <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
+              <TableCell>
+                  <TransactionActions transaction={t} onDelete={refreshData} onUpdate={refreshData} />
+              </TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+
+  const renderMobileCards = () => (
+    <div className="space-y-3">
+      {selectedDayExpenses.map(t => (
+        <Card key={t.id} className="p-4">
+            <div className="flex justify-between items-start">
+                <div className="flex-grow space-y-1">
+                    <p className="font-medium">{t.description}</p>
+                    <Badge variant="outline" style={{borderColor: categoryColors[t.category]}}>
+                        {t.category}
+                    </Badge>
+                </div>
+                <div className="flex flex-col items-end gap-2">
+                    <p className="font-bold text-lg">₹{t.amount.toLocaleString()}</p>
+                    <TransactionActions transaction={t} onDelete={refreshData} onUpdate={refreshData} />
+                </div>
+            </div>
+        </Card>
+      ))}
+    </div>
+  );
 
   return (
     <div className="grid gap-6">
@@ -140,32 +198,7 @@ export default function CalendarPage() {
           <CardDescription>A detailed list of your expenses for the selected day.</CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Description</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead className="text-right">Amount</TableHead>
-                <TableHead className="w-[10px]"></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {selectedDayExpenses.map(t => (
-                <TableRow key={t.id}>
-                  <TableCell className="font-medium">{t.description}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" style={{borderColor: categoryColors[t.category]}}>
-                      {t.category}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
-                   <TableCell>
-                        <TransactionActions transaction={t} onDelete={refreshData} onUpdate={refreshData} />
-                   </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          {isClient ? (isMobile ? renderMobileCards() : renderDesktopTable()) : <Skeleton className="h-40 w-full"/>}
         </CardContent>
       </Card>
     )}

@@ -211,12 +211,12 @@ export default function NotificationsPage() {
 
     return (
         <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
+            <CardHeader className="flex flex-col items-start gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                     <CardTitle className="flex items-center gap-2"><Bell /> Notifications</CardTitle>
                     <CardDescription>All your recent account activity.</CardDescription>
                 </div>
-                <Button variant="outline" onClick={markAllAsRead} disabled={unreadNotificationCount === 0}>
+                <Button variant="outline" onClick={markAllAsRead} disabled={unreadNotificationCount === 0} className="w-full sm:w-auto">
                     Mark all as read
                 </Button>
             </CardHeader>
@@ -272,7 +272,7 @@ export default function NotificationsPage() {
                                     </p>
                                     
                                     {!!matchingFriendRequest && (
-                                        <div className="flex gap-2 mt-2">
+                                        <div className="flex flex-wrap gap-2 mt-2">
                                             <Button size="sm" onClick={(e) => { e.stopPropagation(); handleAcceptFriend(matchingFriendRequest!.id, notification.fromUser); }} disabled={isProcessing}>
                                                 {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <UserCheck className="mr-2 size-4"/>} Accept
                                             </Button>
@@ -283,7 +283,7 @@ export default function NotificationsPage() {
                                     )}
 
                                     {isClaimRequest && (
-                                        <div className="flex gap-2 mt-2">
+                                        <div className="flex flex-wrap gap-2 mt-2">
                                             <Button size="sm" onClick={(e) => { e.stopPropagation(); handleAcceptClaim(notification); }} disabled={isProcessing}>
                                                 {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <ClipboardCheck className="mr-2 size-4"/>} Accept & Log
                                             </Button>
@@ -294,7 +294,7 @@ export default function NotificationsPage() {
                                     )}
 
                                      {isSettlementRequest && (
-                                        <div className="flex gap-2 mt-2">
+                                        <div className="flex flex-wrap gap-2 mt-2">
                                             <Button size="sm" onClick={(e) => { e.stopPropagation(); handleAcceptSettlement(notification); }} disabled={isProcessing}>
                                                 {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <Check className="mr-2 size-4"/>} Confirm
                                             </Button>
@@ -305,7 +305,7 @@ export default function NotificationsPage() {
                                     )}
 
                                     {isSettlementExpensePending && (
-                                        <div className="flex gap-2 mt-2">
+                                        <div className="flex flex-wrap gap-2 mt-2">
                                             <Button size="sm" onClick={(e) => { e.stopPropagation(); handleLogSettlement(notification); }} disabled={isProcessing}>
                                                 {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <ClipboardCheck className="mr-2 size-4"/>} Log as Expense
                                             </Button>
@@ -313,7 +313,7 @@ export default function NotificationsPage() {
                                     )}
 
                                     {isSettlementIncomePending && (
-                                        <div className="flex gap-2 mt-2">
+                                        <div className="flex flex-wrap gap-2 mt-2">
                                             <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); handleLogIncome(notification); }} disabled={isProcessing}>
                                                 {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <Wallet className="mr-2 size-4"/>} Log as Income
                                             </Button>
@@ -321,7 +321,7 @@ export default function NotificationsPage() {
                                     )}
                                     
                                     {isExpenseRemovedByOwner && (
-                                        <div className="flex gap-2 mt-2">
+                                        <div className="flex flex-wrap gap-2 mt-2">
                                             <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); handleDeleteFromHistory(notification); }} disabled={isProcessing}>
                                                 {isProcessing ? <Loader2 className="mr-2 size-4 animate-spin"/> : <Trash2 className="mr-2 size-4"/>} Delete from My History
                                             </Button>
