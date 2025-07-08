@@ -140,6 +140,24 @@ export default function InsightsPage() {
     }
   };
 
+  const parseMarkdown = (text: string) => {
+    const html = text
+      .replace(/^## (.*$)/gim, '<h3 class="text-lg font-semibold text-primary mt-4 mb-2">$1</h3>')
+      .replace(/^# (.*$)/gim, '<h2 class="text-xl font-bold text-primary mt-6 mb-2">$1</h2>')
+      .replace(/\*\*(.*?)\*\*/gim, '<strong>$1</strong>')
+      // Process bullet points into a single <ul> block
+      .replace(/(?:^\* (.*$)\n?)+/gim, (match) => {
+        const listItems = match.trim().split('\n').map(item =>
+          `<li class="ml-5 list-disc">${item.substring(2).trim()}</li>`
+        ).join('');
+        return `<ul class="space-y-1 mt-2">${listItems}</ul>`;
+      })
+      .replace(/\n/g, '<br />')
+      .replace(/<br \s*\/?>\s*<br \s*\/?>/g, '<br />'); // Prevent double line breaks
+
+    return html;
+  };
+
   const handleDownloadPDF = async () => {
     if(isDownloading) return;
     setIsDownloading(true);
@@ -171,7 +189,7 @@ export default function InsightsPage() {
       yPos += titleHeight;
       
       try {
-          const canvas = await html2canvas(element, { backgroundColor: null, scale: 2 });
+          const canvas = await html2canvas(element, { backgroundColor: '#ffffff', scale: 2 });
           const imgData = canvas.toDataURL('image/png');
           const imgProps = doc.getImageProperties(imgData);
           const pdfWidth = (doc.internal.pageSize.getWidth() - 28) * widthPercent;
@@ -181,7 +199,7 @@ export default function InsightsPage() {
 
           const xOffset = (doc.internal.pageSize.getWidth() - pdfWidth) / 2;
           doc.addImage(imgData, 'PNG', xOffset, yPos, pdfWidth, pdfHeight);
-          return yPos + pdfHeight + 15;
+          return yPos + pdfHeight + 10;
       } catch(e) {
           console.error("Error capturing chart for PDF:", e);
           yPos = checkPageBreak(yPos, 10);
@@ -202,6 +220,7 @@ export default function InsightsPage() {
     y += 15;
 
     // Summary Section
+    y = checkPageBreak(y, 15);
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.text('Monthly Summary', 14, y);
@@ -232,8 +251,8 @@ export default function InsightsPage() {
             t.category,
             t.amount.toLocaleString()
         ]),
-        theme: 'striped',
-        headStyles: { fillColor: '#10b981' },
+        theme: 'grid',
+        headStyles: { fillColor: [34, 197, 94] },
         styles: { font: 'helvetica', fontSize: 10 },
         columnStyles: { 3: { halign: 'right' } }
     });
@@ -247,24 +266,9 @@ export default function InsightsPage() {
     y += 10;
     
     // Add charts, potentially adding new pages as needed
-    y = await addImageToPdf(doc, categoryChartRef.current, y, 'Spending by Category', 0.9);
-    y = await addImageToPdf(doc, dailySpendChartRef.current, y, 'Spending by Day of Week', 0.9);
-    y = await addImageToPdf(doc, monthlyTrendChartRef.current, y, 'Monthly Spending Trend', 0.9);
-
-    // AI Insights
-    if (insights && insightsReportRef.current) {
-        y = checkPageBreak(y, 15);
-        const insightsElement = insightsReportRef.current;
-        const canvas = await html2canvas(insightsElement, { backgroundColor: null, scale: 2 });
-        const imgData = canvas.toDataURL('image/png');
-        const imgProps = doc.getImageProperties(imgData);
-        const pdfWidth = doc.internal.pageSize.getWidth() - 28;
-        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-        
-        y = checkPageBreak(y, pdfHeight);
-        doc.addImage(imgData, 'PNG', 14, y, pdfWidth, pdfHeight);
-        y += pdfHeight + 15;
-    }
+    y = await addImageToPdf(doc, categoryChartRef.current, y, 'Spending by Category', 0.85);
+    y = await addImageToPdf(doc, dailySpendChartRef.current, y, 'Spending by Day of Week', 0.85);
+    y = await addImageToPdf(doc, monthlyTrendChartRef.current, y, 'Monthly Spending Trend', 0.85);
     
     // Final Calculation
     y = checkPageBreak(y, 20);
@@ -274,9 +278,15 @@ export default function InsightsPage() {
     
     doc.setFontSize(18);
     doc.setFont('helvetica', 'bold');
-    doc.text('Net Monthly Expenses', 14, y);
-    doc.setFontSize(22);
-    doc.text(`₹${netSpending.toLocaleString()}`, doc.internal.pageSize.getWidth() - 14, y, { align: 'right' });
+    
+    const finalLabel = netSpending >= 0 ? 'Net Monthly Expenses' : 'Net Monthly Savings';
+    const finalAmount = `₹${Math.abs(netSpending).toLocaleString()}`;
+    const finalColor = netSpending >= 0 ? [220, 38, 38] : [22, 163, 74]; // red for expense, green for savings
+
+    doc.text(finalLabel, 14, y);
+    doc.setTextColor(finalColor[0], finalColor[1], finalColor[2]);
+    doc.text(finalAmount, doc.internal.pageSize.getWidth() - 14, y, { align: 'right' });
+    doc.setTextColor(0, 0, 0); // Reset color
     y += 10;
     
     // Footer
@@ -414,7 +424,10 @@ export default function InsightsPage() {
                 <Alert className="mt-4 w-full">
                   <AlertTitle>Your Financial Analysis</AlertTitle>
                   <AlertDescription>
-                    <div className="prose prose-sm dark:prose-invert" dangerouslySetInnerHTML={{ __html: insights.replace(/\n/g, '<br />') }} />
+                    <div
+                      className="prose prose-sm dark:prose-invert max-w-none"
+                      dangerouslySetInnerHTML={{ __html: parseMarkdown(insights) }}
+                    />
                   </AlertDescription>
                 </Alert>
               </div>
