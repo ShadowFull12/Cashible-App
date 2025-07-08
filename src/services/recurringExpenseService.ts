@@ -26,11 +26,18 @@ export async function getRecurringExpenses(userId: string): Promise<RecurringExp
         const expenses: RecurringExpense[] = [];
         querySnapshot.forEach((doc) => {
             const data = doc.data();
-            expenses.push({
-                id: doc.id,
-                ...data,
-                nextDueDate: (data.nextDueDate as Timestamp).toDate(),
-            } as RecurringExpense);
+            // Add a check to ensure nextDueDate exists before trying to convert it
+            if (data.nextDueDate && typeof data.nextDueDate.toDate === 'function') {
+                expenses.push({
+                    id: doc.id,
+                    ...data,
+                    nextDueDate: (data.nextDueDate as Timestamp).toDate(),
+                } as RecurringExpense);
+            } else {
+                // This will prevent a crash if a document is missing the nextDueDate.
+                // It's a good practice for data resilience.
+                console.warn(`Recurring expense document ${doc.id} is missing or has an invalid 'nextDueDate' and will be skipped.`);
+            }
         });
         return expenses;
     } catch (error) {
