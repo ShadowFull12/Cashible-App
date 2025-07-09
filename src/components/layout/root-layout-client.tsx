@@ -4,7 +4,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { AppLayout } from "@/components/layout/app-layout";
 import { useAuth } from "@/hooks/use-auth";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { DataProvider, useData } from "@/hooks/use-data";
 import { SplashScreen } from "../splash-screen";
 
@@ -13,46 +13,50 @@ function AppBootstrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading: authLoading, userData } = useAuth();
-  const { isLoading: dataLoading } = useData();
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const isAuthPage = pathname === "/" || pathname === "/signup";
 
   useEffect(() => {
-    // This effect acts as a global guard.
-    // It ensures unauthenticated users are always on an auth page.
-    if (authLoading) return;
+    // Guard effect: Redirects unauthenticated users from protected pages.
+    if (!isMounted || authLoading) return; // Wait for client mount and auth check
 
     if (!user && !isAuthPage) {
       router.push("/");
     }
-  }, [user, authLoading, isAuthPage, router]);
+  }, [user, authLoading, isAuthPage, router, isMounted]);
 
   useEffect(() => {
+    // Theme effect
     if (userData?.primaryColor) {
       document.documentElement.style.setProperty('--primary', userData.primaryColor);
       document.documentElement.style.setProperty('--ring', userData.primaryColor);
     }
   }, [userData?.primaryColor]);
 
-  // Show splash screen only during the initial auth check.
-  const showSplash = authLoading;
-
-  if (showSplash) {
+  // On server-side and initial client-side render, always show the splash screen
+  // to ensure the render trees match and prevent a hydration error.
+  if (!isMounted || authLoading) {
     return <SplashScreen />;
   }
 
-  // If we are on an auth page, just render the children (login/signup form)
+  // After hydration, we can safely render based on the auth state.
   if (isAuthPage) {
-     return <>{children}</>;
+    // The login/signup pages have their own logic to redirect authenticated users.
+    return <>{children}</>;
   }
 
-  // If we are on a protected page but have no user, the guard will redirect.
-  // We can show a splash screen in the meantime to avoid flicker.
+  // For protected pages, if there's no user, show a splash screen while the
+  // guard effect redirects them.
   if (!user) {
     return <SplashScreen />;
   }
-
-  // If user is authenticated and not on an auth page, render the full app layout
+  
+  // Authenticated user on a protected page.
   return <AppLayout>{children}</AppLayout>;
 }
 
