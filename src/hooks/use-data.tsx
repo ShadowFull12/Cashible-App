@@ -281,9 +281,9 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
 
                         // Show desktop notification
                         if ('Notification' in window && Notification.permission === 'granted') {
-                            new Notification('New SpendWise Notification', {
+                            new Notification('New Cashible Notification', {
                                 body: latestNotification.message,
-                                icon: '/assests/logo.png',
+                                icon: 'https://i.postimg.cc/ZqxtCkPY/PNGLogo.png',
                             });
                         }
                     }

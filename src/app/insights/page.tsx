@@ -337,7 +337,7 @@ export default function InsightsPage() {
     // Header
     doc.setFontSize(22);
     doc.setFont('helvetica', 'bold');
-    doc.text('SpendWise Monthly Report', doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
+    doc.text('Cashible Monthly Report', doc.internal.pageSize.getWidth() / 2, y, { align: 'center' });
     y += 8;
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
@@ -458,10 +458,10 @@ export default function InsightsPage() {
         doc.setPage(i);
         doc.setFontSize(8); doc.setTextColor(150);
         doc.text(`Page ${i} of ${pageCount}`, doc.internal.pageSize.width - 20, doc.internal.pageSize.height - 10);
-        doc.text(`SpendWise Report Generated on ${format(new Date(), 'PPP')}`, 14, doc.internal.pageSize.height - 10);
+        doc.text(`Cashible Report Generated on ${format(new Date(), 'PPP')}`, 14, doc.internal.pageSize.height - 10);
     }
 
-    doc.save(`SpendWise-Report-${periodLabel.replace(/ /g, '-')}.pdf`);
+    doc.save(`Cashible-Report-${periodLabel.replace(/ /g, '-')}.pdf`);
     setIsDownloading(false);
   };
   

@@ -65,7 +65,7 @@ export function InitialBudgetModal({ open, onOpenChange, onBudgetSet }: InitialB
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Welcome to SpendWise!</DialogTitle>
+          <DialogTitle>Welcome to Cashible!</DialogTitle>
           <DialogDescription>
             Let's start by setting your monthly budget. You can change this later in the settings.
           </DialogDescription>

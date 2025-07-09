@@ -112,7 +112,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2">
             <Logo className="size-8" />
             <h1 className="text-xl font-semibold font-headline text-sidebar-foreground">
-              SpendWise
+              Cashible
             </h1>
           </div>
         </SidebarHeader>

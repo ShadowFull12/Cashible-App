@@ -6,8 +6,8 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
-  title: "SpendWise",
-  description: "Track your monthly expenses with ease.",
+  title: "Cashible",
+  description: "Your smart expense tracking companion.",
 };
 
 export default function RootLayout({
