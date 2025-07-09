@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, PlayCircle, PauseCircle, ShieldAlert, Trash2, Upload } from "lucide-react";
+import { Loader2, PlayCircle, PauseCircle, ShieldAlert, Trash2, Upload, User, Shapes, Repeat, Palette, Shield } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 import React, { useState, useRef, useEffect, useMemo } from "react";
@@ -194,7 +194,7 @@ function RecurringExpenseItem({ expense }: { expense: RecurringExpense }) {
                 </p>
                 <Badge variant="outline">{expense.category}</Badge>
             </div>
-            <div className="flex-shrink-0 flex flex-wrap items-center justify-end gap-4 w-full sm:w-auto">
+            <div className="flex-shrink-0 flex items-center justify-end gap-4 w-full sm:w-auto">
                 <Badge variant={expense.isActive ? 'default' : 'secondary'} className={cn(expense.isActive ? 'bg-green-500/20 text-green-700 border-green-500/30' : 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30')}>
                     {expense.isActive ? <PlayCircle className="mr-2"/> : <PauseCircle className="mr-2"/>}
                     {expense.isActive ? 'Active' : 'Paused'}
@@ -441,15 +441,28 @@ export default function SettingsPage() {
         <div className="grid gap-6">
             <h1 className="text-3xl font-bold font-headline">Settings</h1>
             <Tabs defaultValue="profile" className="w-full">
-                <div className="border-b">
-                    <TabsList className="h-auto flex-wrap justify-start">
-                        <TabsTrigger value="profile">Profile</TabsTrigger>
-                        <TabsTrigger value="categories">Categories</TabsTrigger>
-                        <TabsTrigger value="recurring">Recurring</TabsTrigger>
-                        <TabsTrigger value="appearance">Appearance</TabsTrigger>
-                        <TabsTrigger value="security">Security</TabsTrigger>
-                    </TabsList>
-                </div>
+                <TabsList className="grid w-full grid-cols-5 md:inline-flex md:w-auto">
+                    <TabsTrigger value="profile">
+                        <User className="size-5 md:mr-2" />
+                        <span className="hidden md:inline">Profile</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="categories">
+                        <Shapes className="size-5 md:mr-2" />
+                        <span className="hidden md:inline">Categories</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="recurring">
+                        <Repeat className="size-5 md:mr-2" />
+                        <span className="hidden md:inline">Recurring</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="appearance">
+                        <Palette className="size-5 md:mr-2" />
+                        <span className="hidden md:inline">Appearance</span>
+                    </TabsTrigger>
+                    <TabsTrigger value="security">
+                        <Shield className="size-5 md:mr-2" />
+                        <span className="hidden md:inline">Security</span>
+                    </TabsTrigger>
+                </TabsList>
                 
                 <TabsContent value="profile" className="mt-6">
                     <Card>
