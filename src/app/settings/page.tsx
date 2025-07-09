@@ -190,7 +190,7 @@ function RecurringExpenseItem({ expense }: { expense: RecurringExpense }) {
                 </p>
                 <Badge variant="outline">{expense.category}</Badge>
             </div>
-            <div className="flex items-center gap-4 w-full justify-end sm:w-auto">
+            <div className="flex flex-wrap items-center justify-end gap-4 w-full sm:w-auto sm:flex-nowrap">
                 <Badge variant={expense.isActive ? 'default' : 'secondary'} className={cn(expense.isActive ? 'bg-green-500/20 text-green-700 border-green-500/30' : 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30')}>
                     {expense.isActive ? <PlayCircle className="mr-2"/> : <PauseCircle className="mr-2"/>}
                     {expense.isActive ? 'Active' : 'Paused'}
@@ -475,7 +475,7 @@ export default function SettingsPage() {
                             <div className="space-y-2">
                                 <Label htmlFor="budget">Monthly Budget (₹)</Label>
                                 <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-                                    <Input id="budget" type="number" value={budget} onChange={e => setBudget(Number(e.target.value))} className="w-full sm:max-w-xs" />
+                                    <Input id="budget" type="number" value={budget} onChange={e => setBudget(Number(e.target.value))} className="w-full" />
                                     <Button onClick={handleSaveBudget} disabled={isSavingBudget} className="w-full sm:w-auto">{isSavingBudget && <Loader2 className="mr-2 animate-spin" />}Save Budget</Button>
                                 </div>
                             </div>
@@ -494,7 +494,7 @@ export default function SettingsPage() {
                                             <input type="color" value={categoryColors[cat.name] || '#000000'} onChange={(e) => handleLocalColorChange(cat.name, e.target.value)} className="w-8 h-8 rounded-md border-none cursor-pointer" style={{backgroundColor: categoryColors[cat.name]}} />
                                             <span>{cat.name}</span>
                                         </div>
-                                        <div className="flex items-center gap-2 w-full justify-end sm:w-auto">
+                                        <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto sm:flex-nowrap">
                                             {categoryColors[cat.name] !== originalCategoryColors[cat.name] && (<Button size="sm" onClick={() => handleCategoryColorChange(cat.name)} disabled={savingColor === cat.name}>{savingColor === cat.name ? <Loader2 className="animate-spin"/> : 'Save'}</Button>)}
                                             <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat.name)}><Trash2 className="size-4 text-red-500" /></Button>
                                         </div>
