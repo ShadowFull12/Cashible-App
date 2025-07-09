@@ -190,7 +190,7 @@ function RecurringExpenseItem({ expense }: { expense: RecurringExpense }) {
                 </p>
                 <Badge variant="outline">{expense.category}</Badge>
             </div>
-            <div className="flex items-center gap-4 self-end sm:self-center">
+            <div className="flex items-center gap-4 w-full justify-end sm:w-auto">
                 <Badge variant={expense.isActive ? 'default' : 'secondary'} className={cn(expense.isActive ? 'bg-green-500/20 text-green-700 border-green-500/30' : 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30')}>
                     {expense.isActive ? <PlayCircle className="mr-2"/> : <PauseCircle className="mr-2"/>}
                     {expense.isActive ? 'Active' : 'Paused'}
@@ -494,7 +494,7 @@ export default function SettingsPage() {
                                             <input type="color" value={categoryColors[cat.name] || '#000000'} onChange={(e) => handleLocalColorChange(cat.name, e.target.value)} className="w-8 h-8 rounded-md border-none cursor-pointer" style={{backgroundColor: categoryColors[cat.name]}} />
                                             <span>{cat.name}</span>
                                         </div>
-                                        <div className="flex items-center gap-2 self-end sm:self-center">
+                                        <div className="flex items-center gap-2 w-full justify-end sm:w-auto">
                                             {categoryColors[cat.name] !== originalCategoryColors[cat.name] && (<Button size="sm" onClick={() => handleCategoryColorChange(cat.name)} disabled={savingColor === cat.name}>{savingColor === cat.name ? <Loader2 className="animate-spin"/> : 'Save'}</Button>)}
                                             <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat.name)}><Trash2 className="size-4 text-red-500" /></Button>
                                         </div>
