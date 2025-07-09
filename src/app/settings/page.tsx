@@ -103,19 +103,23 @@ function DangerZone() {
                 <CardDescription>These are irreversible actions. Please proceed with caution.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 rounded-lg border border-destructive/20 p-4">
-                    <div>
+                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 rounded-lg border border-destructive/20 p-4">
+                    <div className="flex-grow">
                         <h4 className="font-semibold">Delete All Data</h4>
                         <p className="text-sm text-muted-foreground">Reset your account to its initial state.</p>
                     </div>
-                    <Button variant="destructive" onClick={() => openConfirmation('deleteData')} className="w-full sm:w-auto">Delete Data</Button>
+                    <div className="flex-shrink-0">
+                        <Button variant="destructive" onClick={() => openConfirmation('deleteData')} className="w-full sm:w-auto">Delete Data</Button>
+                    </div>
                 </div>
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 rounded-lg border border-destructive/20 p-4">
-                    <div>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 rounded-lg border border-destructive/20 p-4">
+                    <div className="flex-grow">
                         <h4 className="font-semibold">Delete Account</h4>
                         <p className="text-sm text-muted-foreground">Permanently remove your account and all data.</p>
                     </div>
-                     <Button variant="destructive" onClick={() => openConfirmation('deleteAccount')} className="w-full sm:w-auto">Delete Account</Button>
+                    <div className="flex-shrink-0">
+                        <Button variant="destructive" onClick={() => openConfirmation('deleteAccount')} className="w-full sm:w-auto">Delete Account</Button>
+                    </div>
                 </div>
             </CardContent>
              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -182,15 +186,15 @@ function RecurringExpenseItem({ expense }: { expense: RecurringExpense }) {
     }
 
     return (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-lg border p-3">
-            <div className="flex-grow">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 rounded-lg border p-3">
+            <div className="flex-grow w-full">
                 <p className="font-medium">{expense.description}</p>
                 <p className="text-sm text-muted-foreground">
                     ₹{expense.amount.toLocaleString()} | Next on: {format(expense.nextDueDate, "PPP")}
                 </p>
                 <Badge variant="outline">{expense.category}</Badge>
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-4 w-full sm:w-auto sm:flex-nowrap">
+            <div className="flex-shrink-0 flex flex-wrap items-center justify-end gap-4 w-full sm:w-auto">
                 <Badge variant={expense.isActive ? 'default' : 'secondary'} className={cn(expense.isActive ? 'bg-green-500/20 text-green-700 border-green-500/30' : 'bg-yellow-500/20 text-yellow-700 border-yellow-500/30')}>
                     {expense.isActive ? <PlayCircle className="mr-2"/> : <PauseCircle className="mr-2"/>}
                     {expense.isActive ? 'Active' : 'Paused'}
@@ -437,8 +441,8 @@ export default function SettingsPage() {
         <div className="grid gap-6">
             <h1 className="text-3xl font-bold font-headline">Settings</h1>
             <Tabs defaultValue="profile" className="w-full">
-                <div className="w-full overflow-x-auto pb-2 border-b">
-                    <TabsList className="w-max">
+                <div className="border-b">
+                    <TabsList className="h-auto flex-wrap justify-start">
                         <TabsTrigger value="profile">Profile</TabsTrigger>
                         <TabsTrigger value="categories">Categories</TabsTrigger>
                         <TabsTrigger value="recurring">Recurring</TabsTrigger>
@@ -489,12 +493,12 @@ export default function SettingsPage() {
                         <CardContent className="space-y-6">
                         <div className="space-y-4">
                                 {isLoading ? <Loader2 className="animate-spin" /> : categories.map(cat => (
-                                    <div key={cat.name} className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 rounded-lg border p-3">
-                                        <div className="flex items-center gap-3">
+                                    <div key={cat.name} className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border p-3">
+                                        <div className="flex-grow flex items-center gap-3 w-full">
                                             <input type="color" value={categoryColors[cat.name] || '#000000'} onChange={(e) => handleLocalColorChange(cat.name, e.target.value)} className="w-8 h-8 rounded-md border-none cursor-pointer" style={{backgroundColor: categoryColors[cat.name]}} />
                                             <span>{cat.name}</span>
                                         </div>
-                                        <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto sm:flex-nowrap">
+                                        <div className="flex-shrink-0 flex items-center justify-end gap-2 w-full sm:w-auto">
                                             {categoryColors[cat.name] !== originalCategoryColors[cat.name] && (<Button size="sm" onClick={() => handleCategoryColorChange(cat.name)} disabled={savingColor === cat.name}>{savingColor === cat.name ? <Loader2 className="animate-spin"/> : 'Save'}</Button>)}
                                             <Button variant="ghost" size="icon" onClick={() => handleDeleteCategory(cat.name)}><Trash2 className="size-4 text-red-500" /></Button>
                                         </div>
