@@ -283,7 +283,7 @@ export const DataProvider = ({ children }: { children: ReactNode }) => {
                         if ('Notification' in window && Notification.permission === 'granted') {
                             new Notification('New Cashible Notification', {
                                 body: latestNotification.message,
-                                icon: 'https://i.postimg.cc/ZqxtCkPY/PNGLogo.png',
+                                icon: 'https://i.postimg.cc/GhKqC9zp/cashible-logo.png',
                             });
                         }
                     }
