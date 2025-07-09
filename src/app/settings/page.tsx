@@ -27,6 +27,7 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ThemeSwitcher } from "@/components/theme-switcher";
+import { Badge } from "@/components/ui/badge";
 
 
 const passwordSchema = z.object({
