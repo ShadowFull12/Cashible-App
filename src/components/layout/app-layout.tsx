@@ -1,4 +1,3 @@
-
 "use client";
 
 import * as React from "react";
@@ -110,7 +109,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <Sidebar>
         <SidebarHeader>
           <div className="flex items-center gap-2">
-            <Logo className="size-8" />
+            <Logo className="size-10" />
             <h1 className="text-xl font-semibold font-headline text-sidebar-foreground">
               Cashible
             </h1>
@@ -126,7 +125,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-16 items-center border-b bg-background/80 px-4 backdrop-blur-sm sm:justify-end">
           <div className="flex w-full items-center justify-between sm:hidden">
-            <SidebarTrigger />
+            <div className="flex items-center gap-2">
+              <SidebarTrigger />
+              <Logo className="size-8" />
+            </div>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
