@@ -6,8 +6,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, PlayCircle, PauseCircle, ShieldAlert, Trash2, Upload, User, Shapes, Repeat, Palette, Shield } from "lucide-react";
-import { useAuth } from "@/hooks/use-auth";
+import { Loader2, PlayCircle, PauseCircle, ShieldAlert, Trash2, Upload, User, Shapes, Repeat, Palette, Shield, Briefcase, ArrowRightLeft } from "lucide-react";
+import { useAuth, AccountType } from "@/hooks/use-auth";
 import { useData } from "@/hooks/use-data";
 import React, { useState, useRef, useEffect, useMemo } from "react";
 import { addCategory, deleteCategory, updateCategory } from "@/services/categoryService";
@@ -20,7 +20,7 @@ import { z } from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import type { RecurringExpense } from "@/lib/data";
+import type { RecurringExpense, BusinessProfile } from "@/lib/data";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -28,7 +28,8 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Badge } from "@/components/ui/badge";
-
+import { deleteAllBusinessData } from "@/services/productService";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 const passwordSchema = z.object({
   currentPassword: z.string().min(1, { message: "Current password is required." }),
@@ -45,6 +46,10 @@ const usernameSchema = z.object({
   password: z.string().min(1, { message: "Password is required to change username." }),
 });
 
+const businessProfileSchema = z.object({
+  businessName: z.string().min(2, { message: "Business name is required." }),
+});
+
 const primaryColors = [
     { name: 'Teal', value: '181 95% 45%' },
     { name: 'Rose', value: '340 82% 52%' },
@@ -54,6 +59,223 @@ const primaryColors = [
     { name: 'Lime', value: '84 81% 44%' },
 ];
 
+function AccountSettingsTab() {
+    const { userData, updateUserProfile } = useAuth();
+    const [isSaving, setIsSaving] = useState(false);
+    const router = useRouter();
+
+    const handleAccountTypeChange = async (type: AccountType) => {
+        if (!userData || type === userData.accountType) return;
+        setIsSaving(true);
+        try {
+            await updateUserProfile({ accountType: type });
+            toast.success(`Switched to ${type} account.`);
+            if (type === 'business' && !userData.businessProfile?.isSetup) {
+                toast.info("Please set up your business profile to start using SalesScribe.", {
+                    action: {
+                        label: 'Go to SalesScribe',
+                        onClick: () => router.push('/sales-scribe'),
+                    },
+                });
+            }
+        } catch (error: any) {
+            toast.error("Failed to switch account type.", { description: error.message });
+        } finally {
+            setIsSaving(false);
+        }
+    }
+
+    if (!userData) return null;
+
+    return (
+        <Card>
+            <CardHeader>
+                <CardTitle>Account Type</CardTitle>
+                <CardDescription>Switch between personal and business account modes.</CardDescription>
+            </CardHeader>
+            <CardContent>
+                <RadioGroup 
+                    defaultValue={userData.accountType} 
+                    onValueChange={(v) => handleAccountTypeChange(v as AccountType)}
+                    className="grid grid-cols-1 md:grid-cols-2 gap-4"
+                    disabled={isSaving}
+                >
+                    <Label htmlFor="personal" className="[&:has([data-state=checked])>div]:border-primary">
+                        <RadioGroupItem value="personal" id="personal" className="sr-only" />
+                        <Card className="p-4 cursor-pointer hover:border-primary/50 transition-colors">
+                            <div className="flex items-center gap-2 mb-2">
+                                <User className="size-5 text-primary" />
+                                <h3 className="text-lg font-semibold">Personal</h3>
+                            </div>
+                            <p className="text-sm text-muted-foreground">For everyday expense tracking and splitting bills with friends.</p>
+                        </Card>
+                    </Label>
+                    <Label htmlFor="business" className="[&:has([data-state=checked])>div]:border-primary">
+                        <RadioGroupItem value="business" id="business" className="sr-only" />
+                        <Card className="p-4 cursor-pointer hover:border-primary/50 transition-colors">
+                           <div className="flex items-center gap-2 mb-2">
+                                <Briefcase className="size-5 text-primary" />
+                                <h3 className="text-lg font-semibold">Business</h3>
+                            </div>
+                           <p className="text-sm text-muted-foreground">Track sales, manage products, and handle customer debt.</p>
+                        </Card>
+                    </Label>
+                </RadioGroup>
+                {isSaving && <div className="flex items-center gap-2 text-sm text-muted-foreground mt-4"><Loader2 className="animate-spin" /> Switching...</div>}
+            </CardContent>
+        </Card>
+    )
+}
+
+function BusinessSettingsTab() {
+    const { user, userData, updateUserProfile, refreshUserData } = useAuth();
+    const businessProfile = userData?.businessProfile;
+    const [logoFile, setLogoFile] = useState<File | null>(null);
+    const [logoPreview, setLogoPreview] = useState<string | null>(businessProfile?.logoUrl || null);
+    const [isSaving, setIsSaving] = useState(false);
+    const logoInputRef = useRef<HTMLInputElement>(null);
+    const isImgBbConfigured = !!process.env.NEXT_PUBLIC_IMGBB_API_KEY;
+
+    const businessForm = useForm<z.infer<typeof businessProfileSchema>>({
+        resolver: zodResolver(businessProfileSchema),
+        defaultValues: { businessName: businessProfile?.name || "" },
+    });
+
+    useEffect(() => {
+        businessForm.reset({ businessName: businessProfile?.name || "" });
+        setLogoPreview(businessProfile?.logoUrl || null);
+    }, [businessProfile, businessForm]);
+
+    const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            setLogoFile(file);
+            setLogoPreview(URL.createObjectURL(file));
+        }
+    };
+    
+    const handleBusinessProfileUpdate = async (values: z.infer<typeof businessProfileSchema>) => {
+        setIsSaving(true);
+        try {
+            let newLogoUrl = businessProfile?.logoUrl || null;
+            if (logoFile && isImgBbConfigured) {
+                const formData = new FormData();
+                formData.append('image', logoFile);
+                const response = await fetch('/api/upload', { method: 'POST', body: formData });
+                const result = await response.json();
+                if (!result.success) throw new Error(result.error?.message || "Upload failed");
+                newLogoUrl = result.data.url;
+            }
+            
+            const updatedProfile: BusinessProfile = {
+                isSetup: true,
+                name: values.businessName,
+                logoUrl: newLogoUrl,
+            };
+
+            await updateUserProfile({ businessProfile: updatedProfile });
+            toast.success("Business profile updated!");
+        } catch (error: any) {
+            toast.error("Failed to update profile", { description: error.message });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+    
+    const handleDeleteBusinessData = async () => {
+        if (!userData?.uid) return;
+        try {
+            await deleteAllBusinessData(userData.uid);
+            await updateUserProfile({
+                businessProfile: { isSetup: false, name: '', logoUrl: null },
+                accountType: 'personal',
+            });
+            await refreshUserData(); 
+            toast.success("All SalesScribe data has been deleted and you've been switched to a personal account.");
+        } catch (error: any) {
+             toast.error("Failed to delete business data.", { description: error.message });
+        }
+    }
+
+    if (userData?.accountType !== 'business') {
+        return (
+             <Card>
+                <CardHeader>
+                    <CardTitle>Business Profile</CardTitle>
+                    <CardDescription>Enable Business Mode from the "Account" tab to manage your business profile.</CardDescription>
+                </CardHeader>
+             </Card>
+        )
+    }
+
+    return (
+        <div className="space-y-6">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Business Profile</CardTitle>
+                    <CardDescription>Manage your business name and logo for invoices.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <Form {...businessForm}>
+                        <form onSubmit={businessForm.handleSubmit(handleBusinessProfileUpdate)} className="space-y-6">
+                            <div className="flex flex-col sm:flex-row items-center gap-6">
+                                <Avatar className="h-20 w-20">
+                                    <AvatarImage src={logoPreview || undefined} alt="Business Logo" />
+                                    <AvatarFallback>{businessForm.watch('businessName')?.charAt(0) || '?'}</AvatarFallback>
+                                </Avatar>
+                                <div className="space-y-2">
+                                    <Button size="sm" type="button" onClick={() => logoInputRef.current?.click()} disabled={!isImgBbConfigured}>
+                                        <Upload className="mr-2"/> Change Logo
+                                    </Button>
+                                    <input type="file" accept="image/*" ref={logoInputRef} onChange={handleLogoChange} className="hidden" />
+                                    <p className="text-xs text-muted-foreground">Appears on invoices.</p>
+                                </div>
+                            </div>
+                             <FormField control={businessForm.control} name="businessName" render={({ field }) => (
+                                 <FormItem>
+                                     <FormLabel>Business Name</FormLabel>
+                                     <FormControl><Input {...field} /></FormControl>
+                                     <FormMessage />
+                                 </FormItem>
+                             )} />
+                             <Button type="submit" disabled={isSaving}>
+                                {isSaving && <Loader2 className="mr-2 animate-spin" />}
+                                Save Changes
+                             </Button>
+                        </form>
+                    </Form>
+                </CardContent>
+            </Card>
+
+            <Card className="border-destructive">
+                <CardHeader>
+                    <CardTitle className="text-destructive flex items-center gap-2"><ShieldAlert /> Revert to Personal Account</CardTitle>
+                    <CardDescription>This will delete all SalesScribe data (products, sales, customers) and switch you back to a personal account.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                            <Button variant="destructive">Delete Business Data & Revert</Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                            <AlertDialogHeader>
+                                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                    This will permanently delete all your SalesScribe data, including all products, sales history, and customer debts, and switch you to a personal account. Your personal expense data will not be affected.
+                                </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={handleDeleteBusinessData}>Confirm & Revert</AlertDialogAction>
+                            </AlertDialogFooter>
+                        </AlertDialogContent>
+                    </AlertDialog>
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
 function DangerZone() {
     const { deleteAccount, deleteAllUserData, reauthenticateWithPassword } = useAuth();
     const router = useRouter();
@@ -62,10 +284,10 @@ function DangerZone() {
     const [password, setPassword] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
-    const dialogTitle = actionType === 'deleteData' ? 'Delete All Your Data?' : 'Delete Your Account?';
+    const dialogTitle = actionType === 'deleteData' ? 'Delete All Your Personal Data?' : 'Delete Your Account?';
     const dialogDescription = actionType === 'deleteData' 
-        ? "This will permanently delete all your transactions, circles, friends, and notifications. Your account will not be deleted, and you can start fresh."
-        : "This will permanently delete your account and all associated data. This action is irreversible.";
+        ? "This will permanently delete all your personal expenses, circles, friends, and notifications. Your account and any business data will not be deleted."
+        : "This will permanently delete your account and ALL associated data (personal and business). This action is irreversible.";
 
     const handleConfirm = async () => {
         if (!actionType) return;
@@ -75,12 +297,12 @@ function DangerZone() {
             
             if (actionType === 'deleteData') {
                 await deleteAllUserData();
-                toast.success("All your data has been deleted.", { description: "Your account has been reset."});
+                toast.success("All your personal data has been deleted.");
                 setDialogOpen(false);
                 router.push('/dashboard');
             } else if (actionType === 'deleteAccount') {
                 await deleteAccount();
-                toast.success("Your account has been permanently deleted.", { description: "We're sad to see you go."});
+                toast.success("Your account has been permanently deleted.");
                 router.push('/');
             }
         } catch (error: any) {
@@ -99,17 +321,17 @@ function DangerZone() {
     return (
         <Card className="border-destructive">
             <CardHeader>
-                <CardTitle className="text-destructive flex items-center gap-2"><ShieldAlert /> Danger Zone</CardTitle>
-                <CardDescription>These are irreversible actions. Please proceed with caution.</CardDescription>
+                <CardTitle className="text-destructive flex items-center gap-2"><ShieldAlert /> Account Danger Zone</CardTitle>
+                <CardDescription>These are irreversible actions that affect your personal account. Please proceed with caution.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 rounded-lg border border-destructive/20 p-4">
                     <div className="flex-grow">
-                        <h4 className="font-semibold">Delete All Data</h4>
-                        <p className="text-sm text-muted-foreground">Reset your account to its initial state.</p>
+                        <h4 className="font-semibold">Delete All Personal Data</h4>
+                        <p className="text-sm text-muted-foreground">Reset your personal account to its initial state.</p>
                     </div>
                     <div className="flex-shrink-0">
-                        <Button variant="destructive" onClick={() => openConfirmation('deleteData')} className="w-full sm:w-auto">Delete Data</Button>
+                        <Button variant="destructive" onClick={() => openConfirmation('deleteData')} className="w-full sm:w-auto">Delete Personal Data</Button>
                     </div>
                 </div>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 rounded-lg border border-destructive/20 p-4">
@@ -441,28 +663,17 @@ export default function SettingsPage() {
         <div className="grid gap-6">
             <h1 className="text-3xl font-bold font-headline">Settings</h1>
             <Tabs defaultValue="profile" className="w-full">
-                <TabsList className="grid w-full grid-cols-5 md:inline-flex md:w-auto">
-                    <TabsTrigger value="profile">
-                        <User className="size-5 md:mr-2" />
-                        <span className="hidden md:inline">Profile</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="categories">
-                        <Shapes className="size-5 md:mr-2" />
-                        <span className="hidden md:inline">Categories</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="recurring">
-                        <Repeat className="size-5 md:mr-2" />
-                        <span className="hidden md:inline">Recurring</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="appearance">
-                        <Palette className="size-5 md:mr-2" />
-                        <span className="hidden md:inline">Appearance</span>
-                    </TabsTrigger>
-                    <TabsTrigger value="security">
-                        <Shield className="size-5 md:mr-2" />
-                        <span className="hidden md:inline">Security</span>
-                    </TabsTrigger>
-                </TabsList>
+                <div className="overflow-x-auto pb-2">
+                    <TabsList className="inline-flex w-auto items-center justify-start">
+                        <TabsTrigger value="profile"><User className="size-5 md:mr-2" /><span className="hidden md:inline">Profile</span></TabsTrigger>
+                        <TabsTrigger value="account"><ArrowRightLeft className="size-5 md:mr-2" /><span className="hidden md:inline">Account</span></TabsTrigger>
+                        {userData?.accountType === 'business' && <TabsTrigger value="business"><Briefcase className="size-5 md:mr-2" /><span className="hidden md:inline">Business</span></TabsTrigger>}
+                        <TabsTrigger value="categories"><Shapes className="size-5 md:mr-2" /><span className="hidden md:inline">Categories</span></TabsTrigger>
+                        <TabsTrigger value="recurring"><Repeat className="size-5 md:mr-2" /><span className="hidden md:inline">Recurring</span></TabsTrigger>
+                        <TabsTrigger value="appearance"><Palette className="size-5 md:mr-2" /><span className="hidden md:inline">Appearance</span></TabsTrigger>
+                        <TabsTrigger value="security"><Shield className="size-5 md:mr-2" /><span className="hidden md:inline">Security</span></TabsTrigger>
+                    </TabsList>
+                </div>
                 
                 <TabsContent value="profile" className="mt-6">
                     <Card>
@@ -498,6 +709,14 @@ export default function SettingsPage() {
                             </div>
                         </CardContent>
                     </Card>
+                </TabsContent>
+
+                <TabsContent value="account" className="mt-6">
+                   <AccountSettingsTab />
+                </TabsContent>
+
+                <TabsContent value="business" className="mt-6">
+                    <BusinessSettingsTab />
                 </TabsContent>
 
                 <TabsContent value="categories" className="mt-6">

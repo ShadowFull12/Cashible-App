@@ -17,6 +17,9 @@ import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { toast } from "sonner";
 import * as userService from '@/services/userService';
 import * as authService from '@/services/authService';
+import type { BusinessProfile } from '@/lib/data';
+
+export type AccountType = 'personal' | 'business';
 
 interface UserData {
   uid: string;
@@ -28,6 +31,8 @@ interface UserData {
   budgetIsSet: boolean;
   photoURL?: string;
   primaryColor?: string;
+  businessProfile?: BusinessProfile;
+  accountType: AccountType;
 }
 
 interface AuthContextType {
@@ -35,6 +40,7 @@ interface AuthContextType {
   loading: boolean;
   userData: UserData | null; 
   isSettingUsername: boolean;
+  isChoosingAccountType: boolean;
   logout: () => Promise<void>;
   refreshUserData: () => Promise<void>;
   updateUserProfile: (data: Partial<UserData>) => Promise<void>;
@@ -48,6 +54,7 @@ interface AuthContextType {
   signInWithEmail: (emailOrUsername: string, password: string) => Promise<void>;
   signUpWithEmail: (email: string, password: string, displayName: string) => Promise<void>;
   completeInitialSetup: (username: string) => Promise<void>;
+  completeAccountTypeChoice: (type: AccountType) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -57,6 +64,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSettingUsername, setIsSettingUsername] = useState(false);
+  const [isChoosingAccountType, setIsChoosingAccountType] = useState(false);
 
   const fetchUserData = useCallback(async (user: User) => {
     if (!db) return;
@@ -69,8 +77,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setUserData(data);
             if (!data.username) {
                 setIsSettingUsername(true);
+                setIsChoosingAccountType(false);
+            } else if (!data.accountType) {
+                setIsSettingUsername(false);
+                setIsChoosingAccountType(true);
             } else {
                 setIsSettingUsername(false);
+                setIsChoosingAccountType(false);
             }
         }
     } catch (error: any) {
@@ -99,6 +112,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } else {
           setUserData(null);
           setIsSettingUsername(false);
+          setIsChoosingAccountType(false);
         }
         setLoading(false);
       });
@@ -148,9 +162,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         await userService.setUsernameForNewUser(user.uid, username);
         await refreshUserData();
         setIsSettingUsername(false);
+        setIsChoosingAccountType(true);
     } catch(error) {
         throw error;
     }
+  }, [user, refreshUserData]);
+  
+  const completeAccountTypeChoice = useCallback(async (type: AccountType) => {
+      if (!user) throw new Error("User not authenticated.");
+      try {
+          await updateUserProfile({ accountType: type });
+          setIsChoosingAccountType(false);
+          await refreshUserData();
+      } catch(error) {
+           throw error;
+      }
   }, [user, refreshUserData]);
 
   const updateUserProfile = useCallback(async (data: Partial<UserData>) => {
@@ -175,7 +201,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [user, refreshUserData]);
 
   const uploadAndSetProfileImage = useCallback(async (file: File) => {
-      await updateUserProfile({ photoURL: await userService.uploadProfileImage(file) });
+      if (!process.env.NEXT_PUBLIC_IMGBB_API_KEY) {
+        toast.error("Image upload is not configured.");
+        return;
+      }
+      const newPhotoURL = await userService.uploadProfileImage(file);
+      await updateUserProfile({ photoURL: newPhotoURL });
   }, [updateUserProfile]);
   
   const updateUserPassword = useCallback(async (currentPassword: string, newPassword: string) => {
@@ -212,12 +243,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [user]);
 
   const value: AuthContextType = {
-    user, loading, userData, isSettingUsername, logout, refreshUserData,
+    user, loading, userData, isSettingUsername, isChoosingAccountType, logout, refreshUserData,
     updateUserProfile, uploadAndSetProfileImage,
     updateUserPassword, updateUserEmail, updateUserUsername, reauthenticateWithPassword,
     deleteAllUserData, deleteAccount,
     signInWithEmail, signUpWithEmail,
-    completeInitialSetup,
+    completeInitialSetup, completeAccountTypeChoice,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

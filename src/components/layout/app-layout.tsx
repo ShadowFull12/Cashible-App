@@ -1,3 +1,4 @@
+
 "use client";
 
 import * as React from "react";
@@ -35,6 +36,7 @@ import { BottomNav } from "./bottom-nav";
 import { InitialBudgetModal } from "../initial-budget-modal";
 import { SetUsernameModal } from "../set-username-modal";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import { SetAccountTypeModal } from "../set-account-type-modal";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [isBudgetModalOpen, setIsBudgetModalOpen] = React.useState(false);
@@ -47,7 +49,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     newExpenseDefaultCircleId,
     setAudioRef,
    } = useData();
-  const { user, userData, loading: authLoading, logout, isSettingUsername, completeInitialSetup } = useAuth();
+  const { user, userData, loading: authLoading, logout, isSettingUsername, isChoosingAccountType, completeInitialSetup, completeAccountTypeChoice } = useAuth();
   const isMobile = useIsMobile();
   const router = useRouter();
   const audioRef = React.useRef<HTMLAudioElement>(null);
@@ -71,10 +73,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   React.useEffect(() => {
-    if (!authLoading && userData && userData.budgetIsSet === false && !isSettingUsername) {
+    if (!authLoading && userData && userData.budgetIsSet === false && !isSettingUsername && !isChoosingAccountType) {
       setIsBudgetModalOpen(true);
     }
-  }, [userData, authLoading, isSettingUsername]);
+  }, [userData, authLoading, isSettingUsername, isChoosingAccountType]);
 
   const handleExpenseAdded = () => {
     refreshData();
@@ -197,6 +199,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
        <SetUsernameModal 
           open={isSettingUsername}
           onUsernameSet={completeInitialSetup}
+      />
+      <SetAccountTypeModal
+        open={isChoosingAccountType}
+        onAccountTypeSet={completeAccountTypeChoice}
       />
       <InitialBudgetModal
         open={isBudgetModalOpen}

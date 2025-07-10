@@ -57,7 +57,8 @@ export default function HistoryPage() {
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterMonth, setFilterMonth] = useState<string>("all");
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString());
-  const [sortConfig, setSortConfig] = useState<SortConfig>(null);
+  const [expenseSortConfig, setExpenseSortConfig] = useState<SortConfig>(null);
+  const [incomeSortConfig, setIncomeSortConfig] = useState<SortConfig>(null);
 
   const [isClient, setIsClient] = useState(false);
   const isMobile = useIsMobile();
@@ -77,18 +78,30 @@ export default function HistoryPage() {
     }, {} as {[key: string]: string});
   }, [categories]);
   
-  const requestSort = (key: SortableKeys) => {
+  const requestExpenseSort = (key: SortableKeys) => {
     let direction: 'ascending' | 'descending' = 'ascending';
-    if (sortConfig && sortConfig.key === key) {
-        if(sortConfig.direction === 'ascending') {
+    if (expenseSortConfig && expenseSortConfig.key === key) {
+        if(expenseSortConfig.direction === 'ascending') {
             direction = 'descending';
         } else {
-            // Cycle to off
-            setSortConfig(null);
+            setExpenseSortConfig(null);
             return;
         }
     }
-    setSortConfig({ key, direction });
+    setExpenseSortConfig({ key, direction });
+  };
+
+  const requestIncomeSort = (key: SortableKeys) => {
+    let direction: 'ascending' | 'descending' = 'ascending';
+    if (incomeSortConfig && incomeSortConfig.key === key) {
+        if(incomeSortConfig.direction === 'ascending') {
+            direction = 'descending';
+        } else {
+            setIncomeSortConfig(null);
+            return;
+        }
+    }
+    setIncomeSortConfig({ key, direction });
   };
 
 
@@ -102,42 +115,56 @@ export default function HistoryPage() {
       return descriptionMatch && categoryMatch && monthMatch && yearMatch;
     });
 
-    if (sortConfig !== null) {
+    if (expenseSortConfig !== null) {
         sortableItems.sort((a, b) => {
-            if (a[sortConfig.key] < b[sortConfig.key]) {
-                return sortConfig.direction === 'ascending' ? -1 : 1;
+            if (a[expenseSortConfig.key] < b[expenseSortConfig.key]) {
+                return expenseSortConfig.direction === 'ascending' ? -1 : 1;
             }
-            if (a[sortConfig.key] > b[sortConfig.key]) {
-                return sortConfig.direction === 'ascending' ? 1 : -1;
+            if (a[expenseSortConfig.key] > b[expenseSortConfig.key]) {
+                return expenseSortConfig.direction === 'ascending' ? 1 : -1;
             }
             return 0;
         });
     } else {
-        // Default sort by date descending
         sortableItems.sort((a,b) => b.date.getTime() - a.date.getTime());
     }
 
     return sortableItems;
-  }, [transactions, filterDescription, filterCategory, filterMonth, filterYear, sortConfig]);
+  }, [transactions, filterDescription, filterCategory, filterMonth, filterYear, expenseSortConfig]);
   
   const filteredIncome = useMemo(() => {
-      return transactions.filter(t => {
+      let sortableItems = transactions.filter(t => {
           if (t.amount >= 0) return false;
           const monthMatch = filterMonth === 'all' || t.date.getMonth().toString() === filterMonth;
           const yearMatch = t.date.getFullYear().toString() === filterYear;
           return monthMatch && yearMatch;
       });
-  }, [transactions, filterMonth, filterYear]);
+
+      if (incomeSortConfig !== null) {
+          sortableItems.sort((a, b) => {
+              if (a[incomeSortConfig.key] < b[incomeSortConfig.key]) {
+                  return incomeSortConfig.direction === 'ascending' ? -1 : 1;
+              }
+              if (a[incomeSortConfig.key] > b[incomeSortConfig.key]) {
+                  return incomeSortConfig.direction === 'ascending' ? 1 : -1;
+              }
+              return 0;
+          });
+      } else {
+          sortableItems.sort((a,b) => b.date.getTime() - a.date.getTime());
+      }
+      return sortableItems;
+  }, [transactions, filterMonth, filterYear, incomeSortConfig]);
 
   const renderDesktopExpenses = () => (
     <div className="relative w-full overflow-x-auto">
         <Table>
             <TableHeader>
             <TableRow>
-                <SortableHeader columnKey="description" sortConfig={sortConfig} requestSort={requestSort}>Transaction</SortableHeader>
-                <SortableHeader columnKey="category" sortConfig={sortConfig} requestSort={requestSort}>Category</SortableHeader>
-                <SortableHeader columnKey="date" sortConfig={sortConfig} requestSort={requestSort}>Date</SortableHeader>
-                <SortableHeader columnKey="amount" sortConfig={sortConfig} requestSort={requestSort} className="text-right">Amount</SortableHeader>
+                <SortableHeader columnKey="description" sortConfig={expenseSortConfig} requestSort={requestExpenseSort}>Transaction</SortableHeader>
+                <SortableHeader columnKey="category" sortConfig={expenseSortConfig} requestSort={requestExpenseSort}>Category</SortableHeader>
+                <SortableHeader columnKey="date" sortConfig={expenseSortConfig} requestSort={requestExpenseSort}>Date</SortableHeader>
+                <SortableHeader columnKey="amount" sortConfig={expenseSortConfig} requestSort={requestExpenseSort} className="text-right">Amount</SortableHeader>
                 <TableHead className="w-[10px]"></TableHead>
             </TableRow>
             </TableHeader>
@@ -268,21 +295,20 @@ export default function HistoryPage() {
                {isClient ? (isMobile ? renderMobileExpenses() : renderDesktopExpenses()) : <Skeleton className="h-64 w-full" />}
             </TabsContent>
             <TabsContent value="income" className="mt-4">
-                 <div className="relative w-full overflow-x-auto">
+                 <div className="w-full">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Details</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Source</TableHead>
-                        <TableHead className="text-right">Amount</TableHead>
+                        <SortableHeader columnKey="description" sortConfig={incomeSortConfig} requestSort={requestIncomeSort}>Details</SortableHeader>
+                        <SortableHeader columnKey="date" sortConfig={incomeSortConfig} requestSort={requestIncomeSort}>Date</SortableHeader>
+                        <SortableHeader columnKey="amount" sortConfig={incomeSortConfig} requestSort={requestIncomeSort} className="text-right">Amount</SortableHeader>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                         {isLoading ? (
                             Array.from({length: 3}).map((_, i) => (
                                 <TableRow key={i}>
-                                    <TableCell colSpan={4}><Skeleton className="h-8 w-full" /></TableCell>
+                                    <TableCell colSpan={3}><Skeleton className="h-8 w-full" /></TableCell>
                                 </TableRow>
                             ))
                         ) : filteredIncome.length > 0 ? (
@@ -292,11 +318,6 @@ export default function HistoryPage() {
                                         {t.description}
                                     </TableCell>
                                     <TableCell>{format(t.date, "PPP")}</TableCell>
-                                    <TableCell>
-                                        <Badge variant="secondary" className="text-green-600">
-                                            <HandCoins className="mr-1 size-3" /> {t.category}
-                                        </Badge>
-                                    </TableCell>
                                     <TableCell className="text-right text-green-500 font-bold">
                                         +₹{Math.abs(t.amount).toLocaleString()}
                                     </TableCell>
@@ -304,7 +325,7 @@ export default function HistoryPage() {
                             ))
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={4} className="text-center h-24">
+                                <TableCell colSpan={3} className="text-center h-24">
                                     No income recorded for the selected filters.
                                 </TableCell>
                             </TableRow>

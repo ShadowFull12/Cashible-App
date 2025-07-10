@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { TransactionActions } from "@/components/transaction-actions"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Skeleton } from "@/components/ui/skeleton"
+import { cn } from "@/lib/utils"
 
 
 export default function CalendarPage() {
@@ -26,31 +27,37 @@ export default function CalendarPage() {
   }, []);
   
   React.useEffect(() => {
-    // Set default date for new expenses when a date is selected
     if (date) {
       setNewExpenseDefaultDate(date);
     }
-    // Cleanup on unmount
     return () => {
       setNewExpenseDefaultDate(null);
     }
   }, [date, setNewExpenseDefaultDate]);
   
-  const expenseDays = React.useMemo(() => {
-    const dayMap = new Map<string, { categories: Set<string>, transactions: Transaction[] }>();
+  const dailyTransactions = React.useMemo(() => {
+    const dayMap = new Map<string, { categories: Set<string>, transactions: Transaction[], hasIncome: boolean, hasExpense: boolean }>();
     transactions.forEach(t => {
       const dayStr = format(t.date, 'yyyy-MM-dd');
       if (!dayMap.has(dayStr)) {
-        dayMap.set(dayStr, { categories: new Set(), transactions: [] });
+        dayMap.set(dayStr, { categories: new Set(), transactions: [], hasIncome: false, hasExpense: false });
       }
-      dayMap.get(dayStr)!.categories.add(t.category);
-      dayMap.get(dayStr)!.transactions.push(t);
+      const dayData = dayMap.get(dayStr)!;
+      dayData.transactions.push(t);
+      if (t.amount > 0) {
+        dayData.categories.add(t.category);
+        dayData.hasExpense = true;
+      } else {
+        dayData.hasIncome = true;
+      }
     });
     
     return Array.from(dayMap.entries()).map(([dayStr, data]) => ({
       date: new Date(dayStr),
       categories: Array.from(data.categories),
-      transactions: data.transactions,
+      transactions: data.transactions.sort((a,b) => b.date.getTime() - a.date.getTime()),
+      hasIncome: data.hasIncome,
+      hasExpense: data.hasExpense,
     }));
   }, [transactions]);
 
@@ -61,15 +68,15 @@ export default function CalendarPage() {
     }, {} as {[key: string]: string});
   }, [categories]);
   
-  const selectedDayExpenses = React.useMemo(() => {
+  const selectedDayTransactions = React.useMemo(() => {
       if (!date) return [];
-      const dayMatch = expenseDays.find(d => 
+      const dayMatch = dailyTransactions.find(d => 
         d.date.getDate() === date.getDate() &&
         d.date.getMonth() === date.getMonth() &&
         d.date.getFullYear() === date.getFullYear()
       );
       return dayMatch ? dayMatch.transactions : [];
-  }, [date, expenseDays]);
+  }, [date, dailyTransactions]);
 
   const renderDesktopTable = () => (
     <Table>
@@ -82,15 +89,17 @@ export default function CalendarPage() {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {selectedDayExpenses.map(t => (
+        {selectedDayTransactions.map(t => (
           <TableRow key={t.id}>
             <TableCell className="font-medium">{t.description}</TableCell>
             <TableCell>
-              <Badge variant="outline" style={{borderColor: categoryColors[t.category]}}>
+              <Badge variant="outline" style={{borderColor: t.amount > 0 ? categoryColors[t.category] : 'hsl(var(--primary))'}}>
                 {t.category}
               </Badge>
             </TableCell>
-            <TableCell className="text-right">₹{t.amount.toLocaleString()}</TableCell>
+            <TableCell className={cn("text-right font-bold", t.amount < 0 && 'text-green-500')}>
+                {t.amount < 0 && '+'}{t.amount < 0 ? `₹${Math.abs(t.amount).toLocaleString()}` : `₹${t.amount.toLocaleString()}`}
+            </TableCell>
               <TableCell>
                   <TransactionActions transaction={t} onDelete={refreshData} onUpdate={refreshData} />
               </TableCell>
@@ -102,17 +111,19 @@ export default function CalendarPage() {
 
   const renderMobileCards = () => (
     <div className="space-y-3">
-      {selectedDayExpenses.map(t => (
+      {selectedDayTransactions.map(t => (
         <Card key={t.id} className="p-4">
             <div className="flex justify-between items-start">
                 <div className="flex-grow space-y-1">
                     <p className="font-medium">{t.description}</p>
-                    <Badge variant="outline" style={{borderColor: categoryColors[t.category]}}>
+                    <Badge variant="outline" style={{borderColor: t.amount > 0 ? categoryColors[t.category] : 'hsl(var(--primary))'}}>
                         {t.category}
                     </Badge>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                    <p className="font-bold text-lg">₹{t.amount.toLocaleString()}</p>
+                    <p className={cn("font-bold text-lg", t.amount < 0 && 'text-green-500')}>
+                        {t.amount < 0 && '+'}{t.amount < 0 ? `₹${Math.abs(t.amount).toLocaleString()}` : `₹${t.amount.toLocaleString()}`}
+                    </p>
                     <TransactionActions transaction={t} onDelete={refreshData} onUpdate={refreshData} />
                 </div>
             </div>
@@ -136,7 +147,7 @@ export default function CalendarPage() {
             className="rounded-md border"
             components={{
               DayContent: ({ date }) => {
-                const dayMatch = expenseDays.find(d => 
+                const dayMatch = dailyTransactions.find(d => 
                     d.date.getDate() === date.getDate() &&
                     d.date.getMonth() === date.getMonth() &&
                     d.date.getFullYear() === date.getFullYear()
@@ -146,10 +157,9 @@ export default function CalendarPage() {
                   <div className="relative h-full w-full flex items-center justify-center">
                      <p>{date.getDate()}</p>
                     {dayMatch && (
-                      <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-0.5">
-                        {dayMatch.categories.slice(0, 3).map(cat => (
-                           <span key={cat} className={`h-1.5 w-1.5 rounded-full`} style={{backgroundColor: categoryColors[cat] || 'gray'}}></span>
-                        ))}
+                      <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex gap-1">
+                         {dayMatch.hasExpense && <span className={`h-1.5 w-1.5 rounded-full bg-destructive`}></span>}
+                         {dayMatch.hasIncome && <span className={`h-1.5 w-1.5 rounded-full bg-green-500`}></span>}
                       </div>
                     )}
                   </div>
@@ -163,18 +173,19 @@ export default function CalendarPage() {
                             </PopoverTrigger>
                             <PopoverContent className="w-80">
                                <div className="space-y-2">
-                                    <h4 className="font-medium leading-none">Expenses for {format(date, "PPP")}</h4>
+                                    <h4 className="font-medium leading-none">Transactions for {format(date, "PPP")}</h4>
                                     <div className="text-sm text-muted-foreground space-y-1">
                                         {dayMatch.transactions.map(t => (
                                             <div key={t.id} className="flex justify-between items-center">
                                                 <span>
-                                                    <Badge variant="outline" className="mr-2" style={{borderColor: categoryColors[t.category]}}>
+                                                    <Badge variant="outline" className="mr-2" style={{borderColor: t.amount > 0 ? categoryColors[t.category] : 'hsl(var(--primary))'}}>
                                                         {t.category}
                                                     </Badge>
                                                     {t.description}
                                                 </span>
-                                                <span className="font-medium">₹{t.amount.toLocaleString()}</span>
-                                                <TransactionActions transaction={t} onDelete={refreshData} onUpdate={refreshData} />
+                                                <span className={cn("font-medium", t.amount < 0 && 'text-green-500')}>
+                                                    {t.amount < 0 ? '+' : ''}₹{Math.abs(t.amount).toLocaleString()}
+                                                </span>
                                             </div>
                                         ))}
                                     </div>
@@ -191,11 +202,11 @@ export default function CalendarPage() {
         </CardContent>
     </Card>
 
-    {selectedDayExpenses.length > 0 && (
+    {selectedDayTransactions.length > 0 && (
       <Card>
         <CardHeader>
-          <CardTitle>Expenses for {date ? format(date, "PPP") : ''}</CardTitle>
-          <CardDescription>A detailed list of your expenses for the selected day.</CardDescription>
+          <CardTitle>Transactions for {date ? format(date, "PPP") : ''}</CardTitle>
+          <CardDescription>A detailed list of your income and expenses for the selected day.</CardDescription>
         </CardHeader>
         <CardContent>
           {isClient ? (isMobile ? renderMobileCards() : renderDesktopTable()) : <Skeleton className="h-40 w-full"/>}

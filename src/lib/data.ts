@@ -25,6 +25,27 @@ export interface Transaction {
     isSplit?: boolean;
     circleId?: string | null;
     splitDetails?: SplitDetails | null;
+    type?: 'expense' | 'income';
+    saleDetails?: SaleDetails | null;
+    relatedSaleId?: string; 
+}
+
+export interface SaleItem {
+    name: string;
+    quantity: number;
+    price: number;
+}
+
+export type PaymentStatus = 'paid' | 'partial' | 'unpaid';
+
+export interface SaleDetails {
+    items: SaleItem[];
+    totalAmount: number;
+    customerName?: string | null;
+    customerId?: string | null;
+    paymentStatus: PaymentStatus;
+    amountPaid: number;
+    notes?: string | null;
 }
 
 export type RecurringExpenseFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -45,7 +66,7 @@ export interface UserProfile {
     displayName: string;
     email: string;
     photoURL: string | null;
-    username: string;
+    username?: string;
 }
 
 export interface FriendRequest {
@@ -60,8 +81,8 @@ export interface Circle {
     id: string;
     name: string;
     ownerId: string;
-    memberIds: string[]; // For querying
-    members: { [uid: string]: UserProfile }; // For storing member details
+    memberIds: string[]; 
+    members: { [uid: string]: UserProfile }; 
     createdAt: Date;
     photoURL?: string | null;
     lastMessageAt?: Date | null;
@@ -78,7 +99,7 @@ export interface Debt {
     debtorId: string;
     creditorId: string;
     amount: number;
-    isSettled?: boolean; // For backwards compatibility
+    isSettled?: boolean; 
     settlementStatus: DebtSettlementStatus;
     createdAt: Date;
     involvedUids: string[];
@@ -124,22 +145,23 @@ export type NotificationType =
     'expense-claim-accepted' |
     'expense-claim-rejected' |
     'settlement-request' | 
-    'settlement-expense-pending' | // To Payer
-    'settlement-income-pending' | // To Creditor
+    'settlement-expense-pending' | 
+    'settlement-income-pending' | 
     'settlement-rejected' | 
     'circle-member-joined' |
-    'circle-expense-removed-by-owner';
+    'circle-expense-removed-by-owner' |
+    'feature-announcement';
 
 
 export interface Notification {
     id: string;
-    userId: string; // The user who receives the notification
+    userId: string; 
     fromUser: UserProfile;
     type: NotificationType;
     message: string;
     link: string;
     read: boolean;
-    relatedId?: string; // e.g., friend request ID, expense claim ID
+    relatedId?: string; 
     createdAt: Date;
 }
 
@@ -175,4 +197,25 @@ export interface ChatMessage {
     } | null;
     isDeleted?: boolean;
     deletedFor?: string[];
+}
+
+export interface BusinessProfile {
+    isSetup: boolean;
+    name: string;
+    logoUrl: string | null;
+}
+
+export interface Product {
+    id?: string;
+    userId: string;
+    name: string;
+    price: number;
+}
+
+export interface Customer {
+    id?: string;
+    userId: string;
+    name: string;
+    totalDebt: number;
+    unpaidSaleIds: string[];
 }

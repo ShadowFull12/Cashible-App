@@ -23,13 +23,16 @@ export async function createInitialUserDocument(user: User, displayName: string)
     await setDoc(userDocRef, {
       uid: user.uid,
       displayName: displayName,
-      username: null, // To be set by the user in the next step
+      username: null, 
       email: user.email!,
       categories: defaultCategories,
       budget: 0,
       budgetIsSet: false,
       photoURL: user.photoURL || null,
       primaryColor: '181 95% 45%',
+      businessProfile: { isSetup: false, name: '', logoUrl: null },
+      accountType: null, // To be set by user
+      hasReceivedSalesScribeBetaNotification: false,
     });
 }
 
@@ -167,21 +170,25 @@ export async function searchUsers(searchTerm: string): Promise<UserProfile[]> {
 }
 
 export async function uploadProfileImage(file: File): Promise<string> {
-    const apiKey = process.env.NEXT_PUBLIC_IMGBB_API_KEY;
-    if (!apiKey) throw new Error("ImgBB API key is not configured. Please add it to your .env.local file.");
     const formData = new FormData();
     formData.append("image", file);
+
     try {
-        const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, { method: 'POST', body: formData });
+        const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData,
+        });
+
         const result = await response.json();
+
         if (!response.ok) {
-            console.error("ImgBB API Error - Non-OK response:", { status: response.status, statusText: response.statusText, body: result });
-            throw new Error(result?.error?.message || `Failed to upload image. Server responded with ${response.status}.`);
+            throw new Error(result.error || `Failed to upload image. Server responded with ${response.status}.`);
         }
+
         if (!result.success) {
-            console.error("ImgBB API Error - Success False:", result);
-            throw new Error(result?.error?.message || "Upload failed due to a generic API error.");
+            throw new Error(result.error?.message || "Upload failed due to a generic API error.");
         }
+        
         return result.data.url;
     } catch (error) {
         console.error("Error during image upload fetch/parse:", error);

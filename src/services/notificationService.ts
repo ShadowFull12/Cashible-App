@@ -1,6 +1,6 @@
 
 import { db } from "@/lib/firebase";
-import { collection, addDoc, query, where, onSnapshot, Unsubscribe, Timestamp, updateDoc, doc, getDocs, writeBatch, deleteDoc, WriteBatch } from "firebase/firestore";
+import { collection, addDoc, query, where, onSnapshot, Unsubscribe, Timestamp, updateDoc, doc, getDocs, writeBatch, deleteDoc, WriteBatch, runTransaction } from "firebase/firestore";
 import type { Notification, NotificationType, UserProfile } from "@/lib/data";
 
 
@@ -119,4 +119,52 @@ export async function addNotificationsDeletionsToBatch(userId: string, batch: Wr
     querySnapshot.forEach((doc) => {
         batch.delete(doc.ref);
     });
+}
+
+export async function sendSalesScribeBetaNotification() {
+    if (!db) throw new Error("Firebase is not configured.");
+
+    const usersRef = collection(db, "users");
+    const q = query(usersRef, where("hasReceivedSalesScribeBetaNotification", "==", false));
+    const usersSnapshot = await getDocs(q);
+
+    if (usersSnapshot.empty) {
+        console.log("No users to notify about SalesScribe Beta.");
+        return;
+    }
+    
+    const serverProfile: UserProfile = {
+        uid: "server",
+        displayName: "Cashible Team",
+        email: "",
+        photoURL: "https://i.postimg.cc/GhKqC9zp/cashible-logo.png"
+    };
+
+    console.log(`Sending SalesScribe Beta notification to ${usersSnapshot.size} users.`);
+
+    for (const userDoc of usersSnapshot.docs) {
+        try {
+            await runTransaction(db, async (transaction) => {
+                const freshUserDoc = await transaction.get(userDoc.ref);
+                if (freshUserDoc.data()?.hasReceivedSalesScribeBetaNotification === false) {
+                    const notificationRef = doc(collection(db, "notifications"));
+                    
+                    transaction.set(notificationRef, {
+                        userId: userDoc.id,
+                        fromUser: serverProfile,
+                        type: 'feature-announcement',
+                        message: 'Introducing SalesScribe (Beta)! Manage sales, products, and customer debt. Enable it in settings.',
+                        link: '/settings',
+                        relatedId: 'salesscribe-beta-announcement',
+                        read: false,
+                        createdAt: Timestamp.now(),
+                    });
+
+                    transaction.update(userDoc.ref, { hasReceivedSalesScribeBetaNotification: true });
+                }
+            });
+        } catch (error) {
+            console.error(`Failed to send notification to user ${userDoc.id}:`, error);
+        }
+    }
 }
